@@ -39,8 +39,6 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false),
   image: text("image"),
-  // Champ custom : lie l'admin à son tenant
-  tenantId: uuid("tenant_id").references(() => tenants.id),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -58,8 +56,6 @@ export const sessions = pgTable("sessions", {
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  // tenantId en session évite un lookup DB dans le middleware
-  tenantId: uuid("tenant_id").references(() => tenants.id),
 });
 
 // ─── AUTH — Accounts ──────────────────────────────────────────────────────────

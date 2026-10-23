@@ -12,6 +12,7 @@ import {
   RoomUnavailableError,
 } from "@/lib/booking-intake";
 import { stripe } from "@/lib/stripe";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { bookingPublicSchema, safeParseFormData } from "@/lib/validation";
 import type Stripe from "stripe";
 
@@ -44,6 +45,14 @@ export async function createBookingPublic(
   const values: Record<string, string> = {};
   for (const [k, v] of formData.entries())
     if (typeof v === "string") values[k] = v;
+
+  // Le proxy ne limite que /api/* : sans ceci, un bot peut garder toutes les chambres en pending.
+  const ip = headersList.get("x-forwarded-for")?.split(",")[0]?.trim()
+    ?? headersList.get("x-real-ip")
+    ?? "unknown";
+  if (checkRateLimit({ name: "booking-public", limit: 5, windowSec: 600 }, ip).limited) {
+    return { error: "Trop de tentatives, réessayez dans quelques minutes.", values };
+  }
 
   const parsed = safeParseFormData(bookingPublicSchema, formData);
   if ("error" in parsed) return { ...parsed, values };
@@ -125,7 +134,8 @@ export async function createBookingPublic(
     headersList.get("origin") ??
     headersList.get("x-forwarded-proto") + "://" + headersList.get("host");
 
-  // Si le tenant a un compte Stripe Connect, le paiement va directement chez lui (0% commission)
+  // Stripe Connect en direct charge : la session est créée SUR le compte du tenant,
+  // qui encaisse 100 % et paie lui-même les frais Stripe (jamais la plateforme).
   const stripeAccountId = tenant?.stripeAccountId;
 
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
@@ -154,21 +164,14 @@ export async function createBookingPublic(
     expires_at: Math.floor(Date.now() / 1000) + 1800, // 30 minutes
   };
 
-  // Stripe Connect : 100% du paiement va au tenant, les frais Stripe sont à sa charge
-  if (stripeAccountId) {
-    sessionParams.payment_intent_data = {
-      on_behalf_of: stripeAccountId,
-      transfer_data: {
-        destination: stripeAccountId,
-      },
-    };
-  }
-
   // Sans session Stripe, aucun événement `expired` n'annulera jamais ce pending :
   // on le retire tout de suite pour ne pas bloquer la chambre indéfiniment.
   let session: Stripe.Checkout.Session;
   try {
-    session = await stripe.checkout.sessions.create(sessionParams);
+    session = await stripe.checkout.sessions.create(
+      sessionParams,
+      stripeAccountId ? { stripeAccount: stripeAccountId } : undefined,
+    );
   } catch (e) {
     await db.delete(bookings).where(eq(bookings.id, bookingId));
     console.error("Création de la session Stripe impossible:", e);

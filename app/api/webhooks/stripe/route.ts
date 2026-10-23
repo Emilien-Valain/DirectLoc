@@ -12,6 +12,7 @@ import {
   sendPaidAfterCancellationAlert,
 } from "@/lib/email";
 import type { TenantConfig } from "@/lib/tenant-context";
+import { isUuid } from "@/lib/validation";
 
 /** Emails des admins du tenant (destinataires des notifications hôte). */
 async function tenantAdminEmails(tenantId: string): Promise<string[]> {
@@ -74,16 +75,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature manquante" }, { status: 400 });
   }
 
-  let event: Stripe.Event;
-
-  try {
-    event = stripe.webhooks.constructEvent(
-      body,
-      signature,
-      process.env.STRIPE_WEBHOOK_SECRET!,
-    );
-  } catch {
+  // Deux endpoints Stripe pointent ici, chacun avec son secret : le compte plateforme
+  // et l'endpoint Connect (direct charges : les sessions vivent sur le compte du tenant).
+  let event: Stripe.Event | undefined;
+  for (const secret of [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET]) {
+    if (!secret) continue;
+    try {
+      event = stripe.webhooks.constructEvent(body, signature, secret);
+      break;
+    } catch {}
+  }
+  if (!event) {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 });
+  }
+
+  // Un événement Connect ne vaut que pour le tenant propriétaire de ce compte :
+  // un compte connecté ne doit pas pouvoir confirmer/annuler la résa d'un autre hôtel.
+  if (event.account && event.type.startsWith("checkout.session.")) {
+    const tenantId = (event.data.object as Stripe.Checkout.Session).metadata?.tenantId;
+    const [tenant] = tenantId && isUuid(tenantId)
+      ? await db.select({ stripeAccountId: tenants.stripeAccountId }).from(tenants).where(eq(tenants.id, tenantId)).limit(1)
+      : [];
+    if (tenant?.stripeAccountId !== event.account) {
+      console.error(`[stripe] Événement ${event.id} du compte ${event.account} ignoré : ne correspond pas au tenant ${tenantId}`);
+      return NextResponse.json({ received: true });
+    }
   }
 
   switch (event.type) {

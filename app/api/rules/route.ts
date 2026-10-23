@@ -13,8 +13,8 @@ export async function GET(request: NextRequest) {
 
   const roomId = searchParams.get("roomId");
   const checkInStr = searchParams.get("checkIn");
-  const tenantId =
-    request.headers.get("x-tenant-id") ?? searchParams.get("tenantId");
+  // Posé par le proxy depuis l'hôte (écrase toute valeur envoyée par le client).
+  const tenantId = request.headers.get("x-tenant-id");
 
   if (!roomId || !tenantId) {
     return NextResponse.json(

@@ -12,7 +12,6 @@ import { checkRateLimit, type RateLimitRule } from "@/lib/rate-limit";
 // déjà /sign-in* lui-même en production (3 req / 10 s par IP).
 const RATE_RULES: Record<string, RateLimitRule> = {
   api: { name: "api-public", limit: 60, windowSec: 60 },
-  webhook: { name: "webhook", limit: 30, windowSec: 60 },
 };
 
 // ── Cache in-memory tenant (5 min) ──────────────────────────────────────────
@@ -85,13 +84,14 @@ export async function proxy(request: NextRequest) {
     ?? request.headers.get("x-real-ip")
     ?? "unknown";
 
+  // Pas de limite sur les webhooks : la signature Stripe rejette déjà les faux appels,
+  // et un 429 retarderait les confirmations (Stripe réessaie avec backoff).
   let rateRule: RateLimitRule | null = null;
-  if (pathname.startsWith("/api/webhooks/")) {
-    rateRule = RATE_RULES.webhook;
-  } else if (
+  if (
     pathname.startsWith("/api/") &&
     !pathname.startsWith("/api/admin/") &&
-    !pathname.startsWith("/api/cron/")
+    !pathname.startsWith("/api/cron/") &&
+    !pathname.startsWith("/api/webhooks/")
   ) {
     rateRule = RATE_RULES.api;
   }
@@ -106,9 +106,13 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ── Routes auth et API publiques → passe-plat ──────────────────────────
+  // ── Routes auth et API sans tenant d'hôte → passe-plat ─────────────────
+  // Les autres API publiques (availability, pricing, rules, rooms/available)
+  // passent par la résolution : x-tenant-id vient TOUJOURS de l'hôte, jamais du client.
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/forgot-password") || pathname.startsWith("/reset-password");
-  if (isAuthPage || (pathname.startsWith("/api/") && !pathname.startsWith("/api/admin/"))) {
+  const isHostlessApi = ["/api/webhooks/", "/api/cron/", "/api/health", "/api/ical/", "/api/uploads/"]
+    .some((p) => pathname.startsWith(p));
+  if (isAuthPage || isHostlessApi) {
     return NextResponse.next();
   }
 

@@ -161,7 +161,6 @@ test.describe("Admin — Tarification dynamique", () => {
         roomId: ctx.apiRoomId,
         from: fd("2026-07-01"),
         to: fd("2026-07-03"),
-        tenantId: ctx.tenantId,
       },
     });
     expect(response.ok()).toBe(true);
@@ -177,7 +176,6 @@ test.describe("Admin — Tarification dynamique", () => {
     const response = await page.request.get("/api/rules", {
       params: {
         roomId: ctx.apiRoomId,
-        tenantId: ctx.tenantId,
       },
     });
     expect(response.ok()).toBe(true);
@@ -201,7 +199,6 @@ test.describe("Admin — Tarification dynamique", () => {
         roomId: ctx.apiRoomId,
         from: "invalid",
         to: "invalid",
-        tenantId: ctx.tenantId,
       },
     });
     expect(response.status()).toBe(400);
@@ -213,7 +210,6 @@ test.describe("Admin — Tarification dynamique", () => {
         roomId: ctx.apiRoomId,
         from: fd("2026-07-05"),
         to: fd("2026-07-01"),
-        tenantId: ctx.tenantId,
       },
     });
     expect(response.status()).toBe(400);

@@ -364,6 +364,76 @@ test.describe("Paiement — Webhook Stripe", () => {
     }
   });
 
+  // ─── Stripe Connect en direct charge (audit 2026-10b/01) ────────────────────
+  // La session vit sur le compte du tenant : l'événement arrive par l'endpoint Connect,
+  // signé avec STRIPE_CONNECT_WEBHOOK_SECRET et porteur de `account`.
+
+  const CONNECT_SECRET = process.env.STRIPE_CONNECT_WEBHOOK_SECRET!;
+
+  async function postConnectEvent(
+    request: import("@playwright/test").APIRequestContext,
+    account: string,
+    sessionId: string,
+    metadata: Record<string, string>,
+  ) {
+    const payload = JSON.stringify({
+      id: `evt_connect_${Date.now()}`,
+      type: "checkout.session.completed",
+      account,
+      data: { object: { id: sessionId, payment_intent: `pi_connect_${Date.now()}`, metadata } },
+    });
+    return request.post(`${BASE_URL}/api/webhooks/stripe`, {
+      data: payload,
+      headers: {
+        "content-type": "application/json",
+        "stripe-signature": generateStripeSignature(payload, CONNECT_SECRET),
+      },
+    });
+  }
+
+  test("événement Connect du compte du tenant (secret Connect) → booking confirmed", async ({ request }) => {
+    const { tenantId, apiRoomId } = loadTestContext();
+    const sessionId = `cs_test_connect_${Date.now()}`;
+    const account = `acct_test_${Date.now()}`;
+    const { rows } = await pool.query("SELECT stripe_account_id FROM tenants WHERE id = $1", [tenantId]);
+    await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [tenantId, account]);
+    const bookingId = await createTestBookingWithPayment(pool, tenantId, apiRoomId, sessionId);
+    try {
+      const res = await postConnectEvent(request, account, sessionId, { bookingId, tenantId });
+      expect(res.status()).toBe(200);
+      const b = await pool.query("SELECT status FROM bookings WHERE id = $1", [bookingId]);
+      expect(b.rows[0].status).toBe("confirmed");
+    } finally {
+      await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [tenantId, rows[0].stripe_account_id]);
+      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
+      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+    }
+  });
+
+  test("événement Connect d'un autre compte (ou tenant sans compte) → 200 mais booking intact", async ({ request }) => {
+    const { tenantId, apiRoomId } = loadTestContext();
+    const sessionId = `cs_test_connect_foreign_${Date.now()}`;
+    const { rows } = await pool.query("SELECT stripe_account_id FROM tenants WHERE id = $1", [tenantId]);
+    const bookingId = await createTestBookingWithPayment(pool, tenantId, apiRoomId, sessionId);
+    try {
+      // Tenant sans compte Connect : aucun compte connecté ne peut agir sur ses résas.
+      await pool.query("UPDATE tenants SET stripe_account_id = NULL WHERE id = $1", [tenantId]);
+      expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId, tenantId })).status()).toBe(200);
+      // Tenant avec un compte différent.
+      await pool.query("UPDATE tenants SET stripe_account_id = 'acct_legitime' WHERE id = $1", [tenantId]);
+      expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId, tenantId })).status()).toBe(200);
+      // metadata.tenantId malformé : ignoré, jamais 500.
+      expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId, tenantId: "pas-un-uuid" })).status()).toBe(200);
+
+      const b = await pool.query("SELECT status FROM bookings WHERE id = $1", [bookingId]);
+      expect(b.rows[0].status).toBe("pending");
+    } finally {
+      await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [tenantId, rows[0].stripe_account_id]);
+      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
+      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+    }
+  });
+
   // ─── Cas d'erreur ──────────────────────────────────────────────────────────
 
   test("signature Stripe invalide retourne 400", async ({ request }) => {
@@ -378,6 +448,21 @@ test.describe("Paiement — Webhook Stripe", () => {
     expect(response.status()).toBe(400);
     const body = await response.json();
     expect(body.error).toBe("Signature invalide");
+  });
+
+  test("rafale de 65 webhooks à signature invalide : tous 400, aucun 429 (audit 2026-10b/10)", async ({ request }) => {
+    // 65 > 30 (ancienne limite webhook) et > 60 (limite API publique) : aucune ne doit s'appliquer.
+    const headers = {
+      "content-type": "application/json",
+      "stripe-signature": "t=123,v1=invalide",
+      "x-forwarded-for": "10.10.9.7",
+    };
+    const statuses: number[] = [];
+    for (let i = 0; i < 65; i++) {
+      const res = await request.post(`${BASE_URL}/api/webhooks/stripe`, { data: "{}", headers });
+      statuses.push(res.status());
+    }
+    expect(statuses.filter((s) => s !== 400)).toEqual([]);
   });
 
   test("signature Stripe absente retourne 400", async ({ request }) => {

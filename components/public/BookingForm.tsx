@@ -77,11 +77,9 @@ const fmtDateShort = (s: string): string =>
 
 export default function BookingForm({
   room,
-  tenantId,
   template = "classic",
 }: {
   room: Room;
-  tenantId: string;
   template?: TemplateName;
 }) {
   const today = getToday();
@@ -111,12 +109,12 @@ export default function BookingForm({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams({ roomId: room.id, tenantId });
+    const params = new URLSearchParams({ roomId: room.id });
     fetch(`/api/rules?${params}`, { cache: "no-store" })
       .then((r) => r.json())
       .then(setRules)
       .catch(() => {});
-  }, [room.id, tenantId]);
+  }, [room.id]);
 
   useEffect(() => {
     if (!datesValid) return;
@@ -133,7 +131,6 @@ export default function BookingForm({
           roomId: room.id,
           from: checkIn,
           to: checkOut,
-          tenantId,
         });
         const res = await fetch(`/api/availability?${params}`, { cache: "no-store" });
         if (!res.ok) {
@@ -148,7 +145,6 @@ export default function BookingForm({
             roomId: room.id,
             from: checkIn,
             to: checkOut,
-            tenantId,
           });
           const pricingRes = await fetch(`/api/pricing?${pricingParams}`, {
             cache: "no-store",
@@ -180,7 +176,7 @@ export default function BookingForm({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // `state` : après un refus serveur, la dispo affichée est peut-être périmée.
-  }, [checkIn, checkOut, datesValid, room.id, room.pricePerNight, tenantId, state]);
+  }, [checkIn, checkOut, datesValid, room.id, room.pricePerNight, state]);
 
   const handleCheckInChange = (val: string) => {
     setCheckIn(val);

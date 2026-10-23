@@ -10,7 +10,7 @@ import { fd } from "../helpers/dates";
  *
  * Stratégie :
  * - L'API est testée directement via page.request.get() (pas d'UI)
- * - tenantId et roomId viennent de e2e/.auth/test-context.json (seedé par globalSetup)
+ * - roomId vient de e2e/.auth/test-context.json ; le tenant est celui de l'hôte (localhost → test-tenant)
  * - La chambre "Chambre API Test" a une réservation confirmée du 2026-06-10 au 2026-06-15
  * - Les tests couvrent : happy path, chevauchements partiels, dates adjacentes, validation, sécurité
  */
@@ -38,7 +38,6 @@ function apiUrl(params: Record<string, string>) {
 function freeParams(overrides: Partial<Record<string, string>> = {}) {
   return {
     roomId: ctx.apiRoomId,
-    tenantId: ctx.tenantId,
     from: fd("2026-05-01"),
     to: fd("2026-05-05"),
     ...overrides,
@@ -150,21 +149,14 @@ test.describe("API — Disponibilité", () => {
 
   test("retourne 400 si roomId manquant", async ({ page }) => {
     const res = await page.request.get(
-      apiUrl({ tenantId: ctx.tenantId, from: fd("2026-05-01"), to: fd("2026-05-05") }),
-    );
-    expect(res.status()).toBe(400);
-  });
-
-  test("retourne 400 si tenantId manquant", async ({ page }) => {
-    const res = await page.request.get(
-      apiUrl({ roomId: ctx.apiRoomId, from: fd("2026-05-01"), to: fd("2026-05-05") }),
+      apiUrl({ from: fd("2026-05-01"), to: fd("2026-05-05") }),
     );
     expect(res.status()).toBe(400);
   });
 
   test("retourne 400 si from manquant", async ({ page }) => {
     const res = await page.request.get(
-      apiUrl({ roomId: ctx.apiRoomId, tenantId: ctx.tenantId, to: fd("2026-05-05") }),
+      apiUrl({ roomId: ctx.apiRoomId, to: fd("2026-05-05") }),
     );
     expect(res.status()).toBe(400);
   });
@@ -207,20 +199,16 @@ test.describe("API — Disponibilité", () => {
     expect(body.blockedDates).toEqual([]);
   });
 
-  test("tenantId différent ne voit pas les réservations du tenant test", async ({ page }) => {
-    // Même roomId, autre tenantId → les réservations du tenant test ne fuient pas
-    const res = await page.request.get(
-      apiUrl({
-        roomId: ctx.apiRoomId,
-        tenantId: "00000000-0000-0000-0000-000000000000",
-        from: ctx.bookedCheckIn,
-        to: ctx.bookedCheckOut,
-      }),
-    );
-    expect(res.status()).toBe(200);
-    const body = await res.json();
-    expect(body.available).toBe(true);
-    expect(body.blockedDates).toEqual([]);
+  test("tenant imposé par l'hôte : ?tenantId et x-tenant-id forgés sont ignorés (audit 2026-10b/04)", async ({ page }) => {
+    // Avant : le client choisissait le tenant → un autre tenantId « libérait » les dates réservées.
+    const booked = { roomId: ctx.apiRoomId, from: ctx.bookedCheckIn, to: ctx.bookedCheckOut };
+    for (const res of [
+      await page.request.get(apiUrl({ ...booked, tenantId: ctx.rivalTenantId })),
+      await page.request.get(apiUrl(booked), { headers: { "x-tenant-id": ctx.rivalTenantId } }),
+    ]) {
+      expect(res.status()).toBe(200);
+      expect((await res.json()).available).toBe(false);
+    }
   });
 
   // ─── iCal (Phase 6) ─────────────────────────────────────────────────────────

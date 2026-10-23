@@ -34,7 +34,6 @@ export default async function ReserverPage({
           capacity: room.capacity,
           photos: room.photos,
         }}
-        tenant={tenant}
         config={config}
         minPrice={minPrice}
       />

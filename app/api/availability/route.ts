@@ -11,10 +11,7 @@ import { isStayTooLong, isUuid, STAY_TOO_LONG_MESSAGE } from "@/lib/validation";
  *   from     — date ISO (YYYY-MM-DD) de début
  *   to       — date ISO (YYYY-MM-DD) de fin (exclusive)
  *
- * tenantId :
- *   - En production : injecté par le middleware via l'en-tête `x-tenant-id`
- *     (résolution domain → tenant, Phase 4)
- *   - En test : passé en query param `tenantId` (jamais en production)
+ * tenantId : en-tête `x-tenant-id` posé par le proxy depuis l'hôte (domaine → tenant).
  *
  * Réponse :
  *   { available: boolean, blockedDates: string[] }
@@ -30,13 +27,12 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
 
-  // tenantId : header injecté par le middleware en prod, query param pour les tests
-  const tenantId =
-    request.headers.get("x-tenant-id") ?? searchParams.get("tenantId");
+  // Posé par le proxy depuis l'hôte (écrase toute valeur envoyée par le client).
+  const tenantId = request.headers.get("x-tenant-id");
 
   if (!roomId || !from || !to || !tenantId) {
     return NextResponse.json(
-      { error: "Paramètres manquants : roomId, from, to, tenantId requis" },
+      { error: "Paramètres manquants : roomId, from, to requis" },
       { status: 400 },
     );
   }

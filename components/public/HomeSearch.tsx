@@ -29,10 +29,8 @@ function addDay(dateStr: string): string {
 }
 
 export default function HomeSearch({
-  tenantId,
   template = "classic",
 }: {
-  tenantId: string;
   template?: TemplateName;
 }) {
   const today = getToday();
@@ -57,7 +55,7 @@ export default function HomeSearch({
     debounceRef.current = setTimeout(async () => {
       setStatus("searching");
       try {
-        const params = new URLSearchParams({ from: checkIn, to: checkOut, tenantId });
+        const params = new URLSearchParams({ from: checkIn, to: checkOut });
         const res = await fetch(`/api/rooms/available?${params}`, { cache: "no-store" });
         if (!res.ok) { setStatus("idle"); return; }
         const data = await res.json();
@@ -69,7 +67,7 @@ export default function HomeSearch({
     }, 400);
 
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
-  }, [checkIn, checkOut, tenantId]);
+  }, [checkIn, checkOut]);
 
   const handleCheckInChange = (val: string) => {
     setCheckIn(val);

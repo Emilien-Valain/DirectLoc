@@ -104,19 +104,14 @@ test.describe("Sécurité — Rate limiting", () => {
 
 test.describe("Sécurité — Validation des entrées", () => {
   // Un id non-UUID atteignant Postgres lève « invalid input syntax for type uuid » → 500.
-  // Chaque cas fournit tous les autres paramètres valides (tenantId compris) pour
-  // que la route aille jusqu'à la requête DB (audit 2026-10/06).
-  const T = testContext.tenantId;
+  // Chaque cas fournit tous les autres paramètres valides pour que la route aille
+  // jusqu'à la requête DB (audit 2026-10/06). Le tenant vient de l'hôte (audit 2026-10b/04).
   const R = testContext.apiRoomId;
   const span = `from=${fd("2026-09-01")}&to=${fd("2026-09-05")}`;
   const malformed: [string, string][] = [
-    ["availability roomId", `/api/availability?roomId=not-a-uuid&${span}&tenantId=${T}`],
-    ["availability tenantId", `/api/availability?roomId=${R}&${span}&tenantId=not-a-uuid`],
-    ["pricing roomId", `/api/pricing?roomId=not-a-uuid&${span}&tenantId=${T}`],
-    ["pricing tenantId", `/api/pricing?roomId=${R}&${span}&tenantId=not-a-uuid`],
-    ["rules roomId", `/api/rules?roomId=not-a-uuid&tenantId=${T}`],
-    ["rules tenantId", `/api/rules?roomId=${R}&tenantId=' OR 1=1--`],
-    ["rooms/available tenantId", `/api/rooms/available?${span}&tenantId=not-a-uuid`],
+    ["availability roomId", `/api/availability?roomId=not-a-uuid&${span}`],
+    ["pricing roomId", `/api/pricing?roomId=not-a-uuid&${span}`],
+    ["rules roomId", `/api/rules?roomId=not-a-uuid`],
   ];
   for (const [label, url] of malformed) {
     test(`API ${label} non-UUID → 400, jamais 500`, async ({ request }) => {
@@ -127,12 +122,25 @@ test.describe("Sécurité — Validation des entrées", () => {
 
   test("les mêmes API acceptent toujours des UUID valides (200)", async ({ request }) => {
     for (const url of [
-      `/api/availability?roomId=${R}&${span}&tenantId=${T}`,
-      `/api/pricing?roomId=${R}&${span}&tenantId=${T}`,
-      `/api/rules?roomId=${R}&tenantId=${T}`,
-      `/api/rooms/available?${span}&tenantId=${T}`,
+      `/api/availability?roomId=${R}&${span}`,
+      `/api/pricing?roomId=${R}&${span}`,
+      `/api/rules?roomId=${R}`,
+      `/api/rooms/available?${span}`,
     ]) {
       expect((await request.get(url)).status(), url).toBe(200);
+    }
+  });
+
+  test("rooms/available : ?tenantId ou x-tenant-id forgé ne liste jamais un autre tenant (audit 2026-10b/04)", async ({ request }) => {
+    const rival = testContext.rivalTenantId;
+    for (const res of [
+      await request.get(`/api/rooms/available?${span}&tenantId=${rival}`),
+      await request.get(`/api/rooms/available?${span}`, { headers: { "x-tenant-id": rival } }),
+    ]) {
+      expect(res.status()).toBe(200);
+      const ids = (await res.json()).rooms.map((r: { id: string }) => r.id);
+      expect(ids).toContain(R);
+      expect(ids).not.toContain(testContext.rivalRoomId);
     }
   });
 
@@ -169,11 +177,10 @@ test.describe("Sécurité — Plage de dates bornée à 366 nuits", () => {
   const from = fd("2027-01-04");
   const plusNights = (n: number) =>
     new Date(Date.parse(from + "T00:00:00Z") + n * 86_400_000).toISOString().slice(0, 10);
-  const t = `tenantId=${testContext.tenantId}`;
   const routes = (to: string) => [
-    `/api/pricing?roomId=${testContext.apiRoomId}&from=${from}&to=${to}&${t}`,
-    `/api/availability?roomId=${testContext.apiRoomId}&from=${from}&to=${to}&${t}`,
-    `/api/rooms/available?from=${from}&to=${to}&${t}`,
+    `/api/pricing?roomId=${testContext.apiRoomId}&from=${from}&to=${to}`,
+    `/api/availability?roomId=${testContext.apiRoomId}&from=${from}&to=${to}`,
+    `/api/rooms/available?from=${from}&to=${to}`,
   ];
 
   test("366 nuits exactement : acceptées par pricing, availability, rooms/available", async ({ request }) => {
@@ -307,5 +314,29 @@ test.describe("Sécurité — Isolation tenant", () => {
     expect(body).toContain("Disallow: /admin/");
     expect(body).toContain("Disallow: /api/");
     expect(body).toContain("Sitemap:");
+  });
+});
+
+// ─── Path traversal sur /api/uploads (audit 2026-10b/05) ─────────────────────
+
+test.describe("Sécurité — /api/uploads reste dans le dossier uploads", () => {
+  // Dossier voisin dont le nom commence par « uploads » : passait le startsWith sans séparateur.
+  const sibling = path.join(process.cwd(), `uploads-x-${RUN_ID}`);
+  test.beforeAll(() => {
+    fs.mkdirSync(sibling, { recursive: true });
+    fs.writeFileSync(path.join(sibling, "secret.webp"), "secret");
+  });
+  test.afterAll(() => fs.rmSync(sibling, { recursive: true, force: true }));
+
+  test("..%2Fuploads-x… et ../ → 403 ou 404, jamais 200", async ({ request }) => {
+    const name = path.basename(sibling);
+    for (const url of [
+      `/api/uploads/..%2F${name}%2Fsecret.webp`,
+      `/api/uploads/%2E%2E/${name}/secret.webp`,
+      `/api/uploads/..%2Fpackage.json`,
+    ]) {
+      const res = await request.get(url);
+      expect([403, 404], url).toContain(res.status());
+    }
   });
 });

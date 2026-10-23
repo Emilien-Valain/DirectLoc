@@ -96,7 +96,6 @@ test.describe("Admin — Règles de séjour", () => {
         roomId: ctx.apiRoomId,
         from: fd("2026-09-01"),
         to: fd("2026-09-02"), // 1 nuit
-        tenantId: ctx.tenantId,
       },
     });
     const data = await response.json();

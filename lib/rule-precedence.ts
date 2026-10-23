@@ -44,7 +44,7 @@ function windowSpan(rule: PrecedenceRule): number {
   const to = toTime(rule.validTo);
   if (from === null && to === null) return Infinity;
   if (from !== null && to !== null) return to - from;
-  return Infinity / 2; // une seule borne : plus spécifique qu'illimité, moins qu'une vraie fenêtre
+  return Number.MAX_VALUE; // une seule borne : plus spécifique qu'illimité, moins qu'une vraie fenêtre
 }
 
 /**

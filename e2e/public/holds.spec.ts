@@ -37,12 +37,12 @@ const addDaysIso = (date: Date, days: number) =>
   new Date(date.getTime() + days * 86_400_000).toISOString().slice(0, 10);
 
 function availabilityUrl(from: string, to: string) {
-  const q = new URLSearchParams({ roomId: ctx.apiRoomId, tenantId: ctx.tenantId, from, to });
+  const q = new URLSearchParams({ roomId: ctx.apiRoomId, from, to });
   return `/api/availability?${q.toString()}`;
 }
 
 function availableRoomsUrl(from: string, to: string) {
-  const q = new URLSearchParams({ tenantId: ctx.tenantId, from, to });
+  const q = new URLSearchParams({ from, to });
   return `/api/rooms/available?${q.toString()}`;
 }
 

@@ -111,7 +111,6 @@ async function main() {
       name,
       email,
       emailVerified: true,
-      tenantId: tenant.id,
     });
 
     await db.insert(accounts).values({

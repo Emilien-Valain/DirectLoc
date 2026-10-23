@@ -60,27 +60,6 @@ export const auth = betterAuth({
       ],
     };
   })()),
-
-  // Expose tenantId dans l'objet user et session
-  user: {
-    additionalFields: {
-      tenantId: {
-        type: "string",
-        required: false,
-        fieldName: "tenant_id",
-      },
-    },
-  },
-
-  session: {
-    additionalFields: {
-      tenantId: {
-        type: "string",
-        required: false,
-        fieldName: "tenant_id",
-      },
-    },
-  },
 });
 
 export type Session = typeof auth.$Infer.Session;

@@ -87,7 +87,7 @@ export default function BoutiqueHomeHero({
         )}
 
         <div className="mt-12 animate-fade-up stagger-3">
-          <HomeSearch tenantId={tenant.id} template="boutique" />
+          <HomeSearch template="boutique" />
         </div>
       </div>
 

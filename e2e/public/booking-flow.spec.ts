@@ -30,6 +30,13 @@ const BOOKING_TEST_CHECKOUT = fd("2026-07-24");
 test.use({ extraHTTPHeaders: { "x-forwarded-for": "10.10.0.3" } });
 
 test.describe("Public — Parcours de réservation", () => {
+  // IP propre à chaque test : le formulaire est limité à 5 envois / 10 min par IP.
+  test.beforeEach(async ({ page }) => {
+    await page.setExtraHTTPHeaders({
+      "x-forwarded-for": `10.11.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250) + 1}`,
+    });
+  });
+
   // Nettoyer les rules potentiellement laissées par les tests admin
   test.beforeAll(async () => {
     const ctx = loadTestContext();
@@ -156,14 +163,13 @@ test.describe("Public — Parcours de réservation", () => {
     // La chambre API Test (du tenant principal) doit être visible
     await expect(page.getByText("Chambre API Test")).toBeVisible();
 
-    // L'API availability avec le roomId rival + le tenantId du tenant principal
+    // L'API availability avec le roomId rival (tenant de l'hôte = principal)
     // doit retourner available=true (aucune booking pour ce roomId dans ce tenant)
     const res = await page.request.get("/api/availability", {
       params: {
         roomId: ctx.rivalRoomId,
         from: fd("2026-06-10"),
         to: fd("2026-06-15"),
-        tenantId: ctx.tenantId,
       },
     });
     expect(res.status()).toBe(200);
@@ -270,6 +276,38 @@ test.describe("Public — Parcours de réservation", () => {
 
       await expect(page.getByTestId("booking-error")).toContainText("paiement en ligne est momentanément indisponible");
       await expect(page).toHaveURL(new RegExp(`/reserver/${apiRoomId}`));
+      expect(await bookingCount(email)).toBe(0);
+    } finally {
+      const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+      await pool.query("DELETE FROM bookings WHERE guest_email = $1", [email]);
+      await pool.end();
+    }
+  });
+
+  test("rate limit : le 6e envoi en 10 min est refusé et ne crée aucune résa (audit 2026-10b/02)", async ({ page }) => {
+    const { apiRoomId } = loadTestContext();
+    const email = `ratelimit-${Date.now()}@example.com`;
+    try {
+      await page.goto(`/reserver/${apiRoomId}`);
+      await fillRefusalDates(page);
+      await fillGuest(page, "pas-un-email");
+      let posts = 0;
+      page.on("requestfinished", (r) => { if (r.method() === "POST") posts++; });
+      // 5 envois invalides (aucune résa) consomment le budget de l'IP.
+      for (let i = 1; i <= 5; i++) {
+        await expect(page.locator('[type="submit"]')).toBeEnabled({ timeout: 8000 });
+        // Le formulaire peut être re-rendu après un refus : on recoupe la validation HTML à chaque envoi.
+        await page.locator("form").evaluate((f: HTMLFormElement) => (f.noValidate = true));
+        await page.locator('[type="submit"]').click();
+        await expect.poll(() => posts, { timeout: 8000 }).toBe(i);
+        await expect(page.getByTestId("booking-error")).toContainText("Adresse email invalide");
+      }
+      // 6e envoi, valide cette fois : refusé par le rate limit.
+      await page.fill('[name="guestEmail"]', email);
+      await expect(page.locator('[type="submit"]')).toBeEnabled({ timeout: 8000 });
+      await page.locator('[type="submit"]').click();
+      await expect(page.getByTestId("booking-error")).toContainText("Trop de tentatives");
+      await expect(page.locator('[name="guestEmail"]')).toHaveValue(email);
       expect(await bookingCount(email)).toBe(0);
     } finally {
       const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });

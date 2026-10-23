@@ -21,7 +21,8 @@ export async function GET(
 
   // Sécurité : empêcher le path traversal
   const resolved = path.resolve(filePath);
-  if (!resolved.startsWith(path.resolve(UPLOADS_ROOT))) {
+  // + sep : sinon un dossier voisin « uploads-backup » passe le préfixe.
+  if (!resolved.startsWith(path.resolve(UPLOADS_ROOT) + path.sep)) {
     return NextResponse.json({ error: "Accès interdit" }, { status: 403 });
   }
 

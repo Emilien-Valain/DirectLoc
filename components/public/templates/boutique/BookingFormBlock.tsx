@@ -1,5 +1,5 @@
 import BookingForm from "@/components/public/BookingForm";
-import type { Tenant, TenantConfig } from "@/lib/tenant-context";
+import type { TenantConfig } from "@/lib/tenant-context";
 
 type Room = {
   id: string;
@@ -11,12 +11,10 @@ type Room = {
 
 export default function BoutiqueBookingFormBlock({
   room,
-  tenant,
   config,
   minPrice,
 }: {
   room: Room;
-  tenant: Tenant;
   config: TenantConfig;
   minPrice: number;
 }) {
@@ -61,7 +59,6 @@ export default function BoutiqueBookingFormBlock({
               pricePerNight: room.pricePerNight,
               capacity: room.capacity,
             }}
-            tenantId={tenant.id}
             template="boutique"
           />
         </div>

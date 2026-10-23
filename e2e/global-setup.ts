@@ -100,7 +100,6 @@ export default async function globalSetup() {
       name: "Admin Test",
       email,
       emailVerified: true,
-      tenantId: tenant.id,
     });
 
     await db.insert(accounts).values({

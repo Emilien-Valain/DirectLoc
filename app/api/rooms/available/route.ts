@@ -7,15 +7,15 @@ import { isStayTooLong, isUuid, STAY_TOO_LONG_MESSAGE } from "@/lib/validation";
  * GET /api/rooms/available?from=YYYY-MM-DD&to=YYYY-MM-DD
  *
  * Retourne les chambres actives du tenant disponibles pour la période donnée.
- * tenantId injecté par le middleware via x-tenant-id (ou query param pour les tests).
+ * tenantId injecté par le proxy via x-tenant-id (résolu depuis l'hôte).
  */
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
 
   const from = searchParams.get("from");
   const to = searchParams.get("to");
-  const tenantId =
-    request.headers.get("x-tenant-id") ?? searchParams.get("tenantId");
+  // Posé par le proxy depuis l'hôte (écrase toute valeur envoyée par le client).
+  const tenantId = request.headers.get("x-tenant-id");
 
   if (!from || !to || !tenantId) {
     return NextResponse.json(

@@ -33,7 +33,7 @@ async function loadPricingContext(roomId: string, tenantId: string, conn: Tx | t
     conn
       .select({ pricePerNight: rooms.pricePerNight })
       .from(rooms)
-      .where(eq(rooms.id, roomId))
+      .where(and(eq(rooms.id, roomId), eq(rooms.tenantId, tenantId)))
       .then((r) => r[0]),
     conn
       .select()

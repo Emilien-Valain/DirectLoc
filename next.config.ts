@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Bundlé par Turbopack, node-ical (temporal-polyfill) plante : « e.BigInt is not a function ».
+  serverExternalPackages: ["node-ical"],
   headers: async () => [
     {
       source: "/(.*)",

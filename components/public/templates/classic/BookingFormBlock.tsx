@@ -18,10 +18,8 @@ type Room = {
  */
 export default function ClassicBookingFormBlock({
   room,
-  tenantId,
 }: {
   room: Room;
-  tenantId: string;
   /** Préservé pour compatibilité avec la signature du dispatcher ; non utilisé
    * dans cette version (le sidebar lit le minPrice via room.pricePerNight et
    * /api/pricing). */
@@ -71,7 +69,6 @@ export default function ClassicBookingFormBlock({
           capacity: room.capacity,
           photos: room.photos,
         }}
-        tenantId={tenantId}
         template="classic"
       />
     </section>

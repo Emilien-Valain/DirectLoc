@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { rooms } from "@/db/schema";
+import { isUuid } from "@/lib/validation";
 import {
   roomPhotosDir,
   photoFilePath,
@@ -31,6 +32,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: roomId } = await params;
+  if (!isUuid(roomId)) return NextResponse.json({ error: "Chambre introuvable" }, { status: 404 });
   const { tenantId } = await requireSession();
 
   // Vérifier que la chambre appartient au tenant
@@ -121,6 +123,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: roomId } = await params;
+  if (!isUuid(roomId)) return NextResponse.json({ error: "Chambre introuvable" }, { status: 404 });
   const { tenantId } = await requireSession();
 
   const { photoId } = (await request.json()) as { photoId: string };
@@ -167,6 +170,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: roomId } = await params;
+  if (!isUuid(roomId)) return NextResponse.json({ error: "Chambre introuvable" }, { status: 404 });
   const { tenantId } = await requireSession();
 
   const { photoIds } = (await request.json()) as { photoIds: string[] };

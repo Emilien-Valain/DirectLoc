@@ -119,3 +119,16 @@ test.describe("Admin — Suppression d'une chambre réservée", () => {
     }
   });
 });
+
+test.describe("Admin — API photos de chambre, id malformé (audit 2026-10b/06)", () => {
+  test("POST, DELETE et PUT sur /api/admin/rooms/abc/photos → 404, jamais 500", async ({ page }) => {
+    const url = "/api/admin/rooms/abc/photos";
+    for (const res of [
+      await page.request.post(url, { multipart: { photos: { name: "a.png", mimeType: "image/png", buffer: Buffer.from("x") } } }),
+      await page.request.delete(url, { data: { photoId: "x" } }),
+      await page.request.put(url, { data: { photoIds: [] } }),
+    ]) {
+      expect(res.status()).toBe(404);
+    }
+  });
+});

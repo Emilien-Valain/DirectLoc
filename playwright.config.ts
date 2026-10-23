@@ -4,6 +4,9 @@ import { config } from "dotenv";
 // Chargé ici pour que webServer ait DATABASE_URL dès le démarrage,
 // avant même que global-setup ne tourne.
 config({ path: ".env.test" });
+// Le webServer et les tests (cron) doivent partager le même secret.
+process.env.CRON_SECRET ??= "test-cron-secret-for-playwright";
+process.env.STRIPE_CONNECT_WEBHOOK_SECRET ??= "whsec_test_connect_for_playwright";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -64,11 +67,13 @@ export default defineConfig({
       PUBLIC_TENANT_SLUG: "test-tenant",
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "sk_test_placeholder",
       STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_test_XXXX",
+      STRIPE_CONNECT_WEBHOOK_SECRET: process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
       SMTP_HOST: "localhost",
       SMTP_PORT: "1025",
       SMTP_FROM: "test@maresa.test",
       // Les flux iCal de test sont servis en local : on lève le garde anti-SSRF de la sync.
       ICAL_ALLOW_PRIVATE: "1",
+      CRON_SECRET: process.env.CRON_SECRET,
     },
   },
 });

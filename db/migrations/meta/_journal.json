@@ -57,6 +57,13 @@
       "when": 1792787097871,
       "tag": "0007_unique_room_slug",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792796031821,
+      "tag": "0008_foamy_zombie",
+      "breakpoints": true
     }
   ]
 }

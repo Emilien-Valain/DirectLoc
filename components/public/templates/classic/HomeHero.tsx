@@ -70,7 +70,7 @@ export default function ClassicHomeHero({
         )}
 
         <div className="animate-fade-up stagger-3">
-          <HomeSearch tenantId={tenant.id} template="classic" />
+          <HomeSearch template="classic" />
         </div>
       </div>
     </section>

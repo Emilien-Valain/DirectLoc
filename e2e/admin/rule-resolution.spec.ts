@@ -28,7 +28,7 @@ const ctx = JSON.parse(
 
 async function nightPrice(page: Page, from: string, to: string): Promise<number> {
   const res = await page.request.get("/api/pricing", {
-    params: { roomId: ctx.apiRoomId, tenantId: ctx.tenantId, from, to },
+    params: { roomId: ctx.apiRoomId, from, to },
   });
   expect(res.ok()).toBe(true);
   const body = await res.json();
@@ -37,7 +37,7 @@ async function nightPrice(page: Page, from: string, to: string): Promise<number>
 
 async function effectiveRules(page: Page, checkIn = fd("2027-05-03")) {
   const res = await page.request.get("/api/rules", {
-    params: { roomId: ctx.apiRoomId, tenantId: ctx.tenantId, checkIn },
+    params: { roomId: ctx.apiRoomId, checkIn },
   });
   expect(res.ok()).toBe(true);
   return res.json();
@@ -102,6 +102,23 @@ test.describe("Résolution des règles — précédence partagée (ADR-0009)", (
     }
   });
 
+  test("une règle à une seule borne (plus ancienne) bat une toute-l'année plus récente (audit 2026-10b/03)", async ({ page }) => {
+    // Infinity / 2 === Infinity : l'ancienne règle « Été » ex aequo perdait à la récence.
+    const ete = await insertPricingRule({
+      tenantId: ctx.tenantId, name: "Été", percentageModifier: "20.00", priority: 0,
+      validFrom: new Date(fd("2027-05-01") + "T00:00:00.000Z"),
+    });
+    const promo = await insertPricingRule({
+      tenantId: ctx.tenantId, name: "Promo", percentageModifier: "-10.00", priority: 0,
+    });
+    try {
+      expect(await nightPrice(page, fd("2027-05-01"), fd("2027-05-02"))).toBe(120);
+    } finally {
+      await deletePricingRule(ete);
+      await deletePricingRule(promo);
+    }
+  });
+
   test("« à partir de X€ » == prix réellement facturé (display == charge)", async ({ page }) => {
     const ruleId = await insertPricingRule({
       tenantId: ctx.tenantId, name: "Promo -30", percentageModifier: "-30.00",
@@ -109,7 +126,7 @@ test.describe("Résolution des règles — précédence partagée (ADR-0009)", (
     try {
       // Affiché : minPricePerNight via /api/rooms/available (dérivé du résolveur).
       const res = await page.request.get("/api/rooms/available", {
-        params: { tenantId: ctx.tenantId, from: fd("2027-05-01"), to: fd("2027-05-02") },
+        params: { from: fd("2027-05-01"), to: fd("2027-05-02") },
       });
       const body = await res.json();
       const room = body.rooms.find((r: { id: string }) => r.id === ctx.apiRoomId);

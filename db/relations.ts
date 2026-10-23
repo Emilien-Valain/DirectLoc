@@ -15,7 +15,6 @@ import {
 } from "./schema";
 
 export const tenantsRelations = relations(tenants, ({ many }) => ({
-  users: many(users),
   userTenants: many(userTenants),
   properties: many(properties),
   rooms: many(rooms),
@@ -25,8 +24,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   pricingRules: many(pricingRules),
 }));
 
-export const usersRelations = relations(users, ({ one, many }) => ({
-  tenant: one(tenants, { fields: [users.tenantId], references: [tenants.id] }),
+export const usersRelations = relations(users, ({ many }) => ({
   userTenants: many(userTenants),
 }));
 
