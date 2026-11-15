@@ -36,6 +36,12 @@ test.describe("Site vitrine — routage", () => {
     expect((await request.get(`${VITRINE}/api/rooms/available`)).status()).toBe(404);
   });
 
+  test("le webhook Stripe et /api/health restent joignables sur le domaine vitrine", async ({ request }) => {
+    // Sans signature : 400 de la route webhook, pas le 404 de la vitrine.
+    expect((await request.post(`${VITRINE}/api/webhooks/stripe`, { data: "{}" })).status()).toBe(400);
+    expect((await request.get(`${VITRINE}/api/health`)).status()).toBe(200);
+  });
+
   test("une page inexistante du domaine vitrine → 404", async ({ request }) => {
     expect((await request.get(`${VITRINE}/page-qui-nexiste-pas`)).status()).toBe(404);
   });

@@ -13,8 +13,8 @@ Constat live au 2026-11-05 : `https://directloc.app` répond avec `TRAEFIK DEFAU
 | 03 | `create-admin` absent de l'image Docker | resolved |
 | 04 | `www.<domaine>` → 404 | resolved |
 | 05 | Tenant sans Stripe Connect encaisse sur le compte plateforme | needs-info |
-| 06 | Supprimer les AAAA parking OVH | ready-for-human |
-| 07 | Commiter le travail en cours (140 fichiers) | ready-for-human |
+| 06 | Supprimer les AAAA parking OVH | resolved |
+| 07 | Commiter le travail en cours (140 fichiers) | resolved |
 | 08 | Brancher directloc.app dans Coolify + déployer | ready-for-human |
 | 09 | Aller-retour Stripe réel (2 endpoints webhook) | ready-for-human |
 | 10 | Pages légales (mentions, CGV/réservation, confidentialité) | needs-info |

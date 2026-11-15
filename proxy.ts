@@ -137,6 +137,10 @@ export async function proxy(request: NextRequest) {
   // ── Site vitrine (directloc.app) : servi par réécriture vers app/vitrine ──
   // Les chemins /vitrine ne sont jamais accessibles directement depuis un domaine client.
   if (isMarketingHost(host)) {
+    // Le webhook Stripe et le health check sont enregistrés sur le domaine plateforme.
+    if (pathname.startsWith("/api/webhooks/") || pathname === "/api/health") {
+      return NextResponse.next();
+    }
     if (pathname.startsWith("/admin") || pathname.startsWith("/api/")) {
       return new NextResponse("Not Found", { status: 404 });
     }
