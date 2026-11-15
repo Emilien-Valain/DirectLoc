@@ -161,10 +161,11 @@ export async function proxy(request: NextRequest) {
     if (pathname.startsWith("/admin") || pathname.startsWith("/api/")) {
       return new NextResponse("Not Found", { status: 404 });
     }
-    if (pathname === "/essayer") {
+    // /essayer → admin démo connecté ; /site-demo → site de réservation de l'hôtel démo.
+    if (pathname === "/essayer" || pathname === "/site-demo") {
       const demo = demoOrigin(request, hostHeader);
       return demo
-        ? NextResponse.redirect(`${demo}/essayer`, 302)
+        ? NextResponse.redirect(`${demo}${pathname === "/essayer" ? "/essayer" : "/"}`, 302)
         : new NextResponse("Not Found", { status: 404 });
     }
     return NextResponse.rewrite(new URL(`/vitrine${pathname === "/" ? "" : pathname}`, request.url));

@@ -107,6 +107,31 @@ test.describe("Cron — reset de l'hôtel démo", () => {
     expect(rows).toEqual([{ name: "Chambre Lavande", tenant: "Le Mas des Oliviers" }]);
   });
 
+  test("un admin rattaché à la démo (ex. create-admin) est détaché ; seul le compte démo reste", async ({ request }) => {
+    // Admin d'un autre tenant : seul son lien vers la démo doit disparaître.
+    const { rows: [other] } = await pool.query(
+      `select ut.user_id from user_tenants ut join tenants t on t.id = ut.tenant_id where t.slug = 'test-tenant' limit 1`,
+    );
+    await pool.query(
+      `insert into user_tenants (user_id, tenant_id) select $1, id from tenants where slug = $2 on conflict do nothing`,
+      [other.user_id, DEMO],
+    );
+
+    expect((await request.get(URL, { headers: auth })).status()).toBe(200);
+
+    const { rows } = await pool.query(
+      `select u.email from user_tenants ut join users u on u.id = ut.user_id
+       join tenants t on t.id = ut.tenant_id where t.slug = $1`,
+      [DEMO],
+    );
+    expect(rows).toEqual([{ email: "demo@demo.local" }]);
+    const { rows: kept } = await pool.query(
+      `select 1 from user_tenants ut join tenants t on t.id = ut.tenant_id where t.slug = 'test-tenant' and ut.user_id = $1`,
+      [other.user_id],
+    );
+    expect(kept).toHaveLength(1);
+  });
+
   test("deux resets de suite donnent le même nombre de lignes", async ({ request }) => {
     expect((await request.get(URL, { headers: auth })).status()).toBe(200);
     const first = await counts(DEMO);

@@ -38,6 +38,18 @@ test.describe("Démo — /essayer", () => {
     expect(res.headers()["location"]).toBe(`${DEMO}/essayer`);
   });
 
+  test("vitrine /site-demo → 302 vers le site de réservation de l'hôtel démo, sans session", async ({ page, request }) => {
+    const res = await request.get(`${VITRINE}/site-demo`, { maxRedirects: 0 });
+    expect(res.status()).toBe(302);
+    expect(res.headers()["location"]).toBe(`${DEMO}/`);
+    expect(res.headers()["set-cookie"]).toBeUndefined();
+
+    await page.goto(`${VITRINE}/`);
+    await page.getByRole("link", { name: /Voir le site de réservation/ }).first().click();
+    await page.waitForURL(`${DEMO}/`);
+    await expect(page.getByText("Site de démonstration")).toBeVisible();
+  });
+
   test("le bouton de la vitrine ouvre l'admin démo connecté", async ({ page }) => {
     await page.goto(`${VITRINE}/`);
     await page.getByRole("link", { name: /Essayer l'admin/ }).first().click();

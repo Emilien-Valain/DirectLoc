@@ -131,6 +131,7 @@ export default function VitrinePage() {
         <aside className="alm-side" id="rappel">
           <CallbackForm id="cb-top" title={<>On vous<br />rappelle</>} />
           {/* <a>, pas <Link> : un prefetch de /essayer ouvrirait une session démo à chaque affichage. */}
+          <a href="/site-demo" className="alm-try">Voir le site de réservation d&apos;un hôte de démonstration</a>
           <a href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</a>
         </aside>
       </section>
@@ -171,7 +172,10 @@ export default function VitrinePage() {
           <li><b>Deuxième semaine</b><span>On installe</span><p>On monte votre site, on importe vos photos, on branche le paiement en ligne et la synchronisation des calendriers. Vous relisez.</p></li>
           <li><b>Ensuite</b><span>Les réservations arrivent</span><p>Les voyageurs réservent et paient sur votre site. Vous recevez un e-mail et retrouvez tout dans votre tableau de bord.</p></li>
         </ol>
-        <a href="/essayer" className="alm-link">Voir le tableau de bord d&apos;un hôte de démonstration</a>
+        <p className="alm-links">
+          <a href="/site-demo" className="alm-link">Voir le site de réservation d&apos;un hôte de démonstration</a>
+          <a href="/essayer" className="alm-link">Voir son tableau de bord</a>
+        </p>
       </section>
 
       <section className="alm-sheet" id="calendriers" aria-labelledby="cal-t">
@@ -290,7 +294,10 @@ export default function VitrinePage() {
         <div className="alm-back-copy">
           <h2>Votre prochain été, en direct.</h2>
           <p>Laissez votre numéro : on vous rappelle, on vient vous montrer votre futur site, on installe tout avec vous.</p>
-          <a href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</a>
+          <p className="alm-links">
+            <a href="/site-demo" className="alm-try">Voir le site de réservation de démonstration</a>
+            <a href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</a>
+          </p>
         </div>
         <CallbackForm id="cb-end" title="Être rappelé" />
         <p className="alm-colophon">DirectLoc · réservation directe pour les hébergeurs de Vendée Bocage et du Puy du Fou · directloc.app</p>

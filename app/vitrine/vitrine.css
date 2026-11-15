@@ -131,6 +131,7 @@
 .alm-intro { margin: 18px 0 0; max-width: 66ch; font-size: 19px; }
 .alm-source { margin: 18px 0 0; max-width: 90ch; font: italic 400 15px/1.5 var(--serif); color: var(--ink-soft); }
 .alm .alm-link { display: inline-block; margin-top: 26px; font: 700 17px var(--ui); color: var(--cover); }
+.alm-links { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 0; }
 
 /* Éphéméride : deux feuilles du jour */
 .alm-ephem { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin-top: 28px; }

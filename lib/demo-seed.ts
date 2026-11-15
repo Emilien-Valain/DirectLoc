@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import {
@@ -165,6 +165,8 @@ export async function resetDemoTenant() {
     await tx.update(users).set({ name: DEMO_NAME }).where(eq(users.id, userId));
     await tx.delete(sessions).where(eq(sessions.userId, userId));
     await tx.insert(userTenants).values({ userId, tenantId: t }).onConflictDoNothing();
+    // Seul le compte démo administre l'hôtel démo (ex. admin rattaché par create-admin en prod).
+    await tx.delete(userTenants).where(and(eq(userTenants.tenantId, t), ne(userTenants.userId, userId)));
 
     // ── Effacement (ordre imposé par les FK ; booking_lines part en cascade) ──
     await tx.delete(payments).where(eq(payments.tenantId, t));
