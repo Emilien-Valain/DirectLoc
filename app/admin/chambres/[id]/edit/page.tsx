@@ -10,6 +10,8 @@ import {
 import { updateRoom } from "@/lib/actions/rooms";
 import RoomForm from "@/components/admin/RoomForm";
 import RoomPhotosUploader from "@/components/admin/RoomPhotosUploader";
+import { DemoLock } from "@/components/admin/ui";
+import { isDemoTenant } from "@/lib/demo";
 import type { RoomPhoto } from "@/app/api/admin/rooms/[id]/photos/route";
 
 const DAY_NAMES_FR = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
@@ -28,9 +30,10 @@ export default async function EditChambrePage({
 
   const photos = (chambre.photos ?? []) as RoomPhoto[];
 
-  const [roomBookingRules, roomPricingRules] = await Promise.all([
+  const [roomBookingRules, roomPricingRules, demo] = await Promise.all([
     getBookingRulesByRoom(id, tenantId),
     getPricingRulesByRoom(id, tenantId),
+    isDemoTenant(tenantId),
   ]);
 
   return (
@@ -60,7 +63,9 @@ export default async function EditChambrePage({
           padding: 24,
         }}
       >
-        <RoomPhotosUploader roomId={id} initialPhotos={photos} />
+        <DemoLock demo={demo}>
+          <RoomPhotosUploader roomId={id} initialPhotos={photos} />
+        </DemoLock>
       </div>
 
       <div

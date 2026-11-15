@@ -83,6 +83,7 @@ export default function BookingForm({
   fees = [],
   touristTax,
   host = {},
+  demo = false,
 }: {
   room: Room;
   extras?: CatalogExtra[];
@@ -90,6 +91,8 @@ export default function BookingForm({
   fees?: CatalogFee[];
   touristTax?: TouristTax;
   host?: Host;
+  /** Hôtel démo : paiement Stripe en mode test. */
+  demo?: boolean;
 }) {
   const today = getToday();
   const tomorrow = getTomorrow();
@@ -443,6 +446,11 @@ export default function BookingForm({
               : "Procéder au paiement"}
         </button>
         <div className="s-reassure" data-testid="booking-reassure">
+          {demo && (
+            <p className="s-note" data-testid="demo-test-card">
+              Démo : carte de test 4242 4242 4242 4242, date future, CVC au choix
+            </p>
+          )}
           <p className="s-hint">Paiement sécurisé par Stripe. Confirmation envoyée par email.</p>
           {(host.checkInTime || host.checkOutTime) && (
             <p className="s-hint">

@@ -4,7 +4,8 @@ import Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bookings, payments, users, userTenants } from "@/db/schema";
-import { getStripe } from "@/lib/stripe";
+import { getStripe, stripeModeAllowed } from "@/lib/stripe";
+import { isDemoTenant } from "@/lib/demo";
 import {
   sendBookingConfirmation,
   sendAdminNotification,
@@ -34,8 +35,13 @@ export async function POST(request: NextRequest) {
 
   // Deux endpoints Stripe pointent ici, chacun avec son secret : le compte plateforme
   // et l'endpoint Connect (direct charges : les sessions vivent sur le compte du tenant).
+  // + l'endpoint mode test du tenant démo quand la plateforme passe en live.
   let event: Stripe.Event | undefined;
-  for (const secret of [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET]) {
+  for (const secret of [
+    process.env.STRIPE_WEBHOOK_SECRET,
+    process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+    process.env.STRIPE_TEST_WEBHOOK_SECRET,
+  ]) {
     if (!secret) continue;
     try {
       event = getStripe().webhooks.constructEvent(body, signature, secret);
@@ -66,6 +72,10 @@ export async function POST(request: NextRequest) {
       : [];
     if (!ours) {
       console.error(`[stripe] Événement ${event.id} (compte ${event.account ?? "plateforme"}) ignoré : session ${session.id} inconnue pour le booking ${bookingId}`);
+      return NextResponse.json({ received: true });
+    }
+    if (!stripeModeAllowed(event.livemode, await isDemoTenant(tenantId!))) {
+      console.error(`[stripe] Événement ${event.id} (livemode=${event.livemode}) ignoré : mode incompatible avec le tenant ${tenantId}`);
       return NextResponse.json({ received: true });
     }
   }

@@ -497,6 +497,19 @@ export function StatusBanner({
   );
 }
 
+/** Hôtel de démo public : la zone reste visible mais inerte. Le vrai refus est côté serveur (403). */
+export function DemoLock({ demo, children }: { demo: boolean; children: ReactNode }) {
+  if (!demo) return children;
+  return (
+    <>
+      <StatusBanner variant="info">Désactivé en démo</StatusBanner>
+      <div inert className="opacity-60">
+        {children}
+      </div>
+    </>
+  );
+}
+
 export function GuestAvatar({
   name,
   size = 36,

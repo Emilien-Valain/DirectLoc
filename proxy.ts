@@ -13,6 +13,8 @@ import { checkRateLimit, type RateLimitRule } from "@/lib/rate-limit";
 // déjà /sign-in* lui-même en production (3 req / 10 s par IP).
 const RATE_RULES: Record<string, RateLimitRule> = {
   api: { name: "api-public", limit: 60, windowSec: 60 },
+  // /essayer crée une session en base à chaque visite.
+  essayer: { name: "essayer", limit: 20, windowSec: 60 },
 };
 
 // ── Cache in-memory tenant (5 min) ──────────────────────────────────────────
@@ -84,6 +86,19 @@ function isMarketingHost(host: string): boolean {
   return !!marketing && (host === marketing || host === `www.${marketing}`);
 }
 
+// Origine de l'hôtel démo vue depuis la vitrine : DEMO_TENANT_DOMAIN en prod,
+// <slug>.localhost:<port> en dev/test (même logique de résolution que resolveTenant).
+function demoOrigin(request: NextRequest, hostHeader: string): string | null {
+  const slug = process.env.DEMO_TENANT_SLUG;
+  if (!slug) return null;
+  const [host, port] = hostHeader.split(":");
+  if (host.endsWith(".localhost")) {
+    return `${request.nextUrl.protocol}//${slug}.localhost${port ? `:${port}` : ""}`;
+  }
+  const domain = process.env.DEMO_TENANT_DOMAIN;
+  return domain ? `https://${domain}` : null;
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -102,6 +117,8 @@ export async function proxy(request: NextRequest) {
     !pathname.startsWith("/api/webhooks/")
   ) {
     rateRule = RATE_RULES.api;
+  } else if (pathname === "/essayer") {
+    rateRule = RATE_RULES.essayer;
   }
 
   if (rateRule) {
@@ -143,6 +160,12 @@ export async function proxy(request: NextRequest) {
     }
     if (pathname.startsWith("/admin") || pathname.startsWith("/api/")) {
       return new NextResponse("Not Found", { status: 404 });
+    }
+    if (pathname === "/essayer") {
+      const demo = demoOrigin(request, hostHeader);
+      return demo
+        ? NextResponse.redirect(`${demo}/essayer`, 302)
+        : new NextResponse("Not Found", { status: 404 });
     }
     return NextResponse.rewrite(new URL(`/vitrine${pathname === "/" ? "" : pathname}`, request.url));
   }

@@ -9,6 +9,7 @@ import {
   Field,
   SettingsSection,
   StatusBanner,
+  DemoLock,
 } from "@/components/admin/ui";
 import HeroPhotoUploader from "@/components/admin/HeroPhotoUploader";
 import GalleryPhotosUploader from "@/components/admin/GalleryPhotosUploader";
@@ -20,7 +21,7 @@ function emptyStat(): StoryStat {
   return { value: "", label: "", sub: "" };
 }
 
-export default function ContentSection({ config }: { config: TenantConfig }) {
+export default function ContentSection({ config, demo }: { config: TenantConfig; demo: boolean }) {
   const form = useFormAction(updateContent, {
     prepare: (fd) => {
       // Filtre les stats vides avant envoi
@@ -69,14 +70,18 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
           title="Grande photo d'accueil"
           desc="L'image visible en première page. Sans image, un fond de couleur unie est utilisé."
         >
-          <HeroPhotoUploader initialPhoto={config.heroPhoto} />
+          <DemoLock demo={demo}>
+            <HeroPhotoUploader initialPhoto={config.heroPhoto} />
+          </DemoLock>
         </SettingsSection>
 
         <SettingsSection
           title="Galerie d'illustration"
           desc="De 0 à 6 photos affichées sur la page d'accueil. La mise en page s'adapte automatiquement au nombre de photos."
         >
-          <GalleryPhotosUploader initialPhotos={config.galleryPhotos ?? []} />
+          <DemoLock demo={demo}>
+            <GalleryPhotosUploader initialPhotos={config.galleryPhotos ?? []} />
+          </DemoLock>
         </SettingsSection>
 
         <SettingsSection

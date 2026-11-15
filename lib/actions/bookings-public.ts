@@ -14,6 +14,7 @@ import {
   saveLines,
 } from "@/lib/booking-intake";
 import { getStripe } from "@/lib/stripe";
+import { isDemoTenant } from "@/lib/demo";
 import { CHECKOUT_TTL_MINUTES } from "@/lib/checkout-window";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { bookingPublicSchema, safeParseFormData } from "@/lib/validation";
@@ -204,9 +205,11 @@ export async function createBookingPublic(
   // on le retire tout de suite pour ne pas bloquer la chambre indéfiniment.
   let session: Stripe.Checkout.Session;
   try {
-    session = await getStripe().checkout.sessions.create(
+    // Démo : mode test sur le compte plateforme, jamais sur un compte connecté.
+    const demo = await isDemoTenant(tenantId);
+    session = await getStripe({ test: demo }).checkout.sessions.create(
       sessionParams,
-      stripeAccountId ? { stripeAccount: stripeAccountId } : undefined,
+      stripeAccountId && !demo ? { stripeAccount: stripeAccountId } : undefined,
     );
   } catch (e) {
     await db.delete(bookings).where(eq(bookings.id, bookingId));

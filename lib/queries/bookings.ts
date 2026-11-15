@@ -227,6 +227,7 @@ export async function loadEmailContext(bookingId: string, tenantId: string) {
       extras: extraLines.filter((l) => !l.exempt).map((l) => ({ label: l.label, quantity: l.kind === "tax" ? 1 : l.quantity, unitPrice: l.unitPrice, total: l.total })),
       hotelName: tenant?.name ?? "Hôtel",
       config,
+      tenantId,
     },
   };
 }

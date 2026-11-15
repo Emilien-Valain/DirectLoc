@@ -87,7 +87,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "C'est plus cher qu'elloha ou Amenitiz.",
-    a: "Le prix comprend l'installation par quelqu'un du bocage, un site à votre nom de domaine et le réseau des hébergeurs voisins. Si vous préférez ne pas payer chaque mois, la licence s'achète une fois.",
+    a: "Le prix comprend l'installation, un site à votre nom de domaine et le réseau des hébergeurs voisins. Pour comparaison, la licence complète de l'outil vaut 3 000 €.",
   },
   {
     q: "Est-ce un channel manager ?",
@@ -130,7 +130,8 @@ export default function VitrinePage() {
         <MonthLeaf />
         <aside className="alm-side" id="rappel">
           <CallbackForm id="cb-top" title={<>On vous<br />rappelle</>} />
-          <Link href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</Link>
+          {/* <a>, pas <Link> : un prefetch de /essayer ouvrirait une session démo à chaque affichage. */}
+          <a href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</a>
         </aside>
       </section>
 
@@ -170,7 +171,7 @@ export default function VitrinePage() {
           <li><b>Deuxième semaine</b><span>On installe</span><p>On monte votre site, on importe vos photos, on branche le paiement en ligne et la synchronisation des calendriers. Vous relisez.</p></li>
           <li><b>Ensuite</b><span>Les réservations arrivent</span><p>Les voyageurs réservent et paient sur votre site. Vous recevez un e-mail et retrouvez tout dans votre tableau de bord.</p></li>
         </ol>
-        <Link href="/essayer" className="alm-link">Voir le tableau de bord d&apos;un hôte de démonstration</Link>
+        <a href="/essayer" className="alm-link">Voir le tableau de bord d&apos;un hôte de démonstration</a>
       </section>
 
       <section className="alm-sheet" id="calendriers" aria-labelledby="cal-t">
@@ -198,13 +199,17 @@ export default function VitrinePage() {
       </section>
 
       <section className="alm-sheet" id="modeles" aria-labelledby="modeles-t">
-        <h2 id="modeles-t">Quatre couvertures, votre nom dessus</h2>
-        <p className="alm-intro">Choisissez le décor de votre site et vos couleurs. Vos voyageurs voient votre maison, pas DirectLoc.</p>
+        <h2 id="modeles-t">Quatre couvertures, ou la vôtre</h2>
+        <p className="alm-intro">
+          Choisissez le décor de votre site et vos couleurs, ou faites dessiner le vôtre sur mesure.
+          Vos voyageurs voient votre maison, pas DirectLoc.
+        </p>
         <ul className="alm-covers">
           <li className="alm-cv alm-cv-plaque"><b>Gîte de la Vergnaie</b><span>La Plaque émaillée</span></li>
           <li className="alm-cv alm-cv-linge"><b>Gîte de la Vergnaie</b><span>Le Linge de maison</span></li>
           <li className="alm-cv alm-cv-affiche"><b>Gîte de la Vergnaie</b><span>L&apos;Affiche touristique</span></li>
           <li className="alm-cv alm-cv-standard"><b>Gîte de la Vergnaie</b><span>Classique</span></li>
+          <li className="alm-cv alm-cv-custom"><a href="#tarifs-decor"><b>Votre propre décor</b><span>Sur mesure</span></a></li>
         </ul>
       </section>
 
@@ -239,26 +244,36 @@ export default function VitrinePage() {
         <div className="alm-prices">
           <table>
             <caption>Abonnement mensuel</caption>
-            <thead><tr><th scope="col">Formule</th><th scope="col">Gîtes / meublés</th><th scope="col">Chambres</th><th scope="col">Prix</th></tr></thead>
+            <thead><tr><th scope="col">Formule</th><th scope="col">Logements</th><th scope="col">Prix</th></tr></thead>
             <tbody>
-              <tr><th scope="row">Solo</th><td>1 gîte</td><td>1 à 3</td><td>39 € / mois</td></tr>
-              <tr><th scope="row">Petit</th><td>2 à 5 gîtes</td><td>4 à 8</td><td>69 € / mois</td></tr>
-              <tr><th scope="row">Grand</th><td>6 gîtes et plus</td><td>9 et plus</td><td>119 € / mois + 8 € par chambre au-delà</td></tr>
+              <tr><th scope="row">Solo</th><td>1</td><td>39 € / mois</td></tr>
+              <tr><th scope="row">Petit</th><td>2 à 5</td><td>69 € / mois</td></tr>
+              <tr><th scope="row">Grand</th><td>6 et plus</td><td>119 € / mois + 8 € par logement au-delà de 6</td></tr>
             </tbody>
           </table>
-          <table>
-            <caption>Licence achetée une fois</caption>
-            <thead><tr><th scope="col">Formule</th><th scope="col">Licence</th><th scope="col">Maintenance et hébergement</th></tr></thead>
-            <tbody>
-              <tr><th scope="row">Solo</th><td>1 250 €</td><td>19 € / mois</td></tr>
-              <tr><th scope="row">Petit</th><td>1 490 €</td><td>25 € / mois</td></tr>
-              <tr><th scope="row">Grand</th><td>1 990 €</td><td>35 € / mois</td></tr>
-            </tbody>
-          </table>
+          <div className="alm-licence" aria-labelledby="licence-t">
+            <h3 id="licence-t">Licence</h3>
+            <p className="alm-licence-price">3 000 €<small>payée une fois</small></p>
+            <ul>
+              <li>Votre propre serveur</li>
+              <li>Propriétaire à 100 %</li>
+              <li>Installation et réseau des voisins inclus</li>
+              <li>Maintenance optionnelle, sur devis</li>
+            </ul>
+            <p className="alm-licence-anchor">C&apos;est ce que vaut l&apos;outil. L&apos;abonnement vous en donne l&apos;usage complet à partir de 39 € / mois.</p>
+          </div>
         </div>
+        <table className="alm-decor" id="tarifs-decor">
+          <caption>Décor sur mesure, payé une fois</caption>
+          <thead><tr><th scope="col">Offre</th><th scope="col">Ce que ça veut dire</th><th scope="col">Prix</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Partagé</th><td>Dessiné pour vous, il pourra ensuite rejoindre le catalogue</td><td>100 €</td></tr>
+            <tr><th scope="row">Exclusif 3 ans</th><td>Vous seul l&apos;utilisez pendant 3 ans</td><td>350 €</td></tr>
+            <tr><th scope="row">Exclusif à vie</th><td>Vous seul l&apos;utiliserez, pour toujours</td><td>500 €</td></tr>
+          </tbody>
+        </table>
         <p className="alm-source">
-          Abonnement : 2 mois offerts sur un engagement d&apos;un an. Licence : vous l&apos;achetez, vous ne la louez pas ; la maintenance
-          (serveur, mises à jour de sécurité, assistance) reste obligatoire. Aucune commission sur les réservations dans les deux cas.
+          Abonnement sans engagement, résiliable chaque mois. Aucune commission sur les réservations, quelle que soit la formule.
         </p>
       </section>
 
@@ -275,7 +290,7 @@ export default function VitrinePage() {
         <div className="alm-back-copy">
           <h2>Votre prochain été, en direct.</h2>
           <p>Laissez votre numéro : on vous rappelle, on vient vous montrer votre futur site, on installe tout avec vous.</p>
-          <Link href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</Link>
+          <a href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</a>
         </div>
         <CallbackForm id="cb-end" title="Être rappelé" />
         <p className="alm-colophon">DirectLoc · réservation directe pour les hébergeurs de Vendée Bocage et du Puy du Fou · directloc.app</p>

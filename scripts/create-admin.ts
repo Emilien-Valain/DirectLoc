@@ -13,17 +13,12 @@
  */
 
 import { eq } from "drizzle-orm";
-import { hashPassword } from "better-auth/crypto";
-import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
-import { tenants, users, accounts, properties, userTenants } from "@/db/schema";
+import { tenants, users, properties, userTenants } from "@/db/schema";
 import { TEMPLATE_NAMES, type TemplateName } from "@/lib/tenant-context";
+import { createCredentialUser } from "@/lib/credential-user";
 
 const VALID_TEMPLATES: readonly TemplateName[] = TEMPLATE_NAMES;
-
-function generateId(): string {
-  return randomBytes(16).toString("base64url");
-}
 
 async function main() {
   const args = process.argv.slice(2);
@@ -97,23 +92,7 @@ async function main() {
     console.log(`ℹ Utilisateur existant relié : ${email}`);
   } else {
     // 3. Créer l'utilisateur + compte email/password au format Better Auth
-    userId = generateId();
-    const passwordHash = await hashPassword(password);
-
-    await db.insert(users).values({
-      id: userId,
-      name,
-      email,
-      emailVerified: true,
-    });
-
-    await db.insert(accounts).values({
-      id: generateId(),
-      accountId: userId,
-      providerId: "credential",
-      userId,
-      password: passwordHash,
-    });
+    userId = await createCredentialUser(db, { name, email, password });
 
     console.log(`✓ Admin créé : ${email}`);
   }

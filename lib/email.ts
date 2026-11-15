@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import type { TenantConfig } from "@/lib/tenant-context";
+import { isDemoTenant } from "@/lib/demo";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -116,9 +117,13 @@ type SendOptions = {
   html: string;
   hotelName: string;
   replyTo?: string;
+  /** Tenant concerné : rien ne part pour l'hôtel de démo public (admin ouvert à tous). */
+  // Obligatoire : un envoi qui oublie le tenant partirait aussi depuis la démo. null = email plateforme.
+  tenantId: string | null;
 };
 
-async function sendEmail({ to, subject, html, hotelName, replyTo }: SendOptions) {
+async function sendEmail({ to, subject, html, hotelName, replyTo, tenantId }: SendOptions) {
+  if (tenantId && (await isDemoTenant(tenantId))) return;
   await transporter.sendMail({
     from: `${hotelName} <${fromAddress}>`,
     to,
@@ -142,6 +147,7 @@ type BookingEmailData = {
   extras?: EmailExtraLine[];
   hotelName: string;
   config?: TenantConfig;
+  tenantId: string;
 };
 
 type EmailExtraLine = { label: string; quantity: number; unitPrice: number; total: number };
@@ -215,6 +221,7 @@ ${customMessage}
   const html = renderEmailLayout({ hotelName, config }, body);
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: guestEmail,
     subject: `Confirmation de réservation — ${hotelName}`,
     html,
@@ -236,6 +243,7 @@ ${renderBookingSummaryTable(data, "Total du s&eacute;jour")}
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Une question ? R&eacute;pondez simplement &agrave; cet email.</p>`;
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: guestEmail,
     subject: `Votre réservation a été modifiée — ${hotelName}`,
     html: renderEmailLayout({ hotelName, config }, body),
@@ -283,6 +291,7 @@ export async function sendAdminNotification(data: AdminNotificationData) {
   const html = renderEmailLayout({ hotelName, config }, body);
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: adminEmail,
     subject: `Nouvelle réservation — ${guestName} (${roomName})`,
     html,
@@ -310,6 +319,7 @@ export async function sendPaidAfterCancellationAlert(data: PaidAfterCancellation
 ${renderBookingSummaryTable(data)}`;
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: adminEmail,
     subject: `Paiement reçu sur une réservation annulée — remboursez via Stripe (${guestName})`,
     html: renderEmailLayout({ hotelName, config }, body),
@@ -328,6 +338,7 @@ type CancellationEmailData = {
   hotelName: string;
   config?: TenantConfig;
   reason: "admin" | "payment_expired";
+  tenantId: string;
 };
 
 export async function sendBookingCancellation(data: CancellationEmailData) {
@@ -361,6 +372,7 @@ export async function sendBookingCancellation(data: CancellationEmailData) {
   const html = renderEmailLayout({ hotelName, config }, body);
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: guestEmail,
     subject: `Réservation annulée — ${hotelName}`,
     html,
@@ -380,6 +392,7 @@ type ReminderEmailData = {
   nights: number;
   hotelName: string;
   config?: TenantConfig;
+  tenantId: string;
 };
 
 export async function sendCheckInReminder(data: ReminderEmailData) {
@@ -417,6 +430,7 @@ ${addressBlock}
   const html = renderEmailLayout({ hotelName, config }, body);
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: guestEmail,
     subject: `Rappel : votre séjour dans 2 jours — ${hotelName}`,
     html,
@@ -432,6 +446,7 @@ type PostStayEmailData = {
   guestEmail: string;
   hotelName: string;
   config?: TenantConfig;
+  tenantId: string;
 };
 
 export async function sendPostStayThankYou(data: PostStayEmailData) {
@@ -460,6 +475,7 @@ ${reviewBlock}
   const html = renderEmailLayout({ hotelName, config }, body);
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: guestEmail,
     subject: `Merci pour votre séjour — ${hotelName}`,
     html,
@@ -476,6 +492,7 @@ type PasswordResetEmailData = {
   resetUrl: string;
   hotelName?: string;
   config?: TenantConfig;
+  tenantId?: string;
 };
 
 export async function sendPasswordResetEmail(data: PasswordResetEmailData) {
@@ -498,6 +515,7 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData) {
   const html = renderEmailLayout({ hotelName: displayName, config }, body);
 
   await sendEmail({
+    tenantId: data.tenantId ?? null,
     to: userEmail,
     subject: `Réinitialisation de mot de passe — ${displayName}`,
     html,
@@ -515,5 +533,5 @@ export async function sendCallbackRequest(data: { name: string; phone: string; p
   <li>Téléphone : <strong>${escapeHtml(data.phone)}</strong></li>
   ${data.place ? `<li>Hébergement / commune : ${escapeHtml(data.place)}</li>` : ""}
 </ul>`;
-  await sendEmail({ to, subject: `Rappel demandé — ${data.name}`, html, hotelName: "DirectLoc" });
+  await sendEmail({ to, subject: `Rappel demandé — ${data.name}`, html, hotelName: "DirectLoc", tenantId: null });
 }

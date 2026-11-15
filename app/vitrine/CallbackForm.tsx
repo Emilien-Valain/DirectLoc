@@ -21,7 +21,6 @@ export function CallbackForm({ id, title }: { id: string; title: React.ReactNode
         </p>
       ) : (
         <>
-          <p>Un conseiller du bocage vous montre votre futur site et installe tout avec vous.</p>
           <label htmlFor={`${id}-name`}>Nom</label>
           <input id={`${id}-name`} name="name" autoComplete="name" required maxLength={100}
             aria-invalid={!!err.name} aria-describedby={err.name ? `${id}-name-e` : undefined} />

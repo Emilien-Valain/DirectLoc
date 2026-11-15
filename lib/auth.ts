@@ -6,6 +6,37 @@ import * as schema from "@/db/schema";
 import { sendPasswordResetEmail } from "@/lib/email";
 import type { TenantConfig } from "@/lib/tenant-context";
 import { prodTrustedOrigins } from "@/lib/trusted-origins";
+import { APIError, createAuthEndpoint } from "better-auth/api";
+import { setSessionCookie } from "better-auth/cookies";
+import type { BetterAuthPlugin } from "better-auth";
+import { demoUserEmail } from "@/lib/demo";
+
+const DEMO_SESSION_SEC = 2 * 3600;
+
+// Connexion sans mot de passe au compte de l'hôtel démo, appelée par app/essayer/route.ts
+// (qui vérifie le tenant). SERVER_ONLY : absent du routeur /api/auth, joignable via auth.api seulement.
+const demoSession = {
+  id: "demo-session",
+  endpoints: {
+    demoSignIn: createAuthEndpoint(
+      "/demo/sign-in",
+      { method: "POST", metadata: { SERVER_ONLY: true } },
+      async (ctx) => {
+        const found = await ctx.context.internalAdapter.findUserByEmail(demoUserEmail());
+        if (!found) throw new APIError("NOT_FOUND");
+        // dontRememberMe : Better Auth ne prolonge jamais la session (2 h fixes, puis /essayer à nouveau).
+        const session = await ctx.context.internalAdapter.createSession(
+          found.user.id,
+          true,
+          { expiresAt: new Date(Date.now() + DEMO_SESSION_SEC * 1000) },
+          true,
+        );
+        await setSessionCookie(ctx, { session, user: found.user }, true, { maxAge: DEMO_SESSION_SEC });
+        return ctx.json({ ok: true });
+      },
+    ),
+  },
+} satisfies BetterAuthPlugin;
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -13,6 +44,8 @@ export const auth = betterAuth({
     schema,
     usePlural: true,
   }),
+
+  plugins: [demoSession],
 
   emailAndPassword: {
     enabled: true,
@@ -65,6 +98,8 @@ export const auth = betterAuth({
         resetUrl,
         hotelName,
         config,
+        // Compte démo partagé : pas de lien de reset, sinon un visiteur verrouille la démo pour tous.
+        tenantId: membership?.tenantId,
       });
     },
   },

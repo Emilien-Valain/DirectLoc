@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireTenant } from "@/lib/tenant-context";
 import type { Tenant, TenantConfig } from "@/lib/tenant-context";
 import SiteMenu from "@/components/public/SiteMenu";
+import { isDemoTenant } from "@/lib/demo";
 import "@/components/public/site.css";
 import "@/components/public/templates/plaque.css";
 import "@/components/public/templates/linge.css";
@@ -59,7 +60,7 @@ export default async function PublicLayout({
   const tenant = await requireTenant();
   const config = (tenant.config ?? {}) as TenantConfig;
   return (
-    <SiteShell tenant={tenant} config={config}>
+    <SiteShell tenant={tenant} config={config} demo={await isDemoTenant(tenant.id)}>
       {children}
     </SiteShell>
   );
@@ -68,10 +69,12 @@ export default async function PublicLayout({
 function SiteShell({
   tenant,
   config,
+  demo,
   children,
 }: {
   tenant: Tenant;
   config: TenantConfig;
+  demo: boolean;
   children: React.ReactNode;
 }) {
   const world = siteTemplate(config);
@@ -83,6 +86,12 @@ function SiteShell({
 
   return (
     <div className="site" data-tpl={world.tpl} style={vars}>
+      {demo && (
+        <p className="s-demo" data-testid="demo-banner">
+          Site de démonstration · {/* <a> : pas de prefetch, chaque clic ouvre une session */}
+          <a href="/essayer">Voir l&apos;admin</a>
+        </p>
+      )}
       <header className="s-header">
         <Link href="/" className="s-brand">
           {config.logoUrl ? (

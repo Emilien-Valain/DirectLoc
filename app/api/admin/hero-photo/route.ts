@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
+import { isDemoTenant } from "@/lib/demo";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
 import {
@@ -40,6 +41,9 @@ async function writeConfig(tenantId: string, patch: Partial<TenantConfig>) {
 
 export async function POST(request: NextRequest) {
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   const formData = await request.formData();
   const file = formData.get("photo") as File | null;
@@ -99,6 +103,9 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE() {
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   const config = await readConfig(tenantId);
   const previous = config.heroPhoto;

@@ -25,6 +25,13 @@
 .site :focus-visible { outline: 3px solid var(--s-focus); outline-offset: 3px; }
 :where(.site) a { color: inherit; text-underline-offset: 0.2em; }
 
+/* ── Bandeau de l'hôtel démo ─────────────────────────── */
+.s-demo {
+  margin: 0; padding: 8px var(--s-gutter); text-align: center;
+  font-size: 0.875rem; font-weight: 700;
+  color: var(--s-ink); background: color-mix(in oklch, var(--s-accent) 18%, var(--s-surface));
+}
+
 /* ── Header ─────────────────────────────────────────── */
 .s-header {
   position: relative;

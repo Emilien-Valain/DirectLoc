@@ -4,6 +4,7 @@ import fs from "fs/promises";
 import sharp from "sharp";
 import { and, eq } from "drizzle-orm";
 import { requireSession } from "@/lib/session";
+import { isDemoTenant } from "@/lib/demo";
 import { db } from "@/lib/db";
 import { rooms } from "@/db/schema";
 import { isUuid } from "@/lib/validation";
@@ -34,6 +35,9 @@ export async function POST(
   const { id: roomId } = await params;
   if (!isUuid(roomId)) return NextResponse.json({ error: "Chambre introuvable" }, { status: 404 });
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   // Vérifier que la chambre appartient au tenant
   const room = await db.query.rooms.findFirst({
@@ -125,6 +129,9 @@ export async function DELETE(
   const { id: roomId } = await params;
   if (!isUuid(roomId)) return NextResponse.json({ error: "Chambre introuvable" }, { status: 404 });
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   const { photoId } = (await request.json()) as { photoId: string };
 
@@ -172,6 +179,9 @@ export async function PUT(
   const { id: roomId } = await params;
   if (!isUuid(roomId)) return NextResponse.json({ error: "Chambre introuvable" }, { status: 404 });
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   const { photoIds } = (await request.json()) as { photoIds: string[] };
 

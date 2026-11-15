@@ -190,7 +190,7 @@
 .alm-lane-all i { background: var(--ink); top: 7px; bottom: 7px; }
 
 /* Quatre couvertures (polices des templates, déjà chargées par le layout racine) */
-.alm-covers { list-style: none; margin: 30px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.alm-covers { list-style: none; margin: 30px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; }
 .alm-cv { aspect-ratio: 3 / 4; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 14px 24px -18px rgb(5 12 40 / 0.6); }
 .alm-cv b { font-size: 30px; line-height: 0.95; }
 .alm-cv span { font: 700 14px var(--ui); letter-spacing: 0.06em; text-transform: uppercase; }
@@ -204,6 +204,10 @@
 .alm-cv-affiche span { color: #f7f0e1; }
 .alm-cv-standard { background: #fff; color: #1c1917; border: 1px solid #e7e5e4; }
 .alm-cv-standard b { font-family: var(--font-hanken), sans-serif; font-weight: 700; letter-spacing: -0.025em; background: #2a5c40; color: #fff; padding: 18px; border-radius: 14px; }
+.alm-cv-custom { padding: 0; background: transparent; border: 2px dashed var(--rule); box-shadow: none; color: var(--ink); }
+.alm-cv-custom a { flex: 1; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; color: inherit; text-decoration: none; transition: background 0.3s var(--ease); }
+.alm-cv-custom a:hover, .alm-cv-custom a:focus-visible { background: var(--leaf-tint); }
+.alm-cv-custom span { color: var(--red); }
 
 /* Réseau */
 .alm-net-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 40px; align-items: start; }
@@ -218,12 +222,19 @@
 
 /* Tarifs */
 .alm-prices { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 40px; margin-top: 26px; }
-.alm-prices table { width: 100%; border-collapse: collapse; }
-.alm-prices caption { text-align: left; font: 900 26px/1 var(--display); text-transform: uppercase; padding-bottom: 12px; }
-.alm-prices th, .alm-prices td { text-align: left; padding: 12px 10px 12px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
-.alm-prices thead th { font: 700 12px var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 2px solid var(--ink); }
-.alm-prices tbody th { font: 900 22px/1.1 var(--display); text-transform: uppercase; }
-.alm-prices td:last-child { font: 700 17px var(--ui); }
+.alm-prices table, .alm-decor { width: 100%; border-collapse: collapse; }
+.alm-prices caption, .alm-decor caption { text-align: left; font: 900 26px/1 var(--display); text-transform: uppercase; padding-bottom: 12px; }
+.alm-prices th, .alm-prices td, .alm-decor th, .alm-decor td { text-align: left; padding: 12px 10px 12px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.alm-prices thead th, .alm-decor thead th { font: 700 12px var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 2px solid var(--ink); }
+.alm-prices tbody th, .alm-decor tbody th { font: 900 22px/1.1 var(--display); text-transform: uppercase; }
+.alm-prices td:last-child, .alm-decor td:last-child { font: 700 17px var(--ui); }
+.alm-decor { margin-top: 40px; }
+.alm-licence { padding: 22px 24px; background: var(--leaf-tint); border-top: 4px solid var(--gold-line); }
+.alm-licence h3 { margin: 0; font: 900 26px/1 var(--display); text-transform: uppercase; }
+.alm-licence-price { margin: 14px 0 0; font: 900 48px/1 var(--display); }
+.alm-licence-price small { display: block; margin-top: 6px; font: 700 13px var(--ui); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); }
+.alm-licence ul { margin: 16px 0 0; padding-left: 1.1em; font: 600 16px/1.6 var(--ui); }
+.alm-licence-anchor { margin: 16px 0 0; font: italic 400 16px/1.45 var(--serif); color: var(--ink-soft); }
 
 /* Courrier des hébergeurs */
 .alm-faq { margin-top: 18px; columns: 2; column-gap: 48px; }
@@ -264,6 +275,7 @@
   .alm-side { padding-top: 0; max-width: 560px; }
   .alm-covers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .alm-net-grid, .alm-prices { grid-template-columns: 1fr; }
+  .alm-decor { display: block; overflow-x: auto; }
 }
 @media (max-width: 760px) {
   .alm { font-size: 17px; }

@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
+import { isDemoTenant } from "@/lib/demo";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
 import {
@@ -54,6 +55,9 @@ function sanitizeCaption(raw: unknown): string | undefined {
 // ─── POST : upload une ou plusieurs photos ────────────────────────────────
 export async function POST(request: NextRequest) {
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   const formData = await request.formData();
   const files = formData.getAll("photos") as File[];
@@ -122,6 +126,9 @@ export async function POST(request: NextRequest) {
 // ─── DELETE : supprimer une photo par id ───────────────────────────────────
 export async function DELETE(request: NextRequest) {
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   let photoId: string | undefined;
   try {
@@ -158,6 +165,9 @@ export async function DELETE(request: NextRequest) {
 // Body : { photos: [{ id, caption? }] } — l'ordre du tableau définit la position.
 export async function PUT(request: NextRequest) {
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   let body: { photos?: Array<{ id: string; caption?: string }> };
   try {

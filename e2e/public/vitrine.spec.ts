@@ -64,11 +64,41 @@ test.describe("Site vitrine — barème", () => {
   });
 });
 
+test.describe("Site vitrine — couvertures et tarifs", () => {
+  test("cinquième couverture « sur mesure » qui mène aux tarifs des décors", async ({ page }) => {
+    await page.goto(`${VITRINE}/`);
+    await expect(page.getByRole("heading", { name: "Quatre couvertures, ou la vôtre" })).toBeVisible();
+    await expect(page.locator(".alm-covers > li")).toHaveCount(5);
+    await page.getByRole("link", { name: /Votre propre décor/ }).click();
+    await expect(page).toHaveURL(/#tarifs-decor$/);
+    const decor = page.getByRole("table", { name: /Décor sur mesure/ });
+    await expect(decor.getByRole("row", { name: /Partagé/ })).toContainText("100 €");
+    await expect(decor.getByRole("row", { name: /Exclusif 3 ans/ })).toContainText("350 €");
+    await expect(decor.getByRole("row", { name: /Exclusif à vie/ })).toContainText("500 €");
+  });
+
+  test("abonnement par logement, licence unique à 3 000 €, plus d'offre ni de maintenance obligatoire", async ({ page }) => {
+    await page.goto(`${VITRINE}/`);
+    const sub = page.getByRole("table", { name: "Abonnement mensuel" });
+    await expect(sub.getByRole("columnheader")).toHaveText(["Formule", "Logements", "Prix"]);
+    await expect(sub.getByRole("row", { name: /Solo/ })).toContainText("39 € / mois");
+    await expect(sub.getByRole("row", { name: /Grand/ })).toContainText("8 € par logement au-delà de 6");
+    const licence = page.locator(".alm-licence");
+    await expect(licence).toContainText("3 000 €");
+    await expect(licence).toContainText("Propriétaire à 100 %");
+    await expect(licence).toContainText("Maintenance optionnelle, sur devis");
+    await expect(page.getByText(/2 mois offerts/)).toHaveCount(0);
+    await expect(page.getByText(/maintenance.*obligatoire/i)).toHaveCount(0);
+    await expect(page.getByText(/1 250 €/)).toHaveCount(0);
+  });
+});
+
 test.describe("Site vitrine — formulaire de rappel", () => {
   const form = (page: import("@playwright/test").Page) => page.locator("form.alm-coupon").first();
 
   test("champs vides → erreurs par champ, aucun e-mail", async ({ page }) => {
     await page.goto(`${VITRINE}/`);
+    await expect(page.getByText(/Un conseiller du bocage vous montre/)).toHaveCount(0);
     await form(page).getByRole("button", { name: "Être rappelé" }).click();
     await expect(form(page).getByText("Indiquez votre nom")).toBeVisible();
     await expect(form(page).getByText(/Numéro de téléphone invalide/)).toBeVisible();

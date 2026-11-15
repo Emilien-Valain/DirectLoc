@@ -15,8 +15,10 @@ type StripeStatus = {
 
 export default function StripeConnectSection({
   hasAccount,
+  demo,
 }: {
   hasAccount: boolean;
+  demo: boolean;
 }) {
   const searchParams = useSearchParams();
   const stripeParam = searchParams.get("stripe");
@@ -25,12 +27,12 @@ export default function StripeConnectSection({
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (hasAccount) {
+    if (hasAccount && !demo) {
       fetch("/api/admin/stripe/status")
         .then((r) => r.json())
         .then(setStatus);
     }
-  }, [hasAccount]);
+  }, [hasAccount, demo]);
 
   async function handleConnect() {
     setLoading(true);
@@ -76,7 +78,11 @@ export default function StripeConnectSection({
         </StatusBanner>
       )}
 
-      {isFullyConnected ? (
+      {demo ? (
+        <StatusBanner variant="info">
+          Désactivé en démo : les réservations de l&apos;hôtel démo sont payées en mode test Stripe.
+        </StatusBanner>
+      ) : isFullyConnected ? (
         <>
           <div
             className="mb-4"

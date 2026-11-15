@@ -7,6 +7,7 @@ import { getRoomByIdPublic } from "@/lib/queries/public";
 import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant } from "@/lib/queries/fees";
 import { feeAppliesTo } from "@/lib/extras";
+import { isDemoTenant } from "@/lib/demo";
 
 export default async function ReserverPage({
   params,
@@ -15,10 +16,11 @@ export default async function ReserverPage({
 }) {
   const { roomId } = await params;
   const tenant = await requireTenant();
-  const [room, extras, fees] = await Promise.all([
+  const [room, extras, fees, demo] = await Promise.all([
     getRoomByIdPublic(tenant.id, roomId),
     getExtrasByTenant(tenant.id, { activeOnly: true }),
     getFeesByTenant(tenant.id, { activeOnly: true }),
+    isDemoTenant(tenant.id),
   ]);
 
   if (!room) {
@@ -50,6 +52,7 @@ export default async function ReserverPage({
           fees={fees.filter((f) => feeAppliesTo(f, room.id))}
           touristTax={config.touristTax}
           host={{ phone: config.phone, checkInTime: config.checkInTime, checkOutTime: config.checkOutTime }}
+          demo={demo}
         />
       </div>
     </PublicLayout>

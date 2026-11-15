@@ -8,6 +8,7 @@ import SettingsPageClient from "@/components/admin/SettingsPageClient";
 import type { TenantConfig } from "@/lib/tenant-context";
 import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant } from "@/lib/queries/fees";
+import { isDemoTenant } from "@/lib/demo";
 
 export const metadata = { title: "Paramètres" };
 
@@ -55,7 +56,11 @@ export default async function ParametresPage() {
     .where(eq(icalSources.tenantId, tenantId))
     .orderBy(asc(rooms.name), asc(icalSources.name));
 
-  const [extras, fees] = await Promise.all([getExtrasByTenant(tenantId), getFeesByTenant(tenantId)]);
+  const [extras, fees, demo] = await Promise.all([
+    getExtrasByTenant(tenantId),
+    getFeesByTenant(tenantId),
+    isDemoTenant(tenantId),
+  ]);
 
   return (
     <Suspense fallback={null}>
@@ -81,6 +86,7 @@ export default async function ParametresPage() {
         hasStripeAccount={!!tenant.stripeAccountId}
         extras={extras}
         fees={fees}
+        demo={demo}
       />
     </Suspense>
   );

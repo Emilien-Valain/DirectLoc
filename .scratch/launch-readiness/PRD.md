@@ -15,7 +15,7 @@ Constat live au 2026-11-05 : `https://directloc.app` répond avec `TRAEFIK DEFAU
 | 05 | Tenant sans Stripe Connect encaisse sur le compte plateforme | needs-info |
 | 06 | Supprimer les AAAA parking OVH | resolved |
 | 07 | Commiter le travail en cours (140 fichiers) | resolved |
-| 08 | Brancher directloc.app dans Coolify + déployer | ready-for-human |
+| 08 | Brancher directloc.app dans Coolify + déployer | resolved |
 | 09 | Aller-retour Stripe réel (2 endpoints webhook) | ready-for-human |
 | 10 | Pages légales (mentions, CGV/réservation, confidentialité) | needs-info |
 | 11 | Site vitrine sur l'apex directloc.app | needs-triage |

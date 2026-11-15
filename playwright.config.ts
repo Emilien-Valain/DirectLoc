@@ -69,6 +69,8 @@ export default defineConfig({
       PUBLIC_TENANT_SLUG: "test-tenant",
       // Site vitrine : http://directloc.localhost:3001
       MARKETING_HOST: "directloc.localhost",
+      // Hôtel démo public : http://demo-tenant.localhost:3001 (seedé par global-setup)
+      DEMO_TENANT_SLUG: "demo-tenant",
       OPERATOR_EMAIL: "operateur@directloc.test",
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "sk_test_placeholder",
       STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_test_XXXX",

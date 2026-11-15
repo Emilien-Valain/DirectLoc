@@ -274,6 +274,14 @@ export default async function globalSetup() {
 
   await pool.end();
 
+  // ── Hôtel démo public (même slug que le webServer, cf. playwright.config.ts) ──
+  // lib/demo lit l'env à l'import : à poser avant l'import dynamique.
+  process.env.DEMO_TENANT_SLUG ??= "demo-tenant";
+  // lib/db se connecte à DATABASE_URL : jamais une autre base que celle de test.
+  process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+  const { resetDemoTenant } = await import("../lib/demo-seed");
+  await resetDemoTenant();
+
   // ── Sauvegarder la session admin ────────────────────────────────────────────
 
   const browser = await chromium.launch();

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/session";
+import { isDemoTenant } from "@/lib/demo";
 import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
@@ -12,6 +13,9 @@ import { tenants } from "@/db/schema";
  */
 export async function POST(request: NextRequest) {
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   const [tenant] = await db
     .select()
@@ -68,6 +72,9 @@ export async function POST(request: NextRequest) {
  */
 export async function DELETE() {
   const { tenantId } = await requireSession();
+  if (await isDemoTenant(tenantId)) {
+    return NextResponse.json({ error: "Désactivé en démo" }, { status: 403 });
+  }
 
   await db
     .update(tenants)

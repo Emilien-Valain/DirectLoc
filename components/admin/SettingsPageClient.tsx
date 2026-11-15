@@ -78,6 +78,7 @@ export default function SettingsPageClient({
   hasStripeAccount,
   extras,
   fees,
+  demo,
 }: {
   tenant: { id: string; name: string; slug: string; domain: string | null };
   config: TenantConfig;
@@ -87,6 +88,7 @@ export default function SettingsPageClient({
   hasStripeAccount: boolean;
   extras: CatalogExtra[];
   fees: CatalogFee[];
+  demo: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -142,7 +144,7 @@ export default function SettingsPageClient({
         {tab === "site" && (
           <>
             <ThemeTab config={config} />
-            <ContentSection config={config} />
+            <ContentSection config={config} demo={demo} />
           </>
         )}
         {tab === "emails" && (
@@ -159,7 +161,7 @@ export default function SettingsPageClient({
               rooms={rooms}
               sources={icalSources}
             />
-            <StripeConnectSection hasAccount={hasStripeAccount} />
+            <StripeConnectSection hasAccount={hasStripeAccount} demo={demo} />
           </>
         )}
       </div>
