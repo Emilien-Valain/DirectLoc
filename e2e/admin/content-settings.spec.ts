@@ -55,7 +55,7 @@ test.describe("Admin — Paramètres contenu", () => {
   test("l'onglet Contenu est visible et accessible", async ({ page }) => {
     await page.goto("/admin/parametres?tab=content");
     await expect(
-      page.getByRole("heading", { name: "Hero — Textes", level: 2 }),
+      page.getByRole("heading", { name: "Textes de la page d'accueil", level: 2 }),
     ).toBeVisible();
     await expect(page.locator('[name="heroEyebrow"]')).toBeVisible();
     await expect(page.locator('[name="heroTitle"]')).toBeVisible();
@@ -71,7 +71,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.waitForLoadState("networkidle");
 
     await page.locator('[name="heroTitle"]').fill(heroTitle);
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
 
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
@@ -99,7 +99,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.locator('[name="storyTitle"]').fill(storyTitle);
     await page.locator('[name="storyText"]').fill(storyText);
 
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
     await page.goto("/");
@@ -127,7 +127,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.getByLabel("Valeur du chiffre 1").fill(statValue);
     await page.getByLabel("Libellé du chiffre 1").fill(statLabel);
 
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
     await page.goto("/");
@@ -142,7 +142,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.waitForLoadState("networkidle");
 
     await page.locator('[name="footerTagline"]').fill(tagline);
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
     await page.goto("/");
@@ -167,7 +167,7 @@ test.describe("Admin — Paramètres contenu", () => {
       await page.locator(`[name="${name}"]`).fill("");
     }
 
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
     // La homepage doit toujours répondre 200
@@ -184,7 +184,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.waitForLoadState("networkidle");
 
     await page.locator('[name="heroTitle"]').fill(longTitle);
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
   });
 
@@ -204,7 +204,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.getByLabel("Valeur du chiffre 1").fill("7");
     await page.getByLabel("Libellé du chiffre 1").fill(statLabel);
 
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
     await page.goto("/");
@@ -214,7 +214,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.goto("/admin/parametres?tab=content");
     await page.waitForLoadState("networkidle");
     await page.getByLabel("Supprimer le chiffre 1").click();
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
     await page.goto("/");
@@ -234,7 +234,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.waitForLoadState("networkidle");
 
     await page.locator('[name="heroTitle"]').fill(xss);
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
 
     await page.goto("/");
@@ -246,7 +246,7 @@ test.describe("Admin — Paramètres contenu", () => {
     await page.goto("/admin/parametres?tab=content");
     await page.waitForLoadState("networkidle");
     await page.locator('[name="heroTitle"]').fill("");
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 10000 });
   });
 

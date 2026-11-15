@@ -78,7 +78,7 @@ test.describe("Admin — Paramètres : sauvegardes concurrentes de la config", (
       .then((r) => ((uploadDoneAt = Date.now()), r));
 
     await page.locator('[name="heroTitle"]').fill(heroTitle);
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 15_000 });
     const savedAt = Date.now();
 
@@ -116,14 +116,14 @@ test.describe("Admin — Paramètres : sauvegardes concurrentes de la config", (
     await page.goto("/admin/parametres?tab=content");
     await page.waitForLoadState("networkidle");
     await page.locator('[name="footerTagline"]').fill(`Tagline ${RUN_ID}`);
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 15_000 });
     expect((await readConfig()).footerTagline).toBe(`Tagline ${RUN_ID}`);
 
     await page.reload();
     await page.waitForLoadState("networkidle");
     await page.locator('[name="footerTagline"]').fill("");
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("button", { name: "Enregistrer les textes" }).click();
     await expect(page.getByText("Contenu mis à jour")).toBeVisible({ timeout: 15_000 });
 
     const config = await readConfig();

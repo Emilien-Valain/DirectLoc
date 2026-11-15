@@ -1,0 +1,10 @@
+# Stoppe le serveur dev s'il tourne (Next.js 16 refuse deux instances ;
+# le webServer Playwright lance son propre `next dev`).
+if [ -f .next/dev/lock ]; then
+  DEV_PID=$(node -e "try{process.stdout.write(String(require('./.next/dev/lock').pid))}catch(e){}" 2>/dev/null || true)
+  if [ -n "$DEV_PID" ] && kill -0 "$DEV_PID" 2>/dev/null; then
+    echo "⏸  Serveur dev détecté (PID $DEV_PID) — arrêt temporaire pour les tests..."
+    kill "$DEV_PID"
+    sleep 2
+  fi
+fi

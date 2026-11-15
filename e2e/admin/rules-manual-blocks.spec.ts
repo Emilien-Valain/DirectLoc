@@ -2,8 +2,6 @@ import { test, expect } from "@playwright/test";
 import { fd, fdCalendarQuery, fdFr } from "../helpers/dates";
 import { confirmDialog } from "../helpers/confirm";
 
-const RUN_ID = Date.now().toString(36).slice(-6);
-
 test.describe("Admin — Blocages manuels", () => {
   // ─── Happy path ────────────────────────────────────────────────────────────
 
@@ -118,6 +116,21 @@ test.describe("Admin — Blocages manuels", () => {
     await page.getByRole("tab", { name: "Blocages manuels" }).click();
     await page.getByRole("button", { name: "Supprimer" }).first().click();
     await confirmDialog(page);
+  });
+
+  test("blocage ponctuel fin = début ou fin < début : refusé, rien n'est créé (audit 2026-10c/4)", async ({ page }) => {
+    await page.goto("/admin/regles");
+    await page.getByRole("tab", { name: "Blocages manuels" }).click();
+    await page.getByRole("button", { name: "Ajouter" }).first().click();
+
+    // Fin exclusive : 10 → 10 bloquerait zéro nuit, la chambre resterait réservable.
+    for (const end of ["2026-09-10", "2026-09-09"]) {
+      await page.locator("input[name='startDate']").fill(fd("2026-09-10"));
+      await page.locator("input[name='endDate']").fill(fd(end));
+      await page.getByRole("button", { name: "Créer le blocage" }).click();
+      await expect(page.getByText("La date de fin doit être après la date de début").first()).toBeVisible();
+    }
+    await expect(page.getByText(fdFr("2026-09-10"))).toHaveCount(0);
   });
 
 });

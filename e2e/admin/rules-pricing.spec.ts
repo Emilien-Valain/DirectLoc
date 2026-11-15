@@ -89,7 +89,7 @@ test.describe("Admin — Tarification dynamique", () => {
     await page.locator("input[name='name']").fill("Promo hiver");
 
     // Sélectionner le type pourcentage
-    await page.getByLabel("Modificateur (%)").check();
+    await page.getByLabel("Hausse ou baisse en %").check();
 
     await page.locator("input[name='percentageModifier']").fill("-15");
 
@@ -99,6 +99,28 @@ test.describe("Admin — Tarification dynamique", () => {
     await expect(page.getByText("-15%")).toBeVisible();
 
     // Cleanup
+    await page.getByRole("button", { name: "Supprimer" }).first().click();
+    await confirmDialog(page);
+  });
+
+  test("modificateur -100 % (nuit à 0 €) refusé, -99 % accepté (audit 2026-10c/5)", async ({ page }) => {
+    await page.goto("/admin/regles");
+    await page.getByRole("tab", { name: "Tarification" }).click();
+    await page.getByRole("button", { name: "Ajouter" }).click();
+    await page.locator("input[name='name']").fill("Nuit offerte");
+    await page.getByLabel("Hausse ou baisse en %").check();
+
+    for (const v of ["-100", "-150"]) {
+      await page.locator("input[name='percentageModifier']").fill(v);
+      await page.getByRole("button", { name: "Créer la règle" }).click();
+      await expect(page.getByText("La réduction doit rester inférieure à 100 %").first()).toBeVisible();
+    }
+    await expect(page.getByText("-100%")).toHaveCount(0);
+
+    // Limite : -99 % reste une promo valide.
+    await page.locator("input[name='percentageModifier']").fill("-99");
+    await page.getByRole("button", { name: "Créer la règle" }).click();
+    await expect(page.getByText("-99%")).toBeVisible();
     await page.getByRole("button", { name: "Supprimer" }).first().click();
     await confirmDialog(page);
   });

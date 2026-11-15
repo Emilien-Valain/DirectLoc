@@ -410,23 +410,45 @@ test.describe("Paiement — Webhook Stripe", () => {
     }
   });
 
-  test("événement Connect d'un autre compte (ou tenant sans compte) → 200 mais booking intact", async ({ request }) => {
+  test("événement Connect d'un autre compte (sa propre session, metadata d'un autre hôtel) → 200 mais booking intact", async ({ request }) => {
     const { tenantId, apiRoomId } = loadTestContext();
-    const sessionId = `cs_test_connect_foreign_${Date.now()}`;
-    const { rows } = await pool.query("SELECT stripe_account_id FROM tenants WHERE id = $1", [tenantId]);
+    const sessionId = `cs_test_connect_victim_${Date.now()}`;
     const bookingId = await createTestBookingWithPayment(pool, tenantId, apiRoomId, sessionId);
     try {
-      // Tenant sans compte Connect : aucun compte connecté ne peut agir sur ses résas.
-      await pool.query("UPDATE tenants SET stripe_account_id = NULL WHERE id = $1", [tenantId]);
-      expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId, tenantId })).status()).toBe(200);
-      // Tenant avec un compte différent.
-      await pool.query("UPDATE tenants SET stripe_account_id = 'acct_legitime' WHERE id = $1", [tenantId]);
-      expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId, tenantId })).status()).toBe(200);
-      // metadata.tenantId malformé : ignoré, jamais 500.
-      expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId, tenantId: "pas-un-uuid" })).status()).toBe(200);
+      // Le compte intrus ne peut émettre que ses propres sessions (id choisi par Stripe) :
+      // il ne connaît pas `sessionId`, seulement le bookingId/tenantId de la victime.
+      const foreignSession = `cs_test_connect_intrus_${Date.now()}`;
+      expect((await postConnectEvent(request, "acct_intrus", foreignSession, { bookingId, tenantId })).status()).toBe(200);
+      // metadata malformée : ignorée, jamais 500.
+      expect((await postConnectEvent(request, "acct_intrus", foreignSession, { bookingId, tenantId: "pas-un-uuid" })).status()).toBe(200);
+      expect((await postConnectEvent(request, "acct_intrus", foreignSession, { bookingId: "pas-un-uuid", tenantId })).status()).toBe(200);
+      // Bonne session mais metadata pointant vers un autre booking : ignoré aussi.
+      const other = await createTestBookingWithPayment(pool, tenantId, apiRoomId, `${sessionId}_autre`);
+      expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId: other, tenantId })).status()).toBe(200);
+      const o = await pool.query("SELECT status FROM bookings WHERE id = $1", [other]);
+      expect(o.rows[0].status).toBe("pending");
+      await pool.query("DELETE FROM payments WHERE booking_id = $1", [other]);
+      await pool.query("DELETE FROM bookings WHERE id = $1", [other]);
 
       const b = await pool.query("SELECT status FROM bookings WHERE id = $1", [bookingId]);
       expect(b.rows[0].status).toBe("pending");
+    } finally {
+      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
+      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+    }
+  });
+
+  test("paiement abouti après déconnexion Stripe du tenant → booking confirmed quand même (audit 2026-10c/2)", async ({ request }) => {
+    const { tenantId, apiRoomId } = loadTestContext();
+    const sessionId = `cs_test_connect_disconnected_${Date.now()}`;
+    const { rows } = await pool.query("SELECT stripe_account_id FROM tenants WHERE id = $1", [tenantId]);
+    const bookingId = await createTestBookingWithPayment(pool, tenantId, apiRoomId, sessionId);
+    try {
+      // Session créée sur l'ancien compte, puis l'hôte a cliqué « Déconnecter ».
+      await pool.query("UPDATE tenants SET stripe_account_id = NULL WHERE id = $1", [tenantId]);
+      expect((await postConnectEvent(request, "acct_ancien", sessionId, { bookingId, tenantId })).status()).toBe(200);
+      const b = await pool.query("SELECT status FROM bookings WHERE id = $1", [bookingId]);
+      expect(b.rows[0].status).toBe("confirmed");
     } finally {
       await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [tenantId, rows[0].stripe_account_id]);
       await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);

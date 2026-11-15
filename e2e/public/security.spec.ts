@@ -214,9 +214,9 @@ test.describe("Sécurité — Plage de dates bornée à 366 nuits", () => {
     await page.goto(`/reserver/${testContext.apiRoomId}`);
     await page.fill('[name="guestName"]', "Trop Long");
     await page.fill('[name="guestEmail"]', email);
-    await page.fill('[name="checkIn"]', from);
-    await page.fill('[name="checkOut"]', plusNights(730));
-    const submit = page.locator('[type="submit"]');
+    await page.fill("#checkIn", from);
+    await page.fill("#checkOut", plusNights(730));
+    const submit = page.getByTestId("booking-submit");
     await page.waitForResponse((r) => r.url().includes("/api/availability"));
     await expect(submit).toBeDisabled();
 

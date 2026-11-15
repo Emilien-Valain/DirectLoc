@@ -26,12 +26,12 @@ test.describe("Public — Page de confirmation", () => {
   const sessionId = `cs_test_confirm_${RUN_ID}`;
   const rivalSessionId = `cs_test_confirm_rival_${RUN_ID}`;
 
-  async function insertBooking(tenantId: string, roomId: string, stripeSessionId: string) {
+  async function insertBooking(tenantId: string, roomId: string, stripeSessionId: string, status = "confirmed") {
     const { rows } = await pool.query(
       `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-       VALUES ($1, $2, $3, $4, '200.00', 'confirmed', $5, 'confirmation@test.com', 1, 'direct')
+       VALUES ($1, $2, $3, $4, '200.00', $6, $5, 'confirmation@test.com', 1, 'direct')
        RETURNING id`,
-      [tenantId, roomId, fd("2026-08-17"), fd("2026-08-19"), GUEST_NAME],
+      [tenantId, roomId, fd("2026-08-17"), fd("2026-08-19"), GUEST_NAME, status],
     );
     const id = rows[0].id as string;
     bookingIds.push(id);
@@ -59,6 +59,39 @@ test.describe("Public — Page de confirmation", () => {
     const res = await page.goto(`/reserver/confirmation?session_id=${sessionId}`);
     expect(res?.status()).toBe(200);
     await expect(page.getByText(GUEST_NAME)).toBeVisible();
+  });
+
+  test("réservation payée : bloc « Préparer votre arrivée » avec adresse, téléphone et itinéraire", async ({ page }) => {
+    await page.goto(`/reserver/confirmation?session_id=${sessionId}`);
+    const arrival = page.getByTestId("confirmation-arrival");
+    await expect(arrival).toContainText("Préparer votre arrivée");
+    await expect(arrival).toContainText("Bonnieux");
+    await expect(arrival.getByRole("link", { name: "+33 4 90 00 00 00" })).toHaveAttribute("href", "tel:+33 4 90 00 00 00");
+    // Coordonnées du tenant de test → itinéraire Google Maps vers ces coordonnées.
+    await expect(arrival.getByRole("link", { name: "Voir l'itinéraire" })).toHaveAttribute(
+      "href",
+      /google\.com\/maps\/dir\/\?api=1&destination=43\.8233%2C5\.3076/,
+    );
+    await expect(page.getByRole("link", { name: "Retour à l'accueil" })).toBeVisible();
+  });
+
+  test("paiement en attente : la page se met à jour seule quand le webhook confirme", async ({ page }) => {
+    const pendingSession = `cs_test_confirm_pending_${RUN_ID}`;
+    const id = await insertBooking(ctx.tenantId, ctx.apiRoomId, pendingSession, "pending");
+    await page.goto(`/reserver/confirmation?session_id=${pendingSession}`);
+    await expect(page.getByText("Paiement en cours de vérification")).toBeVisible();
+    await expect(page.getByTestId("pending-message")).toContainText("se met à jour toute seule");
+    // Le webhook passe la réservation en confirmée : sans rechargement manuel, la page suit.
+    await pool.query("UPDATE bookings SET status = 'confirmed' WHERE id = $1", [id]);
+    await expect(page.getByText("Réservation confirmée")).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("paiement en attente : pas encore de bloc d'arrivée", async ({ page }) => {
+    const pendingSession = `cs_test_confirm_noarrival_${RUN_ID}`;
+    await insertBooking(ctx.tenantId, ctx.apiRoomId, pendingSession, "pending");
+    await page.goto(`/reserver/confirmation?session_id=${pendingSession}`);
+    await expect(page.getByText("Paiement en cours de vérification")).toBeVisible();
+    await expect(page.getByTestId("confirmation-arrival")).toHaveCount(0);
   });
 
   test("?bookingId=<id réel> → 404, les données du client ne fuient pas", async ({ request }) => {

@@ -1,0 +1,4 @@
+# Suite E2E complète (~10 min) : rien ne quitte la machine sans elle.
+set -e
+. .husky/stop-dev-server.sh
+npx playwright test

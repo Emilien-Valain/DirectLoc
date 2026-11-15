@@ -1,0 +1,516 @@
+import { test, expect, type Page } from "@playwright/test";
+import crypto from "crypto";
+import fs from "fs";
+import path from "path";
+import { Pool } from "pg";
+import { confirmDialog, SAVED_BOOKING_URL } from "../helpers/confirm";
+import { startSmtpSink } from "../helpers/smtp-sink";
+
+/**
+ * Spécification : Tests de non-régression > Admin > Extras (options payantes)
+ * Issues .scratch/extras/01, 03, 04, 05 — ADR-0010.
+ *
+ * Catalogue géré dans Paramètres > Mon établissement ; Extras figés sur la
+ * réservation ; reste à payer ; Extras dans le PDF et l'email de confirmation.
+ * Chambre API Test (100 €/nuit, 2 pers.), séjours à J+700…J+790 (aucune autre
+ * fixture) ; tout porte RUN_ID / `@extras.example` et est supprimé en afterAll.
+ */
+
+const ctx = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "e2e", ".auth", "test-context.json"), "utf-8"),
+) as { tenantId: string; apiRoomId: string; rivalTenantId: string };
+
+const RUN_ID = Date.now().toString(36).slice(-6);
+const DOMAIN = "extras.example";
+const TAG = `xt${RUN_ID}`;
+const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+
+const day = (n: number) => new Date(Date.now() + n * 86400000).toISOString().split("T")[0];
+
+async function insertExtra(opts: { label: string; price: string; unit: string; active?: boolean; tenantId?: string }) {
+  const { rows } = await pool.query(
+    `INSERT INTO extras (tenant_id, label, price, unit, active) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [opts.tenantId ?? ctx.tenantId, `${opts.label} ${TAG}`, opts.price, opts.unit, opts.active ?? true],
+  );
+  return rows[0].id as string;
+}
+
+async function insertBooking(opts: {
+  name: string;
+  checkIn: string;
+  checkOut: string;
+  total: string;
+  status?: string;
+  source?: string;
+  guests?: number;
+}) {
+  const { rows } = await pool.query(
+    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+    [
+      ctx.tenantId,
+      ctx.apiRoomId,
+      opts.checkIn,
+      opts.checkOut,
+      opts.total,
+      opts.status ?? "confirmed",
+      `${opts.name} ${RUN_ID}`,
+      `${RUN_ID}@${DOMAIN}`,
+      opts.guests ?? 1,
+      opts.source ?? "manual",
+    ],
+  );
+  return rows[0].id as string;
+}
+
+async function lines(bookingId: string) {
+  const { rows } = await pool.query(
+    "SELECT source_id, label, unit_price, quantity, total FROM booking_lines WHERE booking_id = $1 ORDER BY created_at, label",
+    [bookingId],
+  );
+  return rows as { source_id: string | null; label: string; unit_price: string; quantity: number; total: string }[];
+}
+
+async function totalOf(bookingId: string) {
+  const { rows } = await pool.query("SELECT total_price FROM bookings WHERE id = $1", [bookingId]);
+  return rows[0].total_price as string;
+}
+
+async function cleanup() {
+  await pool.query(
+    "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE guest_email LIKE $1)",
+    [`%@${DOMAIN}`],
+  );
+  // booking_lines suit en cascade.
+  await pool.query("DELETE FROM bookings WHERE guest_email LIKE $1", [`%@${DOMAIN}`]);
+  await pool.query("DELETE FROM extras WHERE label LIKE $1", [`%${TAG}%`]);
+}
+
+test.beforeAll(cleanup);
+test.afterAll(async () => {
+  await cleanup();
+  await pool.end();
+});
+
+async function openOptions(page: Page) {
+  await page.goto("/admin/parametres?tab=etablissement");
+  await expect(page.getByRole("heading", { name: "Options", exact: true })).toBeVisible();
+}
+
+const section = (page: Page) =>
+  page.locator("section").filter({ has: page.getByRole("heading", { name: "Options", exact: true }) });
+
+async function addExtra(page: Page, label: string, price: string, unit = "per_stay") {
+  await section(page).getByRole("button", { name: "Ajouter", exact: true }).click();
+  const form = page.getByTestId("extra-form");
+  await form.locator('[name="label"]').fill(label);
+  await form.locator('[name="price"]').fill(price);
+  await form.locator('[name="unit"]').selectOption(unit);
+  await form.getByRole("button", { name: "Ajouter l'option" }).click();
+}
+
+const row = (page: Page, label: string) => page.locator(`[data-testid="extra-row"][data-extra-label="${label}"]`);
+
+// ─── Catalogue (issue 01) ──────────────────────────────────────────────────────
+
+test.describe("Admin — Catalogue d'Extras", () => {
+  test("créer, modifier, désactiver, réactiver, supprimer", async ({ page }) => {
+    const label = `Petit-déjeuner ${TAG}`;
+    await openOptions(page);
+    await addExtra(page, label, "12,50", "per_guest_night");
+    await expect(row(page, label)).toContainText("12,50 € par personne et par nuit");
+
+    await row(page, label).getByRole("button", { name: "Modifier" }).click();
+    await page.getByTestId("extra-form").locator('[name="price"]').fill("14");
+    await page.getByRole("button", { name: "Enregistrer l'option" }).click();
+    await expect(row(page, label)).toContainText("14 € par personne et par nuit");
+
+    await row(page, label).getByRole("button", { name: "Désactiver" }).click();
+    await expect(row(page, label)).toContainText("Désactivée");
+    const { rows } = await pool.query("SELECT active FROM extras WHERE label = $1", [label]);
+    expect(rows[0].active).toBe(false);
+    await row(page, label).getByRole("button", { name: "Activer" }).click();
+    await expect(row(page, label)).not.toContainText("Désactivée");
+
+    await row(page, label).getByRole("button", { name: "Supprimer" }).click();
+    await confirmDialog(page);
+    await expect(row(page, label)).toHaveCount(0);
+    expect((await pool.query("SELECT 1 FROM extras WHERE label = $1", [label])).rowCount).toBe(0);
+  });
+
+  test("limite : prix 0 accepté (option gratuite)", async ({ page }) => {
+    const label = `Lit bébé ${TAG}`;
+    await openOptions(page);
+    await addExtra(page, label, "0");
+    await expect(row(page, label)).toContainText("Gratuit");
+  });
+
+  test("prix négatif, prix invalide et libellé vide refusés, rien en base", async ({ page }) => {
+    await openOptions(page);
+    await section(page).getByRole("button", { name: "Ajouter", exact: true }).click();
+    const form = page.getByTestId("extra-form");
+    await form.evaluate((f: HTMLFormElement) => (f.noValidate = true));
+
+    await form.locator('[name="label"]').fill(`Négatif ${TAG}`);
+    await form.locator('[name="price"]').fill("-5");
+    await form.getByRole("button", { name: "Ajouter l'option" }).click();
+    await expect(form.locator('[name="price"]')).toHaveAttribute("aria-invalid", "true");
+
+    await form.locator('[name="price"]').fill("abc");
+    await form.getByRole("button", { name: "Ajouter l'option" }).click();
+    await expect(form.getByText(/montant positif ou nul/).first()).toBeVisible();
+
+    await form.locator('[name="label"]').fill("   ");
+    await form.locator('[name="price"]').fill("5");
+    await form.getByRole("button", { name: "Ajouter l'option" }).click();
+    await expect(form.locator('[name="label"]')).toHaveAttribute("aria-invalid", "true");
+
+    expect((await pool.query("SELECT 1 FROM extras WHERE label LIKE $1", [`Négatif ${TAG}%`])).rowCount).toBe(0);
+  });
+
+  test("limite : libellé de 500 caractères accepté, 501 refusé", async ({ page }) => {
+    await openOptions(page);
+    const long = (TAG + "a".repeat(500)).slice(0, 500);
+    await addExtra(page, long, "3");
+    await expect(row(page, long)).toBeVisible();
+
+    await section(page).getByRole("button", { name: "Ajouter", exact: true }).click();
+    const form = page.getByTestId("extra-form");
+    await form.locator('[name="label"]').evaluate((i: HTMLInputElement) => i.removeAttribute("maxlength"));
+    await form.locator('[name="label"]').fill(long + "b");
+    await form.locator('[name="price"]').fill("3");
+    await form.getByRole("button", { name: "Ajouter l'option" }).click();
+    await expect(form.getByText(/500 caractères max/).first()).toBeVisible();
+  });
+
+  test("XSS dans le libellé : affiché échappé, aucun dialog", async ({ page }) => {
+    let dialog = false;
+    page.on("dialog", (d) => {
+      dialog = true;
+      void d.dismiss();
+    });
+    const label = `<script>alert(1)</script> ${TAG}`;
+    await openOptions(page);
+    await addExtra(page, label, "1");
+    await expect(row(page, label)).toContainText("<script>alert(1)</script>");
+    expect(dialog).toBe(false);
+  });
+
+  test("isolation : un Extra d'un autre tenant n'apparaît pas", async ({ page }) => {
+    await insertExtra({ label: "Rival", price: "9", unit: "per_stay", tenantId: ctx.rivalTenantId });
+    await openOptions(page);
+    await expect(page.getByText(`Rival ${TAG}`)).toHaveCount(0);
+  });
+});
+
+// ─── Réservation manuelle (issue 03) ───────────────────────────────────────────
+
+async function fillManual(page: Page, opts: { name: string; checkIn: string; checkOut: string; guests?: string }) {
+  await page.goto("/admin/reservations/new");
+  await page.locator('select[name="roomId"]').selectOption(ctx.apiRoomId);
+  await page.fill('[name="guestName"]', `${opts.name} ${RUN_ID}`);
+  await page.fill('[name="guestEmail"]', `${RUN_ID}@${DOMAIN}`);
+  await page.fill('[name="guestCount"]', opts.guests ?? "1");
+  await page.locator('[name="checkIn"]').fill(opts.checkIn);
+  await page.locator('[name="checkOut"]').fill(opts.checkOut);
+}
+
+const quote = (page: Page) => page.locator('[aria-live="polite"]').first();
+
+async function saveEdit(page: Page, id: string) {
+  await page.locator('[name="notifyGuest"]').uncheck();
+  await page.getByRole("button", { name: "Enregistrer les modifications" }).click();
+  await expect(page).toHaveURL(`/admin/reservations/${id}?modifiee=silence`);
+}
+
+test.describe("Admin — Réservation manuelle avec Extras", () => {
+  test("création : Extra coché → ligne figée, total = hébergement + Extra, détail affiché", async ({ page }) => {
+    const sourceId = await insertExtra({ label: "Draps", price: "7.50", unit: "per_guest_night" });
+    await fillManual(page, { name: "Manuel Extra", checkIn: day(700), checkOut: day(702), guests: "2" });
+    await page.getByLabel(`Draps ${TAG}`).check();
+    // 2 nuits × 100 € + 2 nuits × 2 pers. × 7,50 € = 230 €
+    await expect(quote(page)).toContainText(/230\s€/);
+    await page.click('[type="submit"]');
+    await expect(page).toHaveURL(SAVED_BOOKING_URL);
+    const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
+
+    expect(await totalOf(id)).toBe("230.00");
+    expect(await lines(id)).toEqual([
+      { source_id: sourceId, label: `Draps ${TAG}`, unit_price: "7.50", quantity: 4, total: "30.00" },
+    ]);
+    await expect(page.getByText(`Draps ${TAG} (4 × 7,50 €)`)).toBeVisible();
+    await expect(page.getByText("Hébergement")).toBeVisible();
+  });
+
+  test("aucun Extra coché : flux inchangé, aucune ligne", async ({ page }) => {
+    await insertExtra({ label: "Ignoré", price: "5", unit: "per_stay" });
+    await fillManual(page, { name: "Sans Extra", checkIn: day(704), checkOut: day(705) });
+    await expect(quote(page)).toContainText(/100\s€/);
+    await page.click('[type="submit"]');
+    await expect(page).toHaveURL(SAVED_BOOKING_URL);
+    const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
+    expect(await totalOf(id)).toBe("100.00");
+    expect(await lines(id)).toEqual([]);
+  });
+
+  test("prix convenu = hébergement seul : total = prix convenu + Extras", async ({ page }) => {
+    await insertExtra({ label: "Ménage fin", price: "40", unit: "per_stay" });
+    await fillManual(page, { name: "Convenu", checkIn: day(708), checkOut: day(711) });
+    await page.getByLabel(`Ménage fin ${TAG}`).check();
+    await page.fill('[name="agreedPrice"]', "250");
+    await page.click('[type="submit"]');
+    await expect(page).toHaveURL(SAVED_BOOKING_URL);
+    const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
+    expect(await totalOf(id)).toBe("290.00");
+  });
+
+  test("Extra inactif ou d'un autre tenant injecté : refusé, rien en base", async ({ page }) => {
+    const inactive = await insertExtra({ label: "Inactif", price: "5", unit: "per_stay", active: false });
+    const rival = await insertExtra({ label: "Autre", price: "5", unit: "per_stay", tenantId: ctx.rivalTenantId });
+    for (const id of [inactive, rival, "pas-un-uuid"]) {
+      await fillManual(page, { name: `Injecté ${id.slice(0, 4)}`, checkIn: day(714), checkOut: day(715) });
+      await page.locator("form").evaluate((f: HTMLFormElement, v) => {
+        const i = document.createElement("input");
+        i.type = "hidden";
+        i.name = "extraIds";
+        i.value = v;
+        f.appendChild(i);
+      }, id);
+      await page.click('[type="submit"]');
+      await expect(page.getByText(/option cochée vient d.être désactivée/)).toBeVisible();
+    }
+    const { rowCount } = await pool.query(
+      "SELECT 1 FROM bookings WHERE guest_email = $1 AND guest_name LIKE 'Injecté%'",
+      [`${RUN_ID}@${DOMAIN}`],
+    );
+    expect(rowCount).toBe(0);
+  });
+
+  test("modification : 3 → 5 nuits recalcule au prix figé, même après un changement de prix catalogue", async ({ page }) => {
+    const sourceId = await insertExtra({ label: "Petit-déj", price: "10", unit: "per_night" });
+    await fillManual(page, { name: "Allonge", checkIn: day(720), checkOut: day(723) });
+    await page.getByLabel(`Petit-déj ${TAG}`).check();
+    await page.click('[type="submit"]');
+    await expect(page).toHaveURL(SAVED_BOOKING_URL);
+    const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
+    expect(await totalOf(id)).toBe("330.00");
+
+    // Le catalogue change : la réservation n'est pas touchée…
+    await pool.query("UPDATE extras SET price = '99' WHERE id = $1", [sourceId]);
+    expect(await totalOf(id)).toBe("330.00");
+
+    // …et l'allonger recalcule la quantité au prix figé (10 €), pas au nouveau (99 €).
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    await expect(page.getByLabel(`Petit-déj ${TAG}`)).toBeChecked();
+    await page.locator('[name="checkOut"]').fill(day(725));
+    await expect(quote(page)).toContainText("5 nuits");
+    await expect(quote(page)).toContainText(/550\s€/);
+    await saveEdit(page, id);
+    expect(await totalOf(id)).toBe("550.00");
+    expect((await lines(id))[0]).toMatchObject({ unit_price: "10.00", quantity: 5, total: "50.00" });
+  });
+
+  test("décocher puis recocher : nouvelle ligne au prix catalogue actuel", async ({ page }) => {
+    const sourceId = await insertExtra({ label: "Serviettes", price: "5", unit: "per_stay" });
+    const id = await insertBooking({ name: "Recoche", checkIn: day(730), checkOut: day(732), total: "205.00" });
+    await pool.query(
+      `INSERT INTO booking_lines (booking_id, kind, source_id, label, unit, unit_price, quantity, total)
+       VALUES ($1, 'extra', $2, $3, 'per_stay', '5.00', 1, '5.00')`,
+      [id, sourceId, `Serviettes ${TAG}`],
+    );
+    await pool.query("UPDATE extras SET price = '8' WHERE id = $1", [sourceId]);
+
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    await page.getByLabel(`Serviettes ${TAG}`).uncheck();
+    await saveEdit(page, id);
+    expect(await lines(id)).toEqual([]);
+    expect(await totalOf(id)).toBe("200.00");
+
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    await page.getByLabel(`Serviettes ${TAG}`).check();
+    await saveEdit(page, id);
+    expect((await lines(id))[0]).toMatchObject({ unit_price: "8.00", total: "8.00" });
+    expect(await totalOf(id)).toBe("208.00");
+  });
+
+  test("Extra désactivé (ou supprimé) déjà sur la réservation : conservé et affiché", async ({ page }) => {
+    const sourceId = await insertExtra({ label: "Vélo", price: "15", unit: "per_night" });
+    const id = await insertBooking({ name: "Garde Vélo", checkIn: day(740), checkOut: day(742), total: "230.00" });
+    await pool.query(
+      `INSERT INTO booking_lines (booking_id, kind, source_id, label, unit, unit_price, quantity, total)
+       VALUES ($1, 'extra', $2, $3, 'per_night', '15.00', 2, '30.00')`,
+      [id, sourceId, `Vélo ${TAG}`],
+    );
+    await pool.query("UPDATE extras SET active = false WHERE id = $1", [sourceId]);
+
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    await expect(page.getByLabel(`Vélo ${TAG}`)).toBeChecked();
+    await page.locator('[name="checkOut"]').fill(day(743));
+    await saveEdit(page, id);
+    expect((await lines(id))[0]).toMatchObject({ quantity: 3, total: "45.00" });
+
+    // Supprimé du catalogue : la copie reste (source_id orphelin, sans FK) et se garde à l'édition suivante.
+    await pool.query("DELETE FROM extras WHERE id = $1", [sourceId]);
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    await expect(page.getByLabel(`Vélo ${TAG}`)).toBeChecked();
+    await saveEdit(page, id);
+    expect((await lines(id))[0]).toMatchObject({ source_id: sourceId, quantity: 3, total: "45.00" });
+    expect(await totalOf(id)).toBe("345.00");
+  });
+
+  test("modifier les Extras ne touche pas aux lignes fee/tax (ADR-0011)", async ({ page }) => {
+    await insertExtra({ label: "Bouquet", price: "12", unit: "per_stay" });
+    const id = await insertBooking({ name: "Garde Fee", checkIn: day(750), checkOut: day(752), total: "225.00" });
+    await addLine(id, `Ménage ${TAG}`, { kind: "fee", unit: "per_stay", unitPrice: "25.00", quantity: 1, total: "25.00" });
+
+    await page.goto(`/admin/reservations/${id}`);
+    await expect(page.getByText(`Ménage ${TAG}`)).toBeVisible();
+
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    // Un Fee n'est pas une case « Options ».
+    await expect(page.getByTestId("manual-extras").getByText(`Ménage ${TAG}`)).toHaveCount(0);
+    await page.getByLabel(`Bouquet ${TAG}`).check();
+    await saveEdit(page, id);
+    const { rows } = await pool.query("SELECT kind, label FROM booking_lines WHERE booking_id = $1 ORDER BY kind", [id]);
+    expect(rows).toEqual([
+      { kind: "extra", label: `Bouquet ${TAG}` },
+      { kind: "fee", label: `Ménage ${TAG}` },
+    ]);
+    // 2 nuits × 100 € + Bouquet 12 € + Ménage 25 € (ligne gardée telle quelle)
+    expect(await totalOf(id)).toBe("237.00");
+  });
+
+  test("« Garder l'ancien prix » garde l'hébergement, les Extras s'ajoutent", async ({ page }) => {
+    await insertExtra({ label: "Panier", price: "20", unit: "per_stay" });
+    const id = await insertBooking({ name: "Garde Héb", checkIn: day(746), checkOut: day(748), total: "180.00" });
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    await page.getByLabel(`Panier ${TAG}`).check();
+    await page.locator('[name="checkOut"]').fill(day(749));
+    await expect(quote(page)).toContainText("3 nuits");
+    await page.getByLabel(/Garder l.ancien prix de l.hébergement \(180\s€\)/).check();
+    await saveEdit(page, id);
+    expect(await totalOf(id)).toBe("200.00");
+  });
+});
+
+// ─── Reste à payer (issue 04) ──────────────────────────────────────────────────
+
+test.describe("Admin — Reste à payer", () => {
+  test("résa payée en ligne + Extra ajouté : reste affiché ; « Marquer réglé » → reste 0 ; aucun remboursement", async ({ page }) => {
+    await insertExtra({ label: "Late checkout", price: "30", unit: "per_stay" });
+    const id = await insertBooking({ name: "Payé", checkIn: day(760), checkOut: day(762), total: "200.00", source: "direct" });
+    await pool.query(
+      `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status, created_at)
+       VALUES ($1, $2, $3, '200.00', 'eur', 'paid', now() - interval '2 hours')`,
+      [ctx.tenantId, id, `cs_extras_${id}`],
+    );
+
+    // Directe payée : modifiable (pas de checkout ouvert).
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    await page.getByLabel(`Late checkout ${TAG}`).check();
+    await expect(page.locator("[data-paid-difference]")).toContainText(/\+30\s€/);
+    await saveEdit(page, id);
+
+    await expect(page.locator("[data-balance-due]")).toContainText(/Payé 200\s€ en ligne · reste 30\s€/);
+    // La note d'annulation parle toujours du montant réellement payé.
+    await page.getByRole("button", { name: "Annuler la réservation" }).click();
+    await expect(page.locator("dialog[open] [data-refund-note]")).toContainText(/a payé 200\s€ en ligne/);
+    await page.locator("dialog[open]").getByRole("button", { name: "Garder" }).click();
+
+    await page.locator("[data-balance-due]").getByRole("button", { name: "Marquer réglé" }).click();
+    await expect(page.locator("[data-balance-due]")).toHaveCount(0);
+    await expect(page.getByText(/Réglé le/)).toBeVisible();
+
+    const { rows } = await pool.query("SELECT status, amount FROM payments WHERE booking_id = $1", [id]);
+    expect(rows).toEqual([{ status: "paid", amount: "200.00" }]);
+  });
+
+  test("saisie manuelle non payée en ligne : pas de « reste », juste « À régler »", async ({ page }) => {
+    const id = await insertBooking({ name: "Pas en ligne", checkIn: day(766), checkOut: day(767), total: "100.00" });
+    await page.goto(`/admin/reservations/${id}`);
+    await expect(page.locator("[data-balance-due]")).toHaveCount(0);
+    await expect(page.getByText("À régler avec le client")).toBeVisible();
+  });
+});
+
+// ─── PDF et email (issue 05) ───────────────────────────────────────────────────
+
+async function addLine(
+  bookingId: string,
+  label: string,
+  opts: { kind?: string; unit: string; unitPrice: string; quantity: number; total: string } = {
+    unit: "per_guest_night",
+    unitPrice: "9.00",
+    quantity: 4,
+    total: "36.00",
+  },
+) {
+  await pool.query(
+    `INSERT INTO booking_lines (booking_id, kind, label, unit, unit_price, quantity, total) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [bookingId, opts.kind ?? "extra", label, opts.unit, opts.unitPrice, opts.quantity, opts.total],
+  );
+}
+
+test.describe("Admin — Extras dans le PDF et les emails", () => {
+  test("PDF généré sans erreur avec Extras, même libellé hors Latin-1 (emoji)", async ({ page }) => {
+    const id = await insertBooking({ name: "PDF", checkIn: day(770), checkOut: day(772), total: "236.00", guests: 2 });
+    await addLine(id, `☕ Petit-déjeuner ${TAG}`);
+    const res = await page.request.get(`/api/admin/reservations/${id}/pdf`);
+    expect(res.status()).toBe(200);
+    expect(res.headers()["content-type"]).toContain("application/pdf");
+    expect((await res.body()).subarray(0, 4).toString()).toBe("%PDF");
+  });
+
+  test("email de confirmation (webhook payé) : contient la ligne Extra, libellé échappé", async ({ page }) => {
+    const id = await insertBooking({
+      name: "Mail",
+      checkIn: day(780),
+      checkOut: day(782),
+      total: "236.00",
+      status: "pending",
+      source: "direct",
+      guests: 2,
+    });
+    await addLine(id, `Breakfast <b>${TAG}</b>`);
+    // ADR-0011 : l'email liste toutes les booking_lines, pas seulement les Extras.
+    await addLine(id, `Cleaning ${TAG}`, { kind: "fee", unit: "per_stay", unitPrice: "25.00", quantity: 1, total: "25.00" });
+    const sessionId = `cs_extras_mail_${id}`;
+    await pool.query(
+      `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status)
+       VALUES ($1, $2, $3, '236.00', 'eur', 'pending')`,
+      [ctx.tenantId, id, sessionId],
+    );
+
+    const sink = await startSmtpSink();
+    try {
+      const payload = JSON.stringify({
+        id: `evt_extras_${Date.now()}`,
+        type: "checkout.session.completed",
+        data: { object: { id: sessionId, payment_intent: `pi_extras_${Date.now()}`, metadata: { bookingId: id, tenantId: ctx.tenantId } } },
+      });
+      const ts = Math.floor(Date.now() / 1000);
+      const sig = crypto
+        .createHmac("sha256", process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_test_XXXX")
+        .update(`${ts}.${payload}`)
+        .digest("hex");
+      const res = await page.request.post("/api/webhooks/stripe", {
+        data: payload,
+        headers: { "content-type": "application/json", "stripe-signature": `t=${ts},v1=${sig}` },
+      });
+      expect(res.status()).toBe(200);
+
+      const guestMail = () => sink.mails.find((m) => m.to.includes(`${RUN_ID}@${DOMAIN}`));
+      await expect.poll(() => !!guestMail(), { timeout: 10_000 }).toBe(true);
+      // Corps en quoted-printable : on recolle les lignes coupées et on décode les =XX.
+      const body = guestMail()!
+        .raw.replace(/=\r\n/g, "")
+        .replace(/=([0-9A-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)));
+      expect(body).toContain(`Breakfast &lt;b&gt;${TAG}&lt;/b&gt;`);
+      expect(body).not.toContain(`<b>${TAG}</b>`);
+      expect(body).toContain("36,00");
+      expect(body).toContain(`Cleaning ${TAG}`);
+    } finally {
+      await sink.stop();
+    }
+  });
+});

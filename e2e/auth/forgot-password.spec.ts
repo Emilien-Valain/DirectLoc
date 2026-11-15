@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
+import { startSmtpSink } from "../helpers/smtp-sink";
 
 /**
  * Spécification : Tests de non-régression > Auth > Mot de passe oublié
  * Référence Obsidian : Phase 9.2 — Mot de passe oublié
  *
  * Stratégie : happy path + cas limites + sécurité.
- * Note : les tests ne vérifient pas l'envoi réel d'email (pas de boîte SMTP en test).
- * On teste le flow UI et les réponses API.
+ * Le lien de l'email est capturé par un faux SMTP (helper `startSmtpSink`).
  */
 
 // ─── Happy path ────────────────────────────────────────────────────────────────
@@ -39,6 +39,37 @@ test.describe("Auth — Mot de passe oublié", () => {
     await page.fill('[name="email"]', "inexistant-xyz-12345@example.com");
     await page.click('[type="submit"]');
     await expect(page.getByText("recevrez un email")).toBeVisible({ timeout: 10000 });
+  });
+
+  test("le lien de l'email pointe sur le domaine du tenant, pas sur BETTER_AUTH_URL", async ({ page }) => {
+    // Sous-domaine du tenant de test : BETTER_AUTH_URL vaut http://localhost:3001,
+    // le lien doit pourtant ramener sur l'origine depuis laquelle l'admin a demandé le reset.
+    const tenantOrigin = "http://test-tenant.localhost:3001";
+    const sink = await startSmtpSink();
+    try {
+      await page.goto(`${tenantOrigin}/forgot-password`);
+      await page.fill('[name="email"]', process.env.TEST_ADMIN_EMAIL!);
+      await page.click('[type="submit"]');
+      await expect(page.getByText("recevrez un email")).toBeVisible({ timeout: 10000 });
+      await expect.poll(() => sink.mails.length, { timeout: 10000 }).toBe(1);
+
+      // Décodage quoted-printable minimal (soft breaks + =XX) puis entités HTML de l'attribut href
+      const body = sink.mails[0].raw
+        .replace(/=\r\n/g, "")
+        .replace(/=([0-9A-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/&amp;/g, "&");
+      const href = /href="([^"]*\/reset-password\/[^"]*)"/.exec(body)?.[1];
+      expect(href, "lien de reset absent de l'email").toBeTruthy();
+      expect(href!.startsWith(`${tenantOrigin}/api/auth/reset-password/`)).toBe(true);
+      const callback = new URL(href!).searchParams.get("callbackURL");
+      expect(callback).toBe(`${tenantOrigin}/reset-password`);
+
+      // Le lien mène au formulaire de reset du tenant, avec le token
+      await page.goto(href!);
+      await expect(page).toHaveURL(new RegExp(`^${tenantOrigin}/reset-password\\?token=`));
+    } finally {
+      await sink.stop();
+    }
   });
 
   // ─── Reset password page ──────────────────────────────────────────────────

@@ -74,18 +74,19 @@ test.describe("Public — Parcours de réservation", () => {
   test("le formulaire de réservation affiche le nom de la chambre", async ({ page }) => {
     const { apiRoomId } = loadTestContext();
     await page.goto(`/reserver/${apiRoomId}`);
-    // Le H1 du template Classic est « Vos coordonnées » ; le nom de la chambre
-    // est affiché en eyebrow au-dessus, dans le fil d'Ariane et dans le sidebar.
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("Vos coordonnées");
+    // Le H1 nomme la tâche et la chambre : « Réserver Chambre API Test ».
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Réserver Chambre API Test");
     await expect(page.getByText("Chambre API Test").first()).toBeVisible();
   });
 
   test("disponibilité indisponible pour les dates bloquées", async ({ page }) => {
     const { apiRoomId, bookedCheckIn, bookedCheckOut } = loadTestContext();
     await page.goto(`/reserver/${apiRoomId}`);
+    // Attend l'hydratation : une saisie faite avant serait effacée par React.
+    await page.waitForLoadState("networkidle");
 
-    await page.fill('[name="checkIn"]', bookedCheckIn);
-    await page.fill('[name="checkOut"]', bookedCheckOut);
+    await page.fill("#checkIn", bookedCheckIn);
+    await page.fill("#checkOut", bookedCheckOut);
 
     await expect(page.getByText("Non disponible pour ces dates")).toBeVisible({ timeout: 5000 });
   });
@@ -93,9 +94,10 @@ test.describe("Public — Parcours de réservation", () => {
   test("disponibilité disponible pour des dates libres", async ({ page }) => {
     const { apiRoomId } = loadTestContext();
     await page.goto(`/reserver/${apiRoomId}`);
+    await page.waitForLoadState("networkidle");
 
-    await page.fill('[name="checkIn"]', fd("2026-07-01"));
-    await page.fill('[name="checkOut"]', fd("2026-07-05"));
+    await page.fill("#checkIn", fd("2026-07-01"));
+    await page.fill("#checkOut", fd("2026-07-05"));
 
     await expect(page.getByText("Disponible")).toBeVisible({ timeout: 5000 });
   });
@@ -126,21 +128,21 @@ test.describe("Public — Parcours de réservation", () => {
     await page.fill('[name="guestPhone"]', "0601020304");
 
     // Remplir les dates (libres — nettoyées ci-dessus)
-    await page.fill('[name="checkIn"]', BOOKING_TEST_CHECKIN);
-    await page.fill('[name="checkOut"]', BOOKING_TEST_CHECKOUT);
+    await page.fill("#checkIn", BOOKING_TEST_CHECKIN);
+    await page.fill("#checkOut", BOOKING_TEST_CHECKOUT);
 
     // Attendre la confirmation de disponibilité
     await expect(page.getByText("Disponible")).toBeVisible({ timeout: 8000 });
     // Le bouton doit être activé. Le libellé est :
     // - « Procéder au paiement » côté Boutique
     // - « Payer XXX € et confirmer » côté Classic (avec le total dynamique)
-    await expect(page.locator('[type="submit"]')).toBeEnabled({ timeout: 5000 });
-    await expect(page.locator('[type="submit"]')).toContainText(
+    await expect(page.getByTestId("booking-submit")).toBeEnabled({ timeout: 5000 });
+    await expect(page.getByTestId("booking-submit")).toContainText(
       /Procéder au paiement|Payer.*confirmer/,
     );
 
     // Soumettre — redirige vers Stripe Checkout
-    await page.click('[type="submit"]');
+    await page.getByTestId("booking-submit").click();
 
     // Vérifier la redirection vers Stripe Checkout
     await expect(page).toHaveURL(/checkout\.stripe\.com/, { timeout: 15000 });
@@ -188,8 +190,8 @@ test.describe("Public — Parcours de réservation", () => {
   // Avant hydratation, React écrase la saisie par l'état initial : on réessaie jusqu'à ce qu'elle tienne.
   async function fillRefusalDates(page: import("@playwright/test").Page) {
     await expect(async () => {
-      await page.fill('[name="checkIn"]', REFUSAL_IN);
-      await page.fill('[name="checkOut"]', REFUSAL_OUT);
+      await page.fill("#checkIn", REFUSAL_IN);
+      await page.fill("#checkOut", REFUSAL_OUT);
       await expect(page.locator('[name="checkIn"]')).toHaveValue(REFUSAL_IN, { timeout: 500 });
       await expect(page.locator('[name="checkOut"]')).toHaveValue(REFUSAL_OUT, { timeout: 500 });
     }).toPass({ timeout: 10_000 });
@@ -227,7 +229,7 @@ test.describe("Public — Parcours de réservation", () => {
       );
       rivalId = rows[0].id;
 
-      await page.locator('[type="submit"]').click();
+      await page.getByTestId("booking-submit").click();
 
       await expect(page.getByTestId("booking-error")).toContainText("viennent d'être réservées");
       await expect(page).toHaveURL(new RegExp(`/reserver/${apiRoomId}`));
@@ -235,7 +237,7 @@ test.describe("Public — Parcours de réservation", () => {
       await expect(page.locator('[name="guestName"]')).toHaveValue("Client Refusé");
       // La dispo est revérifiée après le refus : plus de bouton « payer » actif.
       await expect(page.getByText("Non disponible pour ces dates")).toBeVisible({ timeout: 8000 });
-      await expect(page.locator('[type="submit"]')).toBeDisabled();
+      await expect(page.getByTestId("booking-submit")).toBeDisabled();
       expect(await bookingCount(email)).toBe(0);
     } finally {
       if (rivalId) await pool.query("DELETE FROM bookings WHERE id = $1", [rivalId]);
@@ -253,7 +255,7 @@ test.describe("Public — Parcours de réservation", () => {
     // Contourne la validation HTML (type=email) pour atteindre le serveur.
     await page.locator("form").evaluate((f: HTMLFormElement) => (f.noValidate = true));
 
-    await page.locator('[type="submit"]').click();
+    await page.getByTestId("booking-submit").click();
 
     await expect(page.getByTestId("booking-error")).toContainText("Adresse email invalide");
     await expect(page).toHaveURL(new RegExp(`/reserver/${apiRoomId}`));
@@ -272,7 +274,7 @@ test.describe("Public — Parcours de réservation", () => {
       await expect(page.getByText("Disponible", { exact: true })).toBeVisible({ timeout: 8000 });
       await fillGuest(page, email);
 
-      await page.locator('[type="submit"]').click();
+      await page.getByTestId("booking-submit").click();
 
       await expect(page.getByTestId("booking-error")).toContainText("paiement en ligne est momentanément indisponible");
       await expect(page).toHaveURL(new RegExp(`/reserver/${apiRoomId}`));
@@ -284,28 +286,29 @@ test.describe("Public — Parcours de réservation", () => {
     }
   });
 
-  test("rate limit : le 6e envoi en 10 min est refusé et ne crée aucune résa (audit 2026-10b/02)", async ({ page }) => {
+  test("rate limit : les fautes de saisie ne comptent pas, le 6e envoi valide en 10 min est refusé (audit 2026-10c/3)", async ({ page }) => {
     const { apiRoomId } = loadTestContext();
     const email = `ratelimit-${Date.now()}@example.com`;
     try {
       await page.goto(`/reserver/${apiRoomId}`);
       await fillRefusalDates(page);
-      await fillGuest(page, "pas-un-email");
+      await expect(page.getByText("Disponible", { exact: true })).toBeVisible({ timeout: 8000 });
       let posts = 0;
       page.on("requestfinished", (r) => { if (r.method() === "POST") posts++; });
-      // 5 envois invalides (aucune résa) consomment le budget de l'IP.
-      for (let i = 1; i <= 5; i++) {
-        await expect(page.locator('[type="submit"]')).toBeEnabled({ timeout: 8000 });
-        // Le formulaire peut être re-rendu après un refus : on recoupe la validation HTML à chaque envoi.
-        await page.locator("form").evaluate((f: HTMLFormElement) => (f.noValidate = true));
-        await page.locator('[type="submit"]').click();
+      // 6 envois à email invalide : refusés par la saisie, ils n'entament pas le budget.
+      for (let i = 1; i <= 6; i++) {
+        await tamperedSubmit(page, "pas-un-email", "1");
         await expect.poll(() => posts, { timeout: 8000 }).toBe(i);
         await expect(page.getByTestId("booking-error")).toContainText("Adresse email invalide");
       }
-      // 6e envoi, valide cette fois : refusé par le rate limit.
-      await page.fill('[name="guestEmail"]', email);
-      await expect(page.locator('[type="submit"]')).toBeEnabled({ timeout: 8000 });
-      await page.locator('[type="submit"]').click();
+      // 5 envois bien formés mais refusés à l'admission (capacité) : ceux-là comptent.
+      for (let i = 7; i <= 11; i++) {
+        await tamperedSubmit(page, email, "9");
+        await expect.poll(() => posts, { timeout: 8000 }).toBe(i);
+        await expect(page.getByTestId("booking-error")).toContainText("personnes maximum");
+      }
+      // 6e envoi compté : refusé par le rate limit, saisie conservée, rien en base.
+      await tamperedSubmit(page, email, "1");
       await expect(page.getByTestId("booking-error")).toContainText("Trop de tentatives");
       await expect(page.locator('[name="guestEmail"]')).toHaveValue(email);
       expect(await bookingCount(email)).toBe(0);
@@ -323,12 +326,37 @@ test.describe("Public — Parcours de réservation", () => {
     await fillGuest(page, email);
     await page.locator("form").evaluate((f: HTMLFormElement, g) => {
       f.noValidate = true;
-      (f.querySelector('[type="submit"]') as HTMLButtonElement).disabled = false;
+      (f.querySelector('[data-testid="booking-submit"]') as HTMLButtonElement).disabled = false;
       // Champ contrôlé et borné à la capacité côté client : on écrit directement dans le DOM.
       (f.elements.namedItem("guestCount") as HTMLInputElement).value = g;
     }, guests);
-    await page.locator('[type="submit"]').click();
+    await page.getByTestId("booking-submit").click();
   }
+
+  test("total sous 0,50 € (promo extrême) : message lisible, aucune résa ni appel Stripe (audit 2026-10c/5)", async ({ page }) => {
+    const { tenantId, apiRoomId } = loadTestContext();
+    const email = `centimes-${Date.now()}@example.com`;
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    const { rows } = await pool.query(
+      `INSERT INTO pricing_rules (tenant_id, room_id, name, fixed_price, priority)
+       VALUES ($1, $2, 'Quasi gratuit', '0.10', 100) RETURNING id`,
+      [tenantId, apiRoomId],
+    );
+    try {
+      await page.goto(`/reserver/${apiRoomId}`);
+      await fillRefusalDates(page);
+      await expect(page.getByText("Disponible", { exact: true })).toBeVisible({ timeout: 8000 });
+      // 3 nuits × 0,10 € = 0,30 € : sous le minimum Stripe.
+      await tamperedSubmit(page, email, "1");
+      await expect(page.getByTestId("booking-error")).toContainText("ne peut pas être payée en ligne");
+      await expect(page).toHaveURL(new RegExp(`/reserver/${apiRoomId}`));
+      expect(await bookingCount(email)).toBe(0);
+    } finally {
+      await pool.query("DELETE FROM pricing_rules WHERE id = $1", [rows[0].id]);
+      await pool.query("DELETE FROM bookings WHERE guest_email = $1", [email]);
+      await pool.end();
+    }
+  });
 
   test("capacité : 3 voyageurs (chambre de 2) refusés côté serveur, 2 admis (limite)", async ({ page }) => {
     const { apiRoomId } = loadTestContext();
@@ -365,8 +393,8 @@ test.describe("Public — Parcours de réservation", () => {
     const yesterday = new Date(Date.parse(today + "T00:00:00Z") - 86_400_000).toISOString().slice(0, 10);
     await page.goto(`/reserver/${apiRoomId}`);
     await expect(async () => {
-      await page.fill('[name="checkIn"]', yesterday);
-      await page.fill('[name="checkOut"]', today);
+      await page.fill("#checkIn", yesterday);
+      await page.fill("#checkOut", today);
       await expect(page.locator('[name="checkIn"]')).toHaveValue(yesterday, { timeout: 500 });
     }).toPass({ timeout: 10_000 });
     await expect(page.getByText(/^(Non d|D)isponible/).first()).toBeVisible({ timeout: 8000 });

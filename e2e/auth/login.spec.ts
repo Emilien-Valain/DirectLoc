@@ -153,4 +153,19 @@ test.describe("Auth — Connexion admin", () => {
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/login/);
   });
+
+  test("inscription publique refusée : aucun compte créé, même sans cookie (audit 2026-10c/1)", async ({ request }) => {
+    const email = `intrus-${Date.now()}@test.maresa`;
+    const res = await request.post("http://localhost:3001/api/auth/sign-up/email", {
+      data: { email, password: "motdepasse-intrus", name: "Intrus" },
+    });
+    expect(res.status()).toBeGreaterThanOrEqual(400);
+    expect(res.status()).toBeLessThan(500);
+
+    // Le compte n'existe pas : la connexion échoue.
+    const signIn = await request.post("http://localhost:3001/api/auth/sign-in/email", {
+      data: { email, password: "motdepasse-intrus" },
+    });
+    expect(signIn.ok()).toBe(false);
+  });
 });

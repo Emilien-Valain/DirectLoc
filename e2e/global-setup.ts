@@ -2,25 +2,12 @@ import fs from "fs";
 import path from "path";
 import { chromium } from "@playwright/test";
 import { and, eq } from "drizzle-orm";
-import { scryptAsync } from "@noble/hashes/scrypt.js";
-import { hex } from "@better-auth/utils/hex";
+import { hashPassword } from "better-auth/crypto";
 import { randomBytes } from "crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { tenants, users, accounts, properties, rooms, bookings, userTenants, manualBlocks, bookingRules, pricingRules, icalSources, icalBlocks } from "../db/schema";
 import { computeDateShiftDays, fd } from "./helpers/dates";
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = hex.encode(randomBytes(16));
-  const key = await scryptAsync(password.normalize("NFKC"), salt, {
-    N: 16384,
-    r: 16,
-    p: 1,
-    dkLen: 64,
-    maxmem: 128 * 16384 * 16 * 2,
-  });
-  return `${salt}:${hex.encode(key)}`;
-}
 
 function generateId(): string {
   return randomBytes(16).toString("base64url");
@@ -276,6 +263,7 @@ export default async function globalSetup() {
       rivalTenantId: rivalTenant.id,
       rivalRoomId: rivalRoom.id,
       emptyTenantSlug: emptyTenant.slug,
+      emptyTenantId: emptyTenant.id,
     }),
   );
 

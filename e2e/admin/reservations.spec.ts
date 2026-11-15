@@ -130,6 +130,9 @@ test.describe("Admin — Gestion des réservations", () => {
       checkOut: addDays(-1),
     });
 
+    // Un séjour terminé quitte « À venir » : il se retrouve dans « Anciennes ».
+    await expect(page.locator("tbody tr").filter({ hasText: guestName })).toHaveCount(0);
+    await page.goto(`/admin/reservations?vue=anciennes&q=${encodeURIComponent(guestName)}`);
     const row = page.locator("tbody tr").filter({ hasText: guestName });
     await expect(row.getByText("Terminée")).toBeVisible();
 
@@ -214,7 +217,8 @@ test.describe("Admin — Gestion des réservations", () => {
     await expect(page.getByText("À régler avec le client")).toBeVisible();
     await page.getByRole("button", { name: "Marquer réglé" }).click();
     await expect(page.getByText(/Réglé le/)).toBeVisible();
-    await page.getByRole("button", { name: "Annuler", exact: true }).click();
+    // Libellé distinct de « Annuler la réservation » (confusion relevée par la critique du 2026-10-24)
+    await page.getByRole("button", { name: "Pas encore réglé" }).click();
     await expect(page.getByText("À régler avec le client")).toBeVisible();
   });
 
@@ -347,7 +351,7 @@ test.describe("Admin — Gestion des réservations", () => {
   test("réservation avec checkOut = checkIn (0 nuit) — pas de crash", async ({ page }) => {
     await page.goto("/admin/reservations/new");
     const select = page.locator('select[name="roomId"]');
-    if ((await select.locator("option").count()) <= 1) { test.skip(); return; }
+    await expect(select.locator("option").nth(1)).toBeAttached();
 
     await select.selectOption({ index: 1 });
     await page.fill('[name="guestName"]', `Test Zéro Nuit ${RUN_ID}`);
@@ -370,7 +374,7 @@ test.describe("Admin — Gestion des réservations", () => {
   test("réservation avec dates dans le passé — pas de crash", async ({ page }) => {
     await page.goto("/admin/reservations/new");
     const select = page.locator('select[name="roomId"]');
-    if ((await select.locator("option").count()) <= 1) { test.skip(); return; }
+    await expect(select.locator("option").nth(1)).toBeAttached();
 
     await select.selectOption({ index: 1 });
     await page.fill('[name="guestName"]', `Test Passé ${RUN_ID}`);
@@ -488,7 +492,7 @@ test.describe("Admin — Gestion des réservations", () => {
 
   // ─── Paiement reçu après annulation (audit 2026-10/03) ────────────────────────
 
-  test("réservation annulée mais payée en ligne : badge « Payé après annulation » + bandeau remboursement", async ({ page }) => {
+  test("réservation annulée mais payée en ligne : badge « Payé, à rembourser » + bandeau remboursement", async ({ page }) => {
     const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
     const pi = `pi_test_late_${RUN_ID}`;
     const insert = async (status: "cancelled" | "confirmed", guestName: string) => {
@@ -507,22 +511,79 @@ test.describe("Admin — Gestion des réservations", () => {
     try {
       const lateId = await insert("cancelled", `Payé Tard ${RUN_ID}`);
       await page.goto(`/admin/reservations/${lateId}`);
-      await expect(page.getByText("Payé après annulation")).toBeVisible();
-      await expect(page.getByText(/a payé 240.*après l.annulation/)).toBeVisible();
+      await expect(page.getByText("Payé, à rembourser")).toBeVisible();
+      // Vrai que le paiement soit arrivé avant ou après l'annulation : rien n'est rendu automatiquement
+      await expect(page.getByText(/a payé 240.*la réservation est annulée/)).toBeVisible();
       await expect(page.getByText(`${pi}_cancelled`)).toBeVisible();
 
       // Cas normal : payé + confirmé → pas d'alerte.
       const okId = await insert("confirmed", `Payé Normal ${RUN_ID}`);
       await page.goto(`/admin/reservations/${okId}`);
       await expect(page.getByText("Payé en ligne")).toBeVisible();
-      await expect(page.getByText("Payé après annulation")).toHaveCount(0);
-      await expect(page.getByText(/après l.annulation/)).toHaveCount(0);
+      await expect(page.getByText("Payé, à rembourser")).toHaveCount(0);
+      await expect(page.getByText(/la réservation est annulée/)).toHaveCount(0);
     } finally {
       await pool.query(
         "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE tenant_id = $1 AND guest_email = 'late-pay@example.com')",
         [ctx.tenantId],
       );
       await pool.query("DELETE FROM bookings WHERE tenant_id = $1 AND guest_email = 'late-pay@example.com'", [ctx.tenantId]);
+      await pool.end();
+    }
+  });
+
+  test("réservation en attente : l'encadré dit ce qui se passe et ce que fait « Confirmer »", async ({ page }) => {
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    const EMAIL = "pending-explainer@example.com";
+    const insert = async (status: "pending" | "confirmed", guestName: string, paymentAgeMin?: number) => {
+      const { rows } = await pool.query(
+        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
+         VALUES ($1, $2, '2027-12-01', '2027-12-03', '240.00', $3, $4, $5, 1, 'direct') RETURNING id`,
+        [ctx.tenantId, ctx.apiRoomId, status, guestName, EMAIL],
+      );
+      if (paymentAgeMin !== undefined) {
+        await pool.query(
+          `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status, created_at)
+           VALUES ($1, $2, $3, '240.00', 'eur', 'pending', now() - make_interval(mins => $4))`,
+          [ctx.tenantId, rows[0].id, `cs_test_pending_${paymentAgeMin}_${RUN_ID}`, paymentAgeMin],
+        );
+      }
+      return rows[0].id as string;
+    };
+    const explainer = page.locator("[data-pending-explainer]");
+    try {
+      // Sans paiement : l'hôte doit savoir qu'il confirme sans argent reçu, et que le client n'est pas prévenu
+      const noPay = await insert("pending", `Attente Sans ${RUN_ID}`);
+      await page.goto(`/admin/reservations/${noPay}`);
+      await expect(explainer).toContainText("aucun paiement en ligne n'est arrivé");
+      await expect(explainer).toContainText(`Les nuits restent bloquées pour Attente Sans ${RUN_ID}`);
+      await expect(explainer).toContainText("Confirmer n'envoie pas d'email au client");
+      await expect(page.getByRole("button", { name: "Confirmer" })).toBeVisible();
+
+      // Session Stripe ouverte (5 min) : rien à faire, annulation automatique annoncée avec l'heure limite
+      const paying = await insert("pending", `Attente Paie ${RUN_ID}`, 5);
+      await page.goto(`/admin/reservations/${paying}`);
+      await expect(explainer).toContainText("Paiement en ligne en cours");
+      await expect(explainer).toContainText(/avant \d{2}:\d{2}/);
+      await expect(explainer).toContainText("annulée automatiquement");
+
+      // Session expirée (2 h) mais webhook manqué : retour au cas « aucun paiement »
+      const stale = await insert("pending", `Attente Périmée ${RUN_ID}`, 120);
+      await page.goto(`/admin/reservations/${stale}`);
+      await expect(explainer).toContainText("aucun paiement en ligne n'est arrivé");
+      await expect(explainer).not.toContainText("Paiement en ligne en cours");
+
+      // Confirmée : pas d'encadré
+      const ok = await insert("confirmed", `Attente Confirmée ${RUN_ID}`);
+      await page.goto(`/admin/reservations/${ok}`);
+      await expect(page.getByRole("heading", { level: 1 })).toContainText("Attente Confirmée");
+      await expect(explainer).toHaveCount(0);
+    } finally {
+      await pool.query(
+        "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE tenant_id = $1 AND guest_email = $2)",
+        [ctx.tenantId, EMAIL],
+      );
+      await pool.query("DELETE FROM bookings WHERE tenant_id = $1 AND guest_email = $2", [ctx.tenantId, EMAIL]);
       await pool.end();
     }
   });

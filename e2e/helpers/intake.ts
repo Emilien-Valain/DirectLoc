@@ -169,6 +169,7 @@ export async function insertBookings(
     checkIn: Date;
     checkOut: Date;
     status: "pending" | "confirmed" | "completed" | "cancelled";
+    guestPhone?: string;
   }[],
 ): Promise<void> {
   const { db, pool } = getDb();

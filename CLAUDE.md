@@ -61,7 +61,7 @@ npm test          # tous les tests (mode CI)
 npm run test:ui   # interface visuelle Playwright
 ```
 
-Les tests se lancent automatiquement avant chaque commit (hook pre-commit via Husky).
+Hooks Husky : **pre-commit** = `tsc --noEmit` + `eslint` + tests unitaires (`--project=unit`, ~40 s) ; **pre-push** = suite E2E complète (~10 min).
 
 ## DB de test
 

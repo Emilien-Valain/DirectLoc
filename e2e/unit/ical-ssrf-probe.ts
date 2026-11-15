@@ -27,7 +27,7 @@ const ICS = [
 ].join("\r\n");
 
 async function main() {
-  const { syncTenantIcalSources } = await import("../../lib/ical-sync");
+  const { syncIcalSources } = await import("../../lib/ical-sync");
   const { db } = await import("../../lib/db");
   const { icalSources, icalBlocks } = await import("../../db/schema");
   const { eq, inArray } = await import("drizzle-orm");
@@ -60,7 +60,7 @@ async function main() {
       .returning({ id: icalSources.id, name: icalSources.name });
     const ids = rows.map((r) => r.id);
     try {
-      await syncTenantIcalSources(tenantId);
+      await syncIcalSources(tenantId);
       for (const r of rows) {
         const blocks = await db.select().from(icalBlocks).where(eq(icalBlocks.sourceId, r.id));
         result[r.name] = { blocks: blocks.length };

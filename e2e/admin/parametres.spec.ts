@@ -60,14 +60,14 @@ test.describe("Admin — Paramètres", () => {
 
   test("la section Stripe est affichée", async ({ page }) => {
     await page.goto("/admin/parametres");
-    await page.getByRole("tab", { name: "Paiements" }).click();
+    await page.getByRole("tab", { name: "Calendriers et paiements" }).click();
     await expect(page.getByText("Paiement Stripe")).toBeVisible();
     await expect(page.getByRole("button", { name: /connecter stripe/i })).toBeVisible();
   });
 
   test("la section calendriers externes est affichée", async ({ page }) => {
     await page.goto("/admin/parametres");
-    await page.getByRole("tab", { name: "iCal" }).click();
+    await page.getByRole("tab", { name: "Calendriers et paiements" }).click();
     await expect(page.getByText("Calendriers externes")).toBeVisible();
   });
 
@@ -85,7 +85,7 @@ test.describe("Admin — Paramètres", () => {
   test("ajout, affichage et suppression d'une source iCal", async ({ page }) => {
     const { apiRoomId, tenantId } = loadTestContext();
     await page.goto("/admin/parametres");
-    await page.getByRole("tab", { name: "iCal" }).click();
+    await page.getByRole("tab", { name: "Calendriers et paiements" }).click();
 
     // Cliquer sur Ajouter
     await page.getByRole("button", { name: "Ajouter" }).click();
@@ -124,7 +124,7 @@ test.describe("Admin — Paramètres", () => {
   test("XSS dans le nom de source iCal est échappé", async ({ page }) => {
     const { apiRoomId, tenantId } = loadTestContext();
     await page.goto("/admin/parametres");
-    await page.getByRole("tab", { name: "iCal" }).click();
+    await page.getByRole("tab", { name: "Calendriers et paiements" }).click();
 
     await page.getByRole("button", { name: "Ajouter" }).click();
 
@@ -146,5 +146,86 @@ test.describe("Admin — Paramètres", () => {
       [tenantId, `%${RUN_ID}%`],
     );
     await pool.end();
+  });
+
+  // ─── 4 onglets en langage hôte (critique 2026-10-24, étape distill/clarify) ───
+
+  test("4 onglets regroupés par ce que l'hôte gère", async ({ page }) => {
+    await page.goto("/admin/parametres");
+    // Noms accessibles (le libellé court pour téléphone est un texte masqué en plus)
+    const tabs = page.getByRole("tab");
+    await expect(tabs).toHaveCount(4);
+    const names = ["Mon établissement", "Mon site", "Calendriers et paiements", "Emails"];
+    for (const [i, name] of names.entries()) await expect(tabs.nth(i)).toHaveAccessibleName(name);
+    await expect(page.getByRole("tab", { name: "Mon établissement" })).toHaveAttribute("aria-selected", "true");
+    // « Mon établissement » réunit coordonnées et carte, chacune avec son bouton nommé
+    await expect(page.getByRole("button", { name: "Enregistrer les coordonnées" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enregistrer l'adresse et la carte" })).toBeVisible();
+  });
+
+  test("anciens liens ?tab= et retour Stripe ouvrent le bon onglet ; valeur inconnue → premier onglet", async ({ page }) => {
+    for (const [qs, tab, marker] of [
+      ["tab=ical", "Calendriers et paiements", "Calendriers externes"],
+      ["tab=stripe", "Calendriers et paiements", "Paiement Stripe"],
+      ["stripe=success", "Calendriers et paiements", "Paiement Stripe"],
+      ["tab=content", "Mon site", "Textes de la page d'accueil"],
+      ["tab=theme", "Mon site", "Modèle de site"],
+      ["tab=location", "Mon établissement", "Adresse et carte"],
+      ["tab=email", "Emails", "Emails"],
+      ["tab=nimporte", "Mon établissement", "Votre établissement"],
+    ] as const) {
+      await page.goto(`/admin/parametres?${qs}`);
+      await expect(page.getByRole("tab", { name: tab })).toHaveAttribute("aria-selected", "true");
+      await expect(page.getByRole("tabpanel").getByRole("heading", { name: marker, exact: true }).first()).toBeVisible();
+    }
+  });
+
+  test("« Mon site » parle hôte : ni Hero, ni Eyebrow, ni Footer, ni exemples lyonnais", async ({ page }) => {
+    await page.goto("/admin/parametres?tab=site");
+    const panel = page.getByRole("tabpanel");
+    await expect(panel.getByRole("heading", { name: "Grande photo d'accueil" })).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "Pied de page" })).toBeVisible();
+    for (const jargon of [/\bHero\b/, /Eyebrow/i, /\bFooter\b/, /Tagline/, /Lyon/, /lyonnais/, /template/i]) {
+      await expect(panel.getByText(jargon)).toHaveCount(0);
+      for (const input of await panel.locator("input[placeholder], textarea[placeholder]").all()) {
+        expect(await input.getAttribute("placeholder")).not.toMatch(jargon);
+      }
+    }
+  });
+
+  test("modèle de site : 4 modèles proposés, le choix est enregistré et appliqué au site public", async ({ page }) => {
+    const { tenantId } = loadTestContext();
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    const { rows } = await pool.query("SELECT config FROM tenants WHERE id = $1", [tenantId]);
+    const before = rows[0].config;
+    try {
+      await page.goto("/admin/parametres?tab=theme");
+      for (const name of ["Plaque émaillée", "Linge de maison", "Affiche touristique", "Classique"]) {
+        await expect(page.getByRole("button", { name: `Modèle ${name}` })).toBeVisible();
+      }
+      await page.getByRole("button", { name: "Modèle Affiche touristique" }).click();
+      await expect(page.getByRole("button", { name: "Modèle Affiche touristique" })).toHaveAttribute("aria-pressed", "true");
+      await page.getByRole("button", { name: "Enregistrer l'apparence" }).click();
+      await expect(page.getByText("Apparence mise à jour.")).toBeVisible();
+
+      const after = await pool.query("SELECT config->>'template' AS t FROM tenants WHERE id = $1", [tenantId]);
+      expect(after.rows[0].t).toBe("affiche");
+      await page.goto("/");
+      await expect(page.locator('.site[data-tpl="affiche"]')).toBeVisible();
+    } finally {
+      await pool.query("UPDATE tenants SET config = $1::jsonb WHERE id = $2", [JSON.stringify(before), tenantId]);
+      await pool.end();
+    }
+  });
+
+  test("les exemples ne peuvent pas passer pour des valeurs enregistrées (« ex : »)", async ({ page }) => {
+    await page.goto("/admin/parametres");
+    for (const name of ["email", "phone", "address"]) {
+      expect(await page.locator(`input[name='${name}']`).getAttribute("placeholder")).toMatch(/^ex : /);
+    }
+    await page.goto("/admin/parametres?tab=site");
+    for (const input of await page.getByRole("tabpanel").locator("input[placeholder], textarea[placeholder]").all()) {
+      expect(await input.getAttribute("placeholder")).toMatch(/^ex : |^#/);
+    }
   });
 });

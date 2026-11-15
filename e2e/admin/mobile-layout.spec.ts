@@ -118,7 +118,7 @@ test.describe("Admin — Mise en page mobile", () => {
     // Fixture créée au viewport téléphone : le formulaire doit aussi y être utilisable.
     await page.goto("/admin/reservations/new");
     const select = page.locator('select[name="roomId"]');
-    if ((await select.locator("option").count()) <= 1) { test.skip(); return; }
+    await expect(select.locator("option").nth(1)).toBeAttached();
     await select.selectOption({ index: 1 });
     await page.fill('[name="guestName"]', LONG_NAME);
     await page.fill('[name="guestEmail"]', EMAIL);
@@ -171,7 +171,7 @@ test.describe("Admin — Bureau : la liste reste un tableau", () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/admin/reservations");
     const rows = await page.locator("tbody tr").count();
-    if (rows === 0) { test.skip(); return; }
+    expect(rows).toBeGreaterThan(0);
     await expect(page.getByRole("columnheader", { name: "Client" })).toBeVisible();
   });
 });
