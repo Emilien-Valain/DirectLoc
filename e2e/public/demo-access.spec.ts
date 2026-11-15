@@ -138,6 +138,11 @@ test("photos démo : chaque chambre affiche sa photo servie depuis /demo/", asyn
   const res = await request.get(`${DEMO}/demo/chambre-lavande.webp`);
   expect(res.status()).toBe(200);
   expect(res.headers()["content-type"]).toContain("image/webp");
+  // /_next/image lit /demo/ par une requête interne sans domaine : en prod aucun tenant ne
+  // correspond (en test PUBLIC_TENANT_SLUG le masque). Le proxy ne doit pas filtrer /demo/.
+  const hostless = await request.get(`${DEMO}/demo/chambre-lavande.webp`, { headers: { host: "inconnu.example" } });
+  expect(hostless.status()).toBe(200);
+  expect(hostless.headers()["content-type"]).toContain("image/webp");
 });
 
 test.describe("Démo — bandeaux et liens croisés", () => {

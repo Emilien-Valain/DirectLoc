@@ -221,7 +221,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Exclut les fichiers statiques et les routes auth
-    "/((?!api/auth|_next/static|_next/image|favicon.ico).*)",
+    // Exclut les fichiers statiques et les routes auth. /demo/ (photos de l'hôtel démo dans public/) :
+    // /_next/image les récupère par une requête interne sans Host, qui ne résoudrait aucun tenant.
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|demo/).*)",
   ],
 };
