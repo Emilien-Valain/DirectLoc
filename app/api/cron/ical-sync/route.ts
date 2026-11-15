@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { syncAllIcalSources } from "@/lib/ical-sync";
+import { syncIcalSources } from "@/lib/ical-sync";
 
 /**
  * GET /api/cron/ical-sync
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const results = await syncAllIcalSources();
+    const results = await syncIcalSources();
     return NextResponse.json(results);
   } catch (err) {
     console.error("[iCal cron] Erreur:", err);

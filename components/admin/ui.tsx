@@ -175,6 +175,7 @@ export function GhostButton({
   active = false,
   icon,
   ariaLabel,
+  ariaCurrent,
 }: {
   children: ReactNode;
   href?: string;
@@ -182,6 +183,8 @@ export function GhostButton({
   active?: boolean;
   icon?: keyof typeof Icon;
   ariaLabel?: string;
+  /** Filtre ou vue actif : l'état « actif » doit aussi s'entendre, pas seulement se voir. */
+  ariaCurrent?: "page" | "true";
 }) {
   const IC = icon ? Icon[icon] : null;
   const style: CSSProperties = {
@@ -192,7 +195,8 @@ export function GhostButton({
     padding: "7px 14px",
     fontSize: 13,
     fontWeight: 600,
-    transition: "all 0.15s",
+    // Pas « all » : l'anneau de focus doit apparaître net, sans fondu.
+    transition: "background-color 0.15s, border-color 0.15s, color 0.15s",
     cursor: "pointer",
     display: "inline-flex",
     alignItems: "center",
@@ -201,7 +205,7 @@ export function GhostButton({
   };
   if (href) {
     return (
-      <a href={href} style={style} aria-label={ariaLabel}>
+      <a href={href} style={style} aria-label={ariaLabel} aria-current={ariaCurrent}>
         {IC && <IC size={14} />}
         {children}
       </a>
@@ -342,7 +346,7 @@ export function SettingsSection({
           </h2>
           {desc && (
             <p
-              className="text-[12.5px] mt-1 leading-[1.5]"
+              className="text-[12.5px] mt-1 leading-[1.5] max-w-[70ch]"
               style={{ color: "var(--admin-text-muted)" }}
             >
               {desc}

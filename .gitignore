@@ -44,3 +44,8 @@ playwright-report/
 
 # Uploaded files (persistent volume in Docker)
 /uploads/
+
+# Impeccable : maquettes, critiques et revues générées (locales)
+/.impeccable/mocks/
+/.impeccable/critique/
+/.impeccable/review/

@@ -9,6 +9,10 @@ RUN npm ci
 
 COPY . .
 RUN npm run build
+# create-admin autonome (le runner n'a ni tsx ni node_modules complet)
+RUN npx esbuild scripts/create-admin.ts --bundle --platform=node --format=esm --target=node20 \
+      --outfile=scripts/create-admin.mjs \
+      --banner:js="import{createRequire}from'module';const require=createRequire(import.meta.url);"
 
 # ── Production ───────────────────────────────────────────────────────────────
 FROM base AS runner
@@ -28,6 +32,8 @@ COPY --from=builder /app/public ./public
 # Migrations : script + fichiers SQL
 COPY --from=builder /app/scripts/migrate.mjs ./scripts/migrate.mjs
 COPY --from=builder /app/db/migrations ./db/migrations
+# Création tenant + admin : node scripts/create-admin.mjs --name ... (lit DATABASE_URL)
+COPY --from=builder /app/scripts/create-admin.mjs ./scripts/create-admin.mjs
 
 # Dossier uploads (à monter comme volume persistent)
 RUN mkdir -p /app/uploads

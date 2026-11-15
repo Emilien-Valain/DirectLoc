@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/session";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
   // Créer un compte Connect si le tenant n'en a pas encore
   if (!accountId) {
-    const account = await stripe.accounts.create({
+    const account = await getStripe().accounts.create({
       type: "express",
       country: "FR",
       capabilities: {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
   const host = request.headers.get("host") ?? "localhost:3000";
   const origin = `${proto}://${host}`;
 
-  const accountLink = await stripe.accountLinks.create({
+  const accountLink = await getStripe().accountLinks.create({
     account: accountId,
     refresh_url: `${origin}/admin/parametres?stripe=refresh`,
     return_url: `${origin}/admin/parametres?stripe=success`,

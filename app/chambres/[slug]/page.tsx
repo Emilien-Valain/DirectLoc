@@ -1,10 +1,14 @@
-import Link from "next/link";
+import { parisToday } from "@/lib/date-windows";
 import { notFound } from "next/navigation";
 import PublicLayout from "@/components/public/PublicLayout";
 import RoomGallery from "@/components/public/RoomGallery";
-import { requireTenant } from "@/lib/tenant-context";
-import { getRoomBySlugPublic } from "@/lib/queries/public";
+import RoomDates from "@/components/public/RoomDates";
+import { Breadcrumb, RoomItem, RoomPrice, sortedPhotos } from "@/components/public/Site";
+import { requireTenant, type TenantConfig } from "@/lib/tenant-context";
+import { getRoomBySlugPublic, getRoomsPublic } from "@/lib/queries/public";
 import { getMinPricePerNight } from "@/lib/pricing";
+import { getFeesByTenant } from "@/lib/queries/fees";
+import { feeAppliesTo } from "@/lib/extras";
 
 export default async function ChambreDetailPage({
   params,
@@ -19,56 +23,86 @@ export default async function ChambreDetailPage({
     notFound();
   }
 
-  const minPrice = await getMinPricePerNight(room.id, tenant.id);
+  const [minPrice, fees] = await Promise.all([
+    getMinPricePerNight(room.id, tenant.id),
+    getFeesByTenant(tenant.id, { activeOnly: true }),
+  ]);
+  const today = parisToday();
+  const config = (tenant.config ?? {}) as TenantConfig;
+  // Ce que le voyageur doit savoir avant de choisir ses dates, tiré des réglages de l'hôte.
+  const facts = [
+    ["Capacité", `Jusqu'à ${room.capacity} personne${room.capacity > 1 ? "s" : ""}`],
+    config.checkInTime && ["Arrivée", config.checkInTime],
+    config.checkOutTime && ["Départ", config.checkOutTime],
+  ].filter(Boolean) as [string, string][];
+  // « À partir de » = hébergement seul : annoncer ce qui s'y ajoute d'office (ADR-0011).
+  const charges = [
+    ...fees.filter((f) => f.price > 0 && feeAppliesTo(f, room.id)).map((f) => f.label.toLocaleLowerCase("fr")),
+    ...(config.touristTax ? ["taxe de séjour"] : []),
+  ];
+  const chargesNote = charges.length
+    ? `+ ${charges.length > 1 ? `${charges.slice(0, -1).join(", ")} et ${charges.at(-1)}` : charges[0]}`
+    : null;
+  const hasPhotos = sortedPhotos(room.photos).length > 0;
+  const allRooms = await getRoomsPublic(tenant.id);
+  const others = await Promise.all(
+    allRooms
+      .map((r, index) => ({ ...r, index }))
+      .filter((r) => r.id !== room.id)
+      .slice(0, 3)
+      .map(async (r) => ({ ...r, minPrice: await getMinPricePerNight(r.id, tenant.id) })),
+  );
 
   return (
     <PublicLayout>
-      <div className="max-w-3xl mx-auto px-6 py-16">
-        {/* Breadcrumb */}
-        <nav className="text-sm text-warm-500 mb-8 animate-fade-in">
-          <Link href="/" className="hover:text-warm-900 transition-colors">Accueil</Link>
-          <span className="mx-2 text-warm-300">/</span>
-          <Link href="/chambres" className="hover:text-warm-900 transition-colors">Chambres</Link>
-          <span className="mx-2 text-warm-300">/</span>
-          <span className="text-warm-900">{room.name}</span>
-        </nav>
-
-        {/* Galerie photos */}
-        <div className="mb-10 animate-fade-up">
-          <RoomGallery photos={room.photos} alt={room.name} />
-        </div>
-
-        {/* Contenu */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-8 animate-fade-up stagger-1">
-          <div className="flex-1">
-            <h1 className="font-heading text-4xl font-semibold text-warm-900 mb-3">{room.name}</h1>
-            <div className="flex items-center gap-4 text-sm text-warm-500 mb-6">
-              <span>{room.capacity} personne{room.capacity > 1 ? "s" : ""}</span>
-              <span className="text-warm-300">·</span>
-              <span className="font-heading text-2xl font-semibold text-warm-900">
-                {minPrice < parseFloat(room.pricePerNight) ? (
-                  <><span className="text-sm font-sans text-warm-500 font-normal">à partir de </span>{minPrice.toFixed(0)} €<span className="text-sm font-sans text-warm-500 font-normal">/nuit</span></>
-                ) : (
-                  <>{parseFloat(room.pricePerNight).toFixed(0)} €<span className="text-sm font-sans text-warm-500 font-normal">/nuit</span></>
-                )}
-              </span>
+      <div className="s-page">
+        <Breadcrumb
+          items={[
+            { href: "/", label: "Accueil" },
+            { href: "/chambres", label: "Chambres" },
+            { label: room.name },
+          ]}
+        />
+        <article className={`s-room-detail${hasPhotos ? " has-photo" : ""}`}>
+          {hasPhotos && (
+            <div className="s-room-detail-gallery">
+              <RoomGallery photos={room.photos} alt={room.name} />
             </div>
-
-            {room.description && (
-              <p className="text-warm-600 leading-relaxed">{room.description}</p>
+          )}
+          <div className="s-room-detail-text">
+            <h1 className="s-h1">{room.name}</h1>
+            <dl className="s-facts s-room-facts" data-testid="room-facts">
+              {facts.map(([k, v]) => (
+                <div key={k} className="s-fact">
+                  <dt>{k}</dt>
+                  <dd>{v}</dd>
+                </div>
+              ))}
+            </dl>
+            {room.description && <p className="s-prose">{room.description}</p>}
+          </div>
+          <div className="s-room-detail-book">
+            <RoomPrice room={{ ...room, minPrice }} />
+            {chargesNote && (
+              <p className="s-hint" data-testid="room-charges-note">
+                {chargesNote}
+              </p>
             )}
+            <RoomDates roomId={room.id} today={today} />
           </div>
-
-          {/* CTA */}
-          <div className="sm:w-52 flex-shrink-0">
-            <Link
-              href={`/reserver/${room.id}`}
-              className="block text-center bg-warm-900 text-warm-50 font-medium px-6 py-3 rounded-sm hover:bg-warm-800 transition-colors"
-            >
-              Réserver cette chambre
-            </Link>
-          </div>
-        </div>
+        </article>
+        {others.length > 0 && (
+          <section className="s-other-rooms" aria-labelledby="autres-chambres">
+            <h2 id="autres-chambres" className="s-h3">
+              Les autres chambres
+            </h2>
+            <div className="s-room-list">
+              {others.map((r) => (
+                <RoomItem key={r.id} room={r} index={r.index} />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     </PublicLayout>
   );

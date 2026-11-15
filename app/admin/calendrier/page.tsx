@@ -28,6 +28,8 @@ function dateKey(d: Date) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 }
 
+export const metadata = { title: "Calendrier" };
+
 export default async function CalendrierPage({
   searchParams,
 }: {
@@ -270,10 +272,11 @@ export default async function CalendrierPage({
           </Link>
           <Link
             href={`/admin/calendrier?year=${now.getUTCFullYear()}&month=${now.getUTCMonth()}`}
+            // Navigation, pas action : même poids que les flèches ; « Synchroniser » est l'action.
             style={{
-              background: "var(--admin-primary)",
-              color: "#fff",
-              border: "none",
+              background: "var(--admin-surface)",
+              color: "var(--admin-text)",
+              border: "1px solid var(--admin-border)",
               borderRadius: 8,
               padding: "7px 14px",
               fontSize: 13,
@@ -435,12 +438,12 @@ export default async function CalendrierPage({
                             >
                               {new Date(b.checkIn).toLocaleDateString(
                                 "fr-FR",
-                                { day: "numeric", month: "short" },
+                                { day: "numeric", month: "short", timeZone: "UTC" },
                               )}{" "}
                               →{" "}
                               {new Date(b.checkOut).toLocaleDateString(
                                 "fr-FR",
-                                { day: "numeric", month: "short" },
+                                { day: "numeric", month: "short", timeZone: "UTC" },
                               )}
                             </p>
                           </div>

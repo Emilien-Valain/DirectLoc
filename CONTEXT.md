@@ -18,7 +18,7 @@ _Avoid_: utilisateur, compte
 The `properties` table is dormant: exactly one is auto-created per [[tenant]] and every room attaches to it. Reason about rooms as belonging to a tenant, not a property. "Multiple buildings under one site" is not a product capability. (See ADR-0002.)
 
 **Guest**:
-The person who reserves and stays. A single concept — the booker and the occupant are not distinguished (a head-count is just `guestCount`). Stored inline on a booking (`guestName`, `guestEmail`, …); there is no separate guest entity.
+The person who reserves and stays. A single concept — the booker and the occupant are not distinguished (a head-count is just `guestCount`, plus how many of them are under 18 — used only for the [[tourist-tax]]). Stored inline on a booking (`guestName`, `guestEmail`, …); there is no separate guest entity.
 _Avoid_: client, voyageur, customer
 
 **Operator**:
@@ -57,6 +57,10 @@ _Avoid_: "confirmed = paid" (false — that conflates the two axes)
 
 **Payment status** — the *money* axis (`payments.status`: `pending | paid | failed | refunded`). The only source of truth for "has the guest paid?" Never inferred from [[booking-status]].
 
+**Balance due** (« Reste à payer »):
+What the [[guest]] still owes on a [[booking]]: its total minus what was paid online. Arises when [[extra|Extras]] are added after an online payment. Zero once the admin marks the booking settled offline. Settled on site — never collected through a second online payment.
+_Avoid_: solde, reliquat
+
 **Night**:
 The unit a booking is sold in — a *calendar date*, not an instant. Represented as UTC midnight and always compared date-only (`getUTC*`); it never carries a meaningful local time. Assumes metropolitan France and a UTC deployment (ADR-0005). The number of nights in a booking is the count of dates in `[checkIn, checkOut)`.
 _Avoid_: nuitée (in code)
@@ -65,6 +69,18 @@ _Avoid_: nuitée (in code)
 
 **Base price**:
 A room's default per-night price (`rooms.pricePerNight`). The price for a night when no [[pricing-rule]] applies; not a floor — a rule may go below it.
+
+**Extra**:
+An optional paid add-on a [[tenant]] offers alongside a [[booking]] (bed linen, towels, breakfast…). Defined once per tenant, valid for every room. Priced in one of four units — per stay, per night, per guest, per guest per night — with the quantity derived from the booking's nights and guest count, never chosen freely. Chosen by the [[guest]] on the public site or added by an [[admin]]. A booking keeps the label, unit and price an Extra had when it was attached: later catalog changes never alter existing bookings. Always optional — mandatory charges (cleaning fee, tourist tax) are not Extras. May be free (e.g. a baby cot on request): a zero-priced Extra records the guest's request on the booking.
+_Avoid_: option (overloaded with form/select options), supplément (in code)
+
+**Fee** (« Frais »):
+A mandatory charge the [[tenant]] adds to every [[booking]] (e.g. cleaning). Set by the hotel, not by law. Unlike an [[extra|Extra]], the guest cannot decline it. A tenant may define several (cleaning, booking fee…), each priced in the same four units as an Extra, and applying to all rooms unless restricted to some (a studio and a 6-person gîte need different cleaning fees). An admin may waive a Fee on a booking they enter (e.g. cleaning offered).
+_Avoid_: supplément, option, charge
+
+**Tourist tax** (« Taxe de séjour »):
+A legal tax the [[tenant]] collects from the [[guest]] on behalf of the municipality and pays back to it. Governed by law, not by the hotel's pricing — distinct from a [[fee|Fee]] and from an [[extra|Extra]]. Only the *au réel* regime is modelled (charged per adult per night); a tenant taxed *au forfait* simply has no tourist tax on its bookings. The admin enters the municipality's rate (departmental surcharge included) — DirectLoc keeps no rate table. Guests under 18 are exempt. Two legal modes, chosen once per tenant: a **fixed amount** per adult per night (classified accommodation) or a **percentage** (1–5 %) of the per-person nightly price, capped, plus the additional taxes (departmental, regional…) on top (unclassified accommodation). That nightly price is the accommodation alone (the agreed price when there is one), excluding VAT, [[extra|Extras]] and [[fee|Fees]]. Due only for stays that took place: a cancelled booking owes none. An admin may waive it on a booking they enter, for the other legal exemptions (seasonal worker, emergency housing…).
+_Avoid_: frais, taxe (alone)
 
 **Pricing rule**:
 A conditional override of the [[base-price|base price]] for a [[night]] (fixed price or percentage modifier), scoped to a room or global, optionally restricted by date window and days of week. May *raise* (seasonal/weekend surge) or *lower* (**promo**) the price. When several match a night, resolution is by precedence — highest `priority`, then specificity (room > global, day-restricted > all-days, narrower window > all-year), then recency (ADR-0006). This precedence is one shared primitive (`lib/rule-precedence.ts`): **booking rules** (minStay, allowed check-in days…) resolve by the same order, but field-by-field rather than to a single price — each constraint takes the value of the highest-precedence rule that defines it (ADR-0009).

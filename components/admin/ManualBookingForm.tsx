@@ -6,6 +6,7 @@ import { formatEuros } from "@/lib/utils";
 import {
   createBookingManual,
   quoteManualBooking,
+  updateBookingManual,
   type ManualBookingState,
 } from "@/lib/actions/bookings";
 import {
@@ -16,41 +17,113 @@ import {
   Field,
   StatusBanner,
 } from "@/components/admin/ui";
+import { EXTRA_UNIT_LABELS, feeAppliesTo, type ExtraUnit, type StayLine } from "@/lib/extras";
+import type { CatalogExtra } from "@/lib/queries/extras";
+import type { CatalogFee } from "@/lib/queries/fees";
 
 type RoomOption = { id: string; name: string; pricePerNight: string };
+
+/** Modification d'un séjour existant : valeurs actuelles, ancien total, montant déjà payé en ligne. */
+export type BookingEdit = {
+  id: string;
+  values: Record<string, string>;
+  oldTotal: number;
+  /** Ancien total moins toutes ses lignes : ce que « Garder l'ancien prix » conserve. */
+  oldAccommodation: number;
+  paidOnline: number | null;
+  /** Lignes d'Extras déjà sur la réservation (prix figé, même si l'option a été désactivée). */
+  lines: FrozenLine[];
+  /** Lignes de Fees déjà sur la réservation (prix figé). */
+  feeLines: FrozenLine[];
+  /** La taxe de séjour a été exonérée par l'hôte. */
+  taxExempt: boolean;
+};
+
+type FrozenLine = { id: string; sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number };
+type Quote = { nights: number; computed: number; accommodation: number; lines: StayLine[]; total: number };
+
+/** Cases à cocher : lignes figées de la réservation puis catalogue pas encore pris. */
+function choices(frozen: FrozenLine[], catalog: { id: string; label: string; unit: ExtraUnit; price: number }[]) {
+  return [
+    ...frozen.map((l) => ({ value: l.id, label: l.label, unit: l.unit, price: l.unitPrice, frozen: true })),
+    ...catalog
+      .filter((x) => !frozen.some((l) => l.sourceId === x.id))
+      .map((x) => ({ value: x.id, label: x.label, unit: x.unit, price: x.price, frozen: false })),
+  ];
+}
 
 export default function ManualBookingForm({
   rooms,
   today,
   tomorrow,
   defaultRoomId,
+  edit,
+  extras = [],
+  fees = [],
+  taxEnabled = false,
 }: {
   rooms: RoomOption[];
+  /** Catalogue actif. */
+  extras?: CatalogExtra[];
+  /** Fees actifs (toutes chambres ; filtrés selon la chambre choisie). */
+  fees?: CatalogFee[];
+  /** Taxe de séjour activée : champ enfants + case d'exonération. */
+  taxEnabled?: boolean;
   today: string;
   tomorrow: string;
   defaultRoomId?: string;
+  edit?: BookingEdit;
 }) {
   const [state, action, pending] = useActionState<ManualBookingState, FormData>(
-    createBookingManual,
+    edit ? updateBookingManual.bind(null, edit.id) : createBookingManual,
     null,
   );
-  const v = state?.values ?? {};
+  // Après une erreur, la saisie ; sinon, en modification, le séjour actuel.
+  const v = state?.values ?? edit?.values ?? {};
   const fe = state?.fieldErrors ?? {};
 
   // Total en direct : l'hôte voit le prix AVANT d'enregistrer (même calcul que l'enregistrement).
   const formRef = useRef<HTMLFormElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const [quote, setQuote] = useState<{ nights: number; total: number } | null>(null);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [keepPrice, setKeepPrice] = useState(state?.values?.keepPrice === "on");
+  // Une case par ligne existante (valeur = id de ligne, prix figé) puis par élément du catalogue
+  // pas encore pris (valeur = id catalogue, prix actuel). Contrôlé : survit au remontage après erreur.
+  const [roomId, setRoomId] = useState(v.roomId ?? defaultRoomId ?? "");
+  const extraChoices = choices(edit?.lines ?? [], extras);
+  const [chosenExtras, setChosenExtras] = useState<string[]>(() => edit?.lines.map((l) => l.id) ?? []);
+  // Fees : cochés d'office à la création ; en modification, seuls ceux déjà sur la réservation.
+  const feeChoices = choices(edit?.feeLines ?? [], fees.filter((f) => feeAppliesTo(f, roomId)));
+  const [chosenFees, setChosenFees] = useState<string[]>(() =>
+    edit ? edit.feeLines.map((l) => l.id) : fees.map((f) => f.id),
+  );
   const refreshQuote = () => {
     clearTimeout(timer.current);
     // Différé : le sélecteur de date met à jour le champ texte après l'événement.
     timer.current = setTimeout(async () => {
       const f = formRef.current;
       if (!f) return;
-      const val = (n: string) => (f.elements.namedItem(n) as HTMLInputElement | null)?.value ?? "";
-      setQuote(await quoteManualBooking(val("roomId"), val("checkIn"), val("checkOut")));
+      const fd = new FormData(f);
+      const val = (n: string) => String(fd.get(n) ?? "");
+      setQuote(
+        await quoteManualBooking({
+          roomId: val("roomId"),
+          checkIn: val("checkIn"),
+          checkOut: val("checkOut"),
+          guestCount: val("guestCount"),
+          childCount: val("childCount"),
+          extraIds: fd.getAll("extraIds").map(String),
+          feeIds: fd.getAll("feeIds").map(String),
+          waiveTax: fd.get("waiveTax") === "on",
+          agreedPrice: val("agreedPrice"),
+          keepPrice: fd.get("keepPrice") === "on",
+          bookingId: edit?.id,
+        }),
+      );
     }, 300);
   };
+  // Re-chiffre après chaque envoi ; edit.id ne change pas pendant la vie du formulaire.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(refreshQuote, [state]);
   // Le lien du conflit ouvre le mois de l'arrivée saisie (mois 0-indexé, comme le calendrier).
   const arrival = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v.checkIn ?? "");
@@ -72,24 +145,15 @@ export default function ManualBookingForm({
         padding: 24,
       }}
     >
-      {state?.error && (
+      {/* Un conflit s'affiche à côté du bouton (panneau « Forcer ») ; les autres erreurs ici. */}
+      {state?.error && !state.conflict && (
         <div role="alert">
-          <StatusBanner variant={state.conflict ? "warning" : "error"}>
-            {state.error}
-            {state.conflict && (
-              <>
-                {" "}
-                <Link href={calendarHref} className="underline underline-offset-2">
-                  Voir le calendrier
-                </Link>
-              </>
-            )}
-          </StatusBanner>
+          <StatusBanner variant="error">{state.error}</StatusBanner>
         </div>
       )}
 
       <Field label="Chambre *" error={fe.roomId}>
-        <AdminSelect name="roomId" required defaultValue={v.roomId ?? defaultRoomId ?? ""}>
+        <AdminSelect name="roomId" required defaultValue={roomId} onChange={(e) => setRoomId(e.target.value)}>
           <option value="">Sélectionner…</option>
           {rooms.map((c) => (
             <option key={c.id} value={c.id}>
@@ -117,9 +181,21 @@ export default function ManualBookingForm({
           <>
             <span>
               {quote.nights} nuit{quote.nights > 1 ? "s" : ""}, tarifs et règles appliqués
+              {quote.lines.length > 0 && <> : hébergement {formatEuros(quote.accommodation)}</>}
+              {quote.lines.map((l, i) => (
+                <span key={i} data-quote-line={l.kind}>
+                  {" "}+ {l.label} {l.exempt ? "exonérée" : formatEuros(l.total)}
+                  {!l.exempt && l.quantity > 1 && ` (${l.quantity} × ${formatEuros(l.unitPrice)})`}
+                </span>
+              ))}
             </span>
             <span className="tabular-nums">
-              Total calculé{" "}
+              {edit && (
+                <>
+                  Ancien total {formatEuros(edit.oldTotal)} →{" "}
+                </>
+              )}
+              {edit ? "Nouveau total" : "Total calculé"}{" "}
               <strong className="text-[15px]" style={{ color: "var(--admin-text)" }}>
                 {formatEuros(quote.total)}
               </strong>
@@ -130,16 +206,57 @@ export default function ManualBookingForm({
         )}
       </div>
 
+      {/* Inutile de proposer de garder un total identique au nouveau. */}
+      {edit && quote && (quote.total !== edit.oldTotal || keepPrice) && (
+        <label
+          className="flex items-start gap-2.5 mb-3.5 cursor-pointer"
+          style={{ color: "var(--admin-text)" }}
+        >
+          <input
+            type="checkbox"
+            name="keepPrice"
+            className="mt-0.5"
+            style={{ accentColor: "var(--admin-primary)" }}
+            defaultChecked={state ? v.keepPrice === "on" : false}
+            onChange={(e) => setKeepPrice(e.target.checked)}
+          />
+          <span className="text-[13px] leading-snug">
+            {quote.lines.length > 0 || edit.oldAccommodation !== edit.oldTotal
+              ? `Garder l'ancien prix de l'hébergement (${formatEuros(edit.oldAccommodation)}), options et frais en plus`
+              : `Garder l'ancien total (${formatEuros(edit.oldTotal)})`}
+          </span>
+        </label>
+      )}
+
+      {edit?.paidOnline != null && quote && (() => {
+        // Déjà payé en ligne : rien n'est débité ni remboursé automatiquement, l'hôte règle l'écart.
+        const diff = Math.round((quote.total - edit.paidOnline) * 100) / 100;
+        if (diff === 0) return null;
+        return (
+          <p
+            data-paid-difference
+            className="mb-3.5 px-3.5 py-2.5 rounded-lg text-[12.5px] leading-[1.5]"
+            style={{ background: "#FEF9C3", color: "#92400E" }}
+          >
+            Déjà payé en ligne : {formatEuros(edit.paidOnline)}.{" "}
+            {diff > 0
+              ? `Différence à régler avec le client : +${formatEuros(diff)}.`
+              : `À rembourser depuis Stripe : ${formatEuros(-diff)}.`}{" "}
+            Rien n&apos;est débité ni remboursé automatiquement.
+          </p>
+        );
+      })()}
+
       <Field
         label="Prix convenu"
-        hint="Optionnel : un total négocié avec le client remplace le prix calculé."
+        hint="Optionnel : un prix d'hébergement négocié avec le client remplace le prix calculé. Les options et frais s'y ajoutent."
         error={fe.agreedPrice}
       >
         <AdminInput
           name="agreedPrice"
           type="text"
           inputMode="decimal"
-          placeholder={quote ? String(quote.total) : "ex : 250"}
+          placeholder={quote ? String(quote.computed) : "ex : 250"}
           defaultValue={v.agreedPrice}
         />
       </Field>
@@ -159,6 +276,95 @@ export default function ManualBookingForm({
         </Field>
       </div>
 
+      {taxEnabled && (
+        <div className="grid grid-cols-2 gap-3.5 items-end">
+          <Field label="Dont enfants (−18 ans)" error={fe.childCount} hint="Exonérés de taxe de séjour.">
+            <AdminInput name="childCount" type="number" min="0" defaultValue={v.childCount ?? 0} />
+          </Field>
+          <label className="flex items-start gap-2.5 mb-3.5 cursor-pointer" style={{ color: "var(--admin-text)" }}>
+            <input
+              type="checkbox"
+              name="waiveTax"
+              className="mt-0.5"
+              style={{ accentColor: "var(--admin-primary)" }}
+              defaultChecked={state ? v.waiveTax === "on" : edit?.taxExempt}
+            />
+            <span className="text-[13px] leading-snug">
+              Exonérer de la taxe de séjour
+              <span className="block text-[12px]" style={{ color: "var(--admin-text-muted)" }}>
+                Saisonnier, hébergement d&apos;urgence… Reste visible dans l&apos;export.
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
+
+      {feeChoices.length > 0 && (
+        <fieldset className="mb-3.5" data-testid="manual-fees">
+          <legend className="text-[13px] font-semibold mb-1.5" style={{ color: "var(--admin-text)" }}>
+            Frais
+          </legend>
+          {feeChoices.map((x) => {
+            const checked = chosenFees.includes(x.value);
+            return (
+              <label key={x.value} className="flex items-start gap-2.5 py-1 cursor-pointer" style={{ color: "var(--admin-text)" }}>
+                <input
+                  type="checkbox"
+                  name="feeIds"
+                  value={x.value}
+                  checked={checked}
+                  className="mt-0.5"
+                  style={{ accentColor: "var(--admin-primary)" }}
+                  onChange={() =>
+                    setChosenFees((ids) => (checked ? ids.filter((id) => id !== x.value) : [...ids, x.value]))
+                  }
+                />
+                <span className="text-[13px] leading-snug">
+                  {x.label}{" "}
+                  <span style={{ color: "var(--admin-text-muted)" }}>
+                    {x.price === 0 ? "· gratuit" : `· ${formatEuros(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
+                    {x.frozen && " · prix de la réservation"}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
+
+      {extraChoices.length > 0 && (
+        <fieldset className="mb-3.5" data-testid="manual-extras">
+          <legend className="text-[13px] font-semibold mb-1.5" style={{ color: "var(--admin-text)" }}>
+            Options
+          </legend>
+          {extraChoices.map((x) => {
+            const checked = chosenExtras.includes(x.value);
+            return (
+              <label key={x.value} className="flex items-start gap-2.5 py-1 cursor-pointer" style={{ color: "var(--admin-text)" }}>
+                <input
+                  type="checkbox"
+                  name="extraIds"
+                  value={x.value}
+                  checked={checked}
+                  className="mt-0.5"
+                  style={{ accentColor: "var(--admin-primary)" }}
+                  onChange={() =>
+                    setChosenExtras((ids) => (checked ? ids.filter((id) => id !== x.value) : [...ids, x.value]))
+                  }
+                />
+                <span className="text-[13px] leading-snug">
+                  {x.label}{" "}
+                  <span style={{ color: "var(--admin-text-muted)" }}>
+                    {x.price === 0 ? "· gratuit" : `· ${formatEuros(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
+                    {x.frozen && " · prix de la réservation"}
+                  </span>
+                </span>
+              </label>
+            );
+          })}
+        </fieldset>
+      )}
+
       <Field label="Email client *" error={fe.guestEmail}>
         <AdminInput name="guestEmail" type="email" required defaultValue={v.guestEmail} />
       </Field>
@@ -172,25 +378,59 @@ export default function ManualBookingForm({
       </Field>
 
       {/* « Forcer » n'apparaît qu'après un vrai conflit : c'est un override, pas un réglage. */}
-      {state?.conflict && (
+
+      {edit && (
         <label
           className="flex items-start gap-2.5 pt-1 pb-1 cursor-pointer"
           style={{ color: "var(--admin-text)" }}
         >
           <input
             type="checkbox"
-            name="force"
+            name="notifyGuest"
             className="mt-0.5"
             style={{ accentColor: "var(--admin-primary)" }}
+            defaultChecked={state ? v.notifyGuest === "on" : true}
           />
           <span className="text-[13px] leading-snug">
-            Enregistrer quand même
+            Prévenir le client par email
             <span className="block text-[12px]" style={{ color: "var(--admin-text-muted)" }}>
-              Uniquement pour reporter une réservation déjà prise ailleurs (téléphone, Airbnb…).
-              Les deux séjours apparaîtront en même temps dans le calendrier.
+              Il reçoit le nouveau récapitulatif (dates, chambre, total). Décochez si vous l&apos;avez déjà prévenu.
             </span>
           </span>
         </label>
+      )}
+
+      {/* « Forcer » n'apparaît qu'après un vrai conflit, collé au bouton : la décision et son effet au même endroit. */}
+      {state?.conflict && (
+        <div
+          role="alert"
+          data-force-panel
+          className="mt-1 mb-1 px-3.5 py-3 rounded-lg"
+          style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
+        >
+          <p className="text-[13px] font-bold leading-snug">
+            {state.error}{" "}
+            <Link href={calendarHref} className="font-semibold underline underline-offset-2">
+              Voir le calendrier
+            </Link>
+          </p>
+          <p className="text-[12.5px] leading-[1.5] mt-1">
+            {state.clash?.kind === "booking"
+              ? `${state.clash.guestName} occupe déjà la chambre : enregistrer quand même y mettra deux clients en même temps. À faire seulement si vous déplacez l'un des deux ensuite.`
+              : state.clash?.kind === "ical"
+                ? "Si c'est la même réservation, recopiée ici, vous pouvez enregistrer. Sinon, deux clients arriveront le même soir."
+                : "Enregistrez quand même si ce blocage n'a plus lieu d'être."}
+          </p>
+          <label className="flex items-start gap-2.5 mt-2.5 cursor-pointer" style={{ color: "var(--admin-text)" }}>
+            <input
+              type="checkbox"
+              name="force"
+              className="mt-0.5"
+              style={{ accentColor: "var(--admin-primary)" }}
+            />
+            <span className="text-[13px] font-semibold leading-snug">Enregistrer quand même</span>
+          </label>
+        </div>
       )}
 
       <div className="flex gap-3 pt-2">
@@ -200,10 +440,10 @@ export default function ManualBookingForm({
           className="admin-btn"
           style={{ background: "var(--admin-primary)", color: "#fff", border: "none" }}
         >
-          {pending ? "Enregistrement…" : "Enregistrer"}
+          {pending ? "Enregistrement…" : edit ? "Enregistrer les modifications" : "Enregistrer"}
         </button>
         <Link
-          href="/admin/reservations"
+          href={edit ? `/admin/reservations/${edit.id}` : "/admin/reservations"}
           className="admin-btn"
           style={{ color: "var(--admin-text-muted)", background: "none", border: "none" }}
         >

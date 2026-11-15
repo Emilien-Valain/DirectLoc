@@ -188,7 +188,7 @@ export default function PricingRuleSection({ rooms, rules }: Props) {
                   onChange={() => setPriceType("percentage")}
                   style={{ accentColor: "var(--admin-primary)" }}
                 />
-                Modificateur (%)
+                Hausse ou baisse en %
               </label>
             </div>
           </Field>
@@ -201,22 +201,22 @@ export default function PricingRuleSection({ rooms, rules }: Props) {
                   name="fixedPrice"
                   required
                   inputMode="decimal"
-                  placeholder="ex: 150"
+                  placeholder="ex : 150"
                 />
               </Field>
             </div>
           ) : (
             <div className="max-w-xs">
               <Field
-                label="Modificateur (%)"
-                hint="Positif = majoration, négatif = promotion"
+                label="Hausse ou baisse (%)"
+                hint="30 = +30 % sur le prix de la nuit ; -15 = une promotion de 15 %"
                 error={form.fieldError("percentageModifier")}
               >
                 <AdminInput
                   type="text"
                   name="percentageModifier"
                   required
-                  placeholder="ex: 30 ou -15"
+                  placeholder="ex : 30 ou -15"
                 />
               </Field>
             </div>

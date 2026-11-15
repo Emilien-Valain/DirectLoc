@@ -7,6 +7,8 @@ import { getRoomsByTenant } from "@/lib/queries/rooms";
 import DeleteRoomButton from "@/components/admin/DeleteRoomButton";
 import { Card, EmptyState, PageHeader, PrimaryButton } from "@/components/admin/ui";
 
+export const metadata = { title: "Chambres" };
+
 export default async function ChambresPage() {
   const { tenantId } = await requireSession();
   const chambres = await getRoomsByTenant(tenantId);

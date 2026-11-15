@@ -1,9 +1,13 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { rooms } from "@/db/schema";
+import { bookingLines, extras, fees, rooms, tenants } from "@/db/schema";
 import { isRoomAvailable } from "@/lib/availability";
 import { validateBookingRules } from "@/lib/booking-rules";
 import { calculatePrice, type PriceBreakdown } from "@/lib/pricing";
+import { grandTotal, priceExtraLine, type ExtraLine, type StayLine } from "@/lib/extras";
+import { touristTaxLine } from "@/lib/tourist-tax";
+import type { TenantConfig } from "@/lib/tenant-context";
+import { isUuid } from "@/lib/validation";
 
 /**
  * Seam d'admission des réservations — voir ADR-0008.
@@ -25,6 +29,22 @@ export type AdmitInput = {
   checkIn: Date;
   checkOut: Date;
   guestCount: number;
+  /** Dont mineurs, exonérés de taxe de séjour (≤ guestCount). */
+  childCount?: number;
+  /**
+   * Extras choisis : id du catalogue, ou id d'une ligne `extra` déjà sur la réservation
+   * modifiée (`excludeBookingId`), qui garde alors son prix figé (ADR-0010).
+   */
+  extraIds?: string[];
+  /**
+   * Fees retenus, même convention que `extraIds`. Absent = tous les Fees actifs de la
+   * chambre (public) ; l'hôte, lui, envoie ses cases cochées (ADR-0011).
+   */
+  feeIds?: string[];
+  /** Exonération de taxe posée par l'hôte : ligne gardée à 0 €, marquée `exempt`. */
+  waiveTax?: boolean;
+  /** Hébergement imposé (prix convenu ou ancien prix gardé) ; base de la taxe en %. */
+  accommodation?: number;
 };
 
 export type AdmitOptions = {
@@ -35,11 +55,18 @@ export type AdmitOptions = {
    * thread #1. Réservé à l'intake manuel (case « Forcer »). Jamais en public.
    */
   allowOverlap?: boolean;
+  /** Modification d'un séjour existant : ses propres nuits ne comptent pas comme un Hold. */
+  excludeBookingId?: string;
 };
 
 type Room = typeof rooms.$inferSelect;
 
-export type Admission = { room: Room; breakdown: PriceBreakdown };
+/**
+ * `breakdown` = prix calculé des nuits ; `accommodation` = hébergement facturé
+ * (calculé ou imposé) ; `lines` = Extras, Fees, taxe ; `total` = ce qui est encaissé.
+ */
+export type StayPrice = { breakdown: PriceBreakdown; accommodation: number; lines: StayLine[]; total: number };
+export type Admission = StayPrice & { room: Room };
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -67,13 +94,182 @@ export class BookingRulesError extends Error {
   }
 }
 
+/** Un Extra demandé est inactif, supprimé ou d'un autre tenant : rien n'est enregistré. */
+export class ExtraUnavailableError extends Error {
+  constructor() {
+    super("Une option choisie n'est plus proposée. Rechargez la page et vérifiez votre sélection.");
+    this.name = "ExtraUnavailableError";
+  }
+}
+
+/** Un Fee coché est inactif, supprimé, d'un autre tenant ou ne concerne pas cette chambre. */
+export class FeeUnavailableError extends Error {
+  constructor() {
+    super("Un frais coché n'est plus appliqué à cette chambre. Rechargez la page.");
+    this.name = "FeeUnavailableError";
+  }
+}
+
+const MAX_EXTRAS = 50;
+
+/**
+ * Lignes d'Extras d'un séjour. Une ligne déjà sur la réservation (`bookingId`)
+ * garde libellé et prix figés, quantité recalculée — même si l'Extra a été
+ * désactivé ou supprimé depuis. Tout autre id doit être un Extra actif du tenant.
+ */
+export async function resolveExtraLines(
+  conn: Tx | typeof db,
+  { tenantId, extraIds, nights, guests, bookingId }: {
+    tenantId: string;
+    extraIds: string[];
+    nights: number;
+    guests: number;
+    bookingId?: string;
+  },
+): Promise<ExtraLine[]> {
+  const ids = [...new Set(extraIds)];
+  if (ids.length === 0) return [];
+  if (ids.length > MAX_EXTRAS || !ids.every(isUuid)) throw new ExtraUnavailableError();
+
+  const existing = bookingId
+    ? await conn
+        .select()
+        .from(bookingLines)
+        .where(and(eq(bookingLines.bookingId, bookingId), eq(bookingLines.kind, "extra")))
+    : [];
+  const kept = existing.filter((l) => ids.includes(l.id) || (l.sourceId && ids.includes(l.sourceId)));
+  const keptIds = new Set(kept.flatMap((l) => [l.id, l.sourceId]));
+  const fromCatalog = ids.filter((id) => !keptIds.has(id));
+
+  const catalog = fromCatalog.length
+    ? await conn
+        .select()
+        .from(extras)
+        .where(and(inArray(extras.id, fromCatalog), eq(extras.tenantId, tenantId), eq(extras.active, true)))
+    : [];
+  if (catalog.length !== fromCatalog.length) throw new ExtraUnavailableError();
+
+  return [
+    ...kept.map((l) =>
+      priceExtraLine({ sourceId: l.sourceId, label: l.label, unit: l.unit, unitPrice: parseFloat(l.unitPrice) }, nights, guests),
+    ),
+    ...catalog.map((x) =>
+      priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: parseFloat(x.price) }, nights, guests),
+    ),
+  ];
+}
+
+/** Lignes `fee` d'un séjour : Fees actifs de la chambre, ou le choix de l'hôte (voir `AdmitInput.feeIds`). */
+async function resolveFeeLines(
+  conn: Tx | typeof db,
+  { tenantId, roomId, feeIds, nights, guests, bookingId }: {
+    tenantId: string;
+    roomId: string;
+    feeIds?: string[];
+    nights: number;
+    guests: number;
+    bookingId?: string;
+  },
+): Promise<ExtraLine[]> {
+  const catalog = await conn
+    .select()
+    .from(fees)
+    .where(
+      and(
+        eq(fees.tenantId, tenantId),
+        eq(fees.active, true),
+        sql`(cardinality(${fees.roomIds}) = 0 or ${roomId}::uuid = any(${fees.roomIds}))`,
+      ),
+    )
+    .orderBy(asc(fees.createdAt));
+  const fromCatalog = (f: (typeof catalog)[number]) =>
+    priceExtraLine({ sourceId: f.id, label: f.label, unit: f.unit, unitPrice: parseFloat(f.price) }, nights, guests);
+  if (feeIds === undefined) return catalog.map(fromCatalog);
+
+  const ids = [...new Set(feeIds)];
+  if (ids.length > MAX_EXTRAS || !ids.every(isUuid)) throw new FeeUnavailableError();
+  const existing = bookingId
+    ? await conn
+        .select()
+        .from(bookingLines)
+        .where(and(eq(bookingLines.bookingId, bookingId), eq(bookingLines.kind, "fee")))
+    : [];
+  const kept = existing.filter((l) => ids.includes(l.id) || (l.sourceId && ids.includes(l.sourceId)));
+  const keptIds = new Set(kept.flatMap((l) => [l.id, l.sourceId]));
+  const picked = catalog.filter((f) => ids.includes(f.id) && !keptIds.has(f.id));
+  if (kept.length + picked.length !== ids.length) throw new FeeUnavailableError();
+  return [
+    ...kept.map((l) =>
+      priceExtraLine({ sourceId: l.sourceId, label: l.label, unit: l.unit, unitPrice: parseFloat(l.unitPrice) }, nights, guests),
+    ),
+    ...picked.map(fromCatalog),
+  ];
+}
+
+/**
+ * Prix complet d'un séjour : hébergement, Extras, Fees, taxe de séjour. Même calcul
+ * pour l'admission et pour le devis du formulaire manuel (affiché == enregistré).
+ * La taxe est recalculée avec le réglage actuel du tenant à chaque modification.
+ */
+export async function priceStay(
+  conn: Tx | typeof db,
+  input: Omit<AdmitInput, "accommodation"> & { accommodation?: number; bookingId?: string },
+): Promise<StayPrice> {
+  const { roomId, tenantId, checkIn, checkOut, guestCount, childCount = 0, extraIds = [], bookingId } = input;
+  // Séquentiel : `conn` peut être une transaction (une seule connexion, pas de requêtes parallèles).
+  const breakdown = await calculatePrice(roomId, tenantId, checkIn, checkOut, conn);
+  const [tenant] = await conn.select({ config: tenants.config }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  const nights = breakdown.nights.length;
+  const stay = { tenantId, nights, guests: guestCount, bookingId };
+  const extraLines = await resolveExtraLines(conn, { ...stay, extraIds });
+  const feeLines = await resolveFeeLines(conn, { ...stay, roomId, feeIds: input.feeIds });
+  const accommodation = input.accommodation ?? breakdown.totalPrice;
+  // Prix imposé : réparti également sur les nuits pour la base de la taxe en %.
+  const nightPrices = input.accommodation === undefined
+    ? breakdown.nights.map((n) => n.price)
+    : breakdown.nights.map(() => accommodation / nights);
+  const tax = touristTaxLine(
+    ((tenant?.config ?? {}) as TenantConfig).touristTax,
+    nightPrices,
+    guestCount,
+    childCount,
+    input.waiveTax,
+  );
+  const lines: StayLine[] = [
+    ...extraLines.map((l) => ({ ...l, kind: "extra" as const, exempt: false })),
+    ...feeLines.map((l) => ({ ...l, kind: "fee" as const, exempt: false })),
+    ...(tax ? [{ ...tax, kind: "tax" as const }] : []),
+  ];
+  return { breakdown, accommodation, lines, total: grandTotal(accommodation, lines) };
+}
+
+/** Remplace toutes les lignes d'une réservation (dans la transaction d'admission). */
+export async function saveLines(tx: Tx, bookingId: string, lines: StayLine[]) {
+  await tx.delete(bookingLines).where(eq(bookingLines.bookingId, bookingId));
+  if (lines.length === 0) return;
+  await tx.insert(bookingLines).values(
+    lines.map((l) => ({
+      bookingId,
+      kind: l.kind,
+      sourceId: l.sourceId,
+      label: l.label,
+      unit: l.unit,
+      unitPrice: l.unitPrice.toFixed(2),
+      quantity: l.quantity,
+      total: l.total.toFixed(2),
+      exempt: l.exempt,
+    })),
+  );
+}
+
 export async function admitBooking<T>(
-  { roomId, tenantId, checkIn, checkOut, guestCount }: AdmitInput,
-  { enforceRules = false, allowOverlap = false }: AdmitOptions,
+  input: AdmitInput,
+  { enforceRules = false, allowOverlap = false, excludeBookingId }: AdmitOptions,
   persist: (tx: Tx, admission: Admission) => Promise<T>,
 ): Promise<T> {
   // Tout passe par `tx` : une admission ne doit jamais réclamer une 2e connexion
   // du pool en tenant déjà la sienne (sinon N admissions simultanées = deadlock).
+  const { roomId, tenantId, checkIn, checkOut, guestCount } = input;
   return db.transaction(async (tx) => {
     // Verrou relâché au commit, donc après l'insertion : l'admission suivante
     // de la même chambre lit la réservation qu'on vient d'écrire.
@@ -96,7 +292,7 @@ export async function admitBooking<T>(
 
     // 2. Disponibilité (Holds) — sauf override admin explicite.
     if (!allowOverlap) {
-      const available = await isRoomAvailable(roomId, tenantId, checkIn, checkOut, tx);
+      const available = await isRoomAvailable(roomId, tenantId, checkIn, checkOut, tx, excludeBookingId);
       if (!available) {
         throw new RoomUnavailableError();
       }
@@ -110,9 +306,8 @@ export async function admitBooking<T>(
       }
     }
 
-    // 4. Prix dynamique.
-    const breakdown = await calculatePrice(roomId, tenantId, checkIn, checkOut, tx);
-
-    return persist(tx, { room, breakdown });
+    // 4. Prix complet (le serveur recalcule tout, aucun montant du formulaire hors prix convenu).
+    const price = await priceStay(tx, { ...input, bookingId: excludeBookingId });
+    return persist(tx, { room, ...price });
   });
 }

@@ -3,8 +3,13 @@ import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { userTenants, tenants } from "@/db/schema";
+import { userTenants } from "@/db/schema";
 import Sidebar from "@/components/admin/Sidebar";
+
+// Un onglet par page qui dit où l'on est (« Réservations · DirectLoc »), plus jamais « DirectLoc » partout.
+export const metadata = {
+  title: { template: "%s · DirectLoc", default: "Tableau de bord · DirectLoc" },
+};
 
 export default async function AdminLayout({
   children,

@@ -24,7 +24,7 @@ Take back control of bookings and your own site, without OTA commission, with lo
 
 - One-line pitch: « Votre site à vous, votre nom de domaine, zéro commission — remboursé dès la première réservation directe. »
 - Real competitors: Open System / Open Pro (subsidised by Vendée Expansion), elloha (24–59 €/mois), Smoobu (~29 €), Amenitiz (41–55 €), Lodgify. Differentiate on local human support and the local network effect, not raw feature count.
-- Network effect (only claim it after ~15–20 local clients within 30 min): cross-referral to another DirectLoc host when a gîte is full, a shared partner directory, and shared local SEO (« où dormir près du Puy du Fou »). Before that critical mass, sell commission savings and independence only.
+- Network (owner decision 2026-11-05: presented from launch as a real feature): cross-referral to the nearest free DirectLoc hosts when a gîte is full, and shared local SEO articles (« où dormir près du Puy du Fou ») published on directloc.app that link out to each host's own domain. Never claim a member count or traffic figures.
 
 ## Operating Context
 
@@ -35,7 +35,7 @@ Take back control of bookings and your own site, without OTA commission, with lo
 
 ## Capabilities and Constraints
 
-- Three surfaces in scope: **public guest sites** (per-tenant templates, currently Classic and Boutique, extensible), **admin back-office** (dashboard, calendrier, réservations, règles, paramètres), and the **directloc.app marketing site**.
+- Surfaces: the **directloc.app marketing site** (`app/vitrine`, served on `MARKETING_HOST`, Almanach world), **public guest sites** (per-tenant templates, currently Classic and Boutique, extensible), **admin back-office** (dashboard, calendrier, réservations, règles, paramètres).
 - Public templates are themed per tenant through CSS variables (primary/secondary colors, logo, hero title); each tenant must be able to look distinct from the others.
 - Features: availability search, real-time availability engine, booking form, Stripe payment, confirmation/post-stay emails, iCal import/export, room photos and gallery, booking rules, precedence-based pricing rules (including promos), manual blocks, PDF export.
 - Stack: Next.js 16, React 19, Tailwind v4, Drizzle/PostgreSQL, Better Auth. UI language is French.

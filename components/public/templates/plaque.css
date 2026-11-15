@@ -1,0 +1,240 @@
+/*
+ * Template « La Plaque émaillée » (clé en base : classic).
+ * Tout ce qui est lettré est une plaque émaillée vissée sur un mur de pierre :
+ * plaque de maison, plaques de rue (navigation), panneau directionnel
+ * (recherche de dates), plaques de porte numérotées (chambres).
+ * L'émail prend la couleur primaire de l'hôte, plafonnée en clarté pour que
+ * le blanc reste lisible ; le mur prend une teinte de sa couleur secondaire.
+ */
+
+.site[data-tpl="plaque"] {
+  --s-plate: oklch(from var(--color-primary) min(l, 0.42) c h);
+  --s-plate-deep: oklch(from var(--s-plate) calc(l - 0.08) c h);
+  --s-enamel-white: #fbfaf6;
+  --s-red: #b5342b;
+  /* Secondaire bornée (clair, peu saturé) : le texte gris reste ≥ 4.5:1 quelle que soit la couleur de l'hôte. */
+  --s-ground: color-mix(in srgb, oklch(from var(--color-secondary) max(l, 0.85) min(c, 0.04) h) 45%, #d3cdbf);
+  --s-ink: #222428;
+  --s-ink-soft: #46474c;
+  --s-surface: var(--s-enamel-white);
+  --s-field: #fff;
+  --s-line: #8a8478;
+  --s-accent: var(--s-red);
+  --s-on-accent: #fff;
+  --s-accent-ink: #9e2b23;
+  --s-focus: var(--s-red);
+  --s-good: #1d6a39;
+  --s-bad: #a3261e;
+  --s-warn: #8a4b00;
+  --s-display: var(--font-antonio), "Arial Narrow", sans-serif;
+  --s-body: var(--font-atkinson), system-ui, sans-serif;
+  --s-field-radius: 8px;
+  --s-chip-radius: 6px;
+  --s-plate-shadow: 0 1px 0 rgb(255 255 255 / 0.35) inset, 0 12px 24px -16px rgb(40 30 10 / 0.6), 0 2px 3px rgb(40 30 10 / 0.12);
+
+  /* Mur chaulé : assises de pierre à joints décalés, pierres de tons variés. */
+  background-color: var(--s-ground);
+  background-image:
+    radial-gradient(ellipse 60% 40% at 15% 10%, rgb(255 255 255 / 0.22), transparent 70%),
+    radial-gradient(ellipse 50% 35% at 85% 70%, rgb(110 98 78 / 0.1), transparent 70%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='160'%3E%3Cg fill='%23ffffff'%3E%3Crect x='2' y='2' width='136' height='76' opacity='.05'/%3E%3Crect x='222' y='82' width='76' height='76' opacity='.06'/%3E%3C/g%3E%3Cg fill='%23645a48'%3E%3Crect x='142' y='2' width='156' height='76' opacity='.04'/%3E%3Crect x='2' y='82' width='66' height='76' opacity='.05'/%3E%3C/g%3E%3Cg stroke='%23645a48' stroke-opacity='.1' stroke-width='2' fill='none'%3E%3Cpath d='M0 1H300M0 81H300M1 0V80M141 0V80M71 80V160M221 80V160'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: auto, auto, 300px 160px;
+}
+
+/* ── Plaques ────────────────────────────────────────── */
+[data-tpl="plaque"] :is(.s-namecard, .s-nav-link, .s-room, .s-room-detail-book, .s-summary, .s-btn, .s-room-num, .s-mark) {
+  position: relative;
+}
+/* Plaque bleue : fond émail, filet blanc intérieur. */
+[data-tpl="plaque"] :is(.s-namecard, .s-nav-link, .s-room, .s-room-detail-book, .s-summary) {
+  background: var(--s-plate);
+  color: var(--s-enamel-white);
+  border-radius: 14px;
+  box-shadow: var(--s-plate-shadow);
+}
+[data-tpl="plaque"] :is(.s-namecard, .s-nav-link, .s-room, .s-room-detail-book, .s-summary)::before {
+  content: "";
+  position: absolute;
+  inset: 6px;
+  border: 2px solid currentColor;
+  border-radius: 9px;
+  pointer-events: none;
+}
+/* Contre-plaque blanche bordée d'émail. */
+[data-tpl="plaque"] :is(.s-group, .s-room-card, .s-confirm-card, .s-facts, .s-search-room) {
+  background: var(--s-enamel-white);
+  border: 3px solid var(--s-plate);
+  border-radius: 14px;
+  box-shadow: var(--s-plate-shadow);
+}
+
+/* Titres lettrés */
+[data-tpl="plaque"] :is(.s-h1, .s-h2, .s-h3, .s-title, .s-search-title, .s-summary-room, .s-footer-name, .s-stat-value) {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+[data-tpl="plaque"] :is(.s-h1, .s-h2) { color: var(--s-plate); }
+
+/* ── Header ─────────────────────────────────────────── */
+[data-tpl="plaque"] .s-mark {
+  display: grid; place-items: center;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--s-plate); color: var(--s-enamel-white);
+  font-family: var(--s-display); font-weight: 700; font-size: 18px; letter-spacing: 0.04em;
+  box-shadow: inset 0 0 0 3px var(--s-plate), inset 0 0 0 5px var(--s-enamel-white), var(--s-plate-shadow);
+}
+[data-tpl="plaque"] .s-brand-name { font-family: var(--s-display); font-size: 1.25rem; text-transform: uppercase; letter-spacing: 0.06em; }
+[data-tpl="plaque"] .s-nav-link {
+  padding: 0 20px;
+  border-radius: 8px;
+  font-family: var(--s-display); font-weight: 700; font-size: 1.1rem;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s;
+}
+[data-tpl="plaque"] .s-nav-link::before { inset: 4px; border-width: 1.5px; border-radius: 5px; }
+[data-tpl="plaque"] .s-nav-cta { background: var(--s-red); }
+[data-tpl="plaque"] .s-menu-panel { background: var(--s-ground); box-shadow: 0 16px 24px -16px rgb(40 30 10 / 0.5); }
+[data-tpl="plaque"] .s-menu-panel .s-nav-link { justify-content: center; min-height: 52px; }
+
+/* Plaques qui s'enfoncent quand on appuie (l'émail se rapproche du mur). */
+[data-tpl="plaque"] :is(.s-nav-link, .s-room):hover { transform: translateY(-1px); }
+[data-tpl="plaque"] :is(.s-nav-link, .s-room, .s-btn):active { transform: translateY(2px); box-shadow: 0 1px 0 rgb(255 255 255 / 0.3) inset, 0 3px 6px -4px rgb(40 30 10 / 0.6); }
+
+/* ── Plaque de la maison ────────────────────────────── */
+[data-tpl="plaque"] .s-namecard {
+  display: flex; flex-direction: column; gap: 16px;
+  padding: clamp(28px, 4vw, 48px) clamp(24px, 4vw, 56px) clamp(28px, 3.5vw, 44px);
+  /* Vis aux quatre coins + reflet de l'émail. */
+  background-image:
+    radial-gradient(circle, #d7dae2 0 2px, #8e93a3 2.5px 3.5px, transparent 4px),
+    radial-gradient(circle, #d7dae2 0 2px, #8e93a3 2.5px 3.5px, transparent 4px),
+    radial-gradient(circle, #d7dae2 0 2px, #8e93a3 2.5px 3.5px, transparent 4px),
+    radial-gradient(circle, #d7dae2 0 2px, #8e93a3 2.5px 3.5px, transparent 4px),
+    linear-gradient(160deg, rgb(255 255 255 / 0.1), transparent 40%);
+  background-size: 10px 10px, 10px 10px, 10px 10px, 10px 10px, auto;
+  background-position: 13px 13px, calc(100% - 13px) 13px, 13px calc(100% - 13px), calc(100% - 13px) calc(100% - 13px), 0 0;
+  background-repeat: no-repeat;
+  background-color: var(--s-plate);
+}
+[data-tpl="plaque"] .s-title { color: var(--s-enamel-white); overflow-wrap: anywhere; }
+[data-tpl="plaque"] .s-place {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--s-display); font-weight: 500; font-size: 1.2rem;
+  text-transform: uppercase; letter-spacing: 0.12em;
+}
+[data-tpl="plaque"] .s-place::after { content: ""; flex: 1; height: 2px; background: currentColor; opacity: 0.55; }
+[data-tpl="plaque"] .s-pitch { font-size: 1.15rem; }
+[data-tpl="plaque"] .s-hero-photo { border-radius: 14px; box-shadow: inset 0 0 0 6px var(--s-plate), var(--s-plate-shadow); }
+[data-tpl="plaque"] .s-hero-photo img { border-radius: 14px; padding: 6px; }
+
+/* ── Panneau directionnel : la recherche de dates ───── */
+[data-tpl="plaque"] .s-search-form {
+  --arrow: 0px;
+  padding: 6px;
+  background: var(--s-plate);
+  border-radius: 14px;
+  clip-path: polygon(0 0, calc(100% - var(--arrow)) 0, 100% 50%, calc(100% - var(--arrow)) 100%, 0 100%);
+  filter: drop-shadow(0 10px 12px rgb(40 30 10 / 0.25));
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-tpl="plaque"] .s-sign-face {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 20px 24px 24px;
+  background: var(--s-enamel-white);
+  border-radius: 9px;
+  clip-path: polygon(0 0, calc(100% - var(--arrow) + 3px) 0, 100% 50%, calc(100% - var(--arrow) + 3px) 100%, 0 100%);
+}
+[data-tpl="plaque"] .s-search-title { color: var(--s-plate); font-size: 1.9rem; }
+[data-tpl="plaque"] .s-search-title { display: flex; align-items: center; gap: 12px; }
+[data-tpl="plaque"] .s-sign-arrow { display: block; width: 40px; height: 20px; fill: currentColor; transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+[data-tpl="plaque"] .s-search-form:has(#search-checkin:valid):has(#search-checkout:valid) .s-sign-arrow { transform: translateX(6px); }
+[data-tpl="plaque"] .s-search-fields input { border-color: var(--s-plate); }
+@media (min-width: 640px) {
+  [data-tpl="plaque"] .s-search-form { --arrow: 64px; border-radius: 14px 0 0 14px; }
+  [data-tpl="plaque"] .s-sign-face { padding-right: 88px; border-radius: 9px 0 0 9px; }
+  /* Dates complètes : le panneau avance d'un cran vers la destination. */
+  [data-tpl="plaque"] .s-search-form:has(#search-checkin:valid):has(#search-checkout:valid) { transform: translateX(10px); }
+}
+
+/* Boutons : plaque rouge à filet blanc. */
+[data-tpl="plaque"] .s-btn {
+  border-radius: 10px;
+  font-family: var(--s-display); font-size: 1.25rem; letter-spacing: 0.06em; text-transform: uppercase;
+  box-shadow: inset 0 0 0 4px var(--s-red), inset 0 0 0 5.5px rgb(255 255 255 / 0.9), inset 0 -3px 0 rgb(0 0 0 / 0.18), 0 6px 12px -6px rgb(126 33 27 / 0.7);
+}
+[data-tpl="plaque"] .s-btn:disabled { box-shadow: none; }
+
+/* ── Plaques de porte (chambres) ────────────────────── */
+[data-tpl="plaque"] :is(.s-hero-rooms, .s-other-rooms) .s-h3 { color: var(--s-plate); font-size: 1.6rem; }
+[data-tpl="plaque"] .s-room {
+  padding: 14px 26px 14px 14px;
+  border-radius: 999px;
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.18s;
+}
+[data-tpl="plaque"] .s-room::before { border-radius: 999px; inset: 5px; }
+[data-tpl="plaque"] .s-room-num {
+  width: 66px; height: 66px; border-radius: 50%;
+  background: var(--s-enamel-white); color: var(--s-plate);
+  font-family: var(--s-display); font-weight: 700; font-size: 2rem;
+}
+[data-tpl="plaque"] .s-room-num small { font-size: 0.75rem; letter-spacing: 0.1em; }
+[data-tpl="plaque"] .s-room-name { font-family: var(--s-display); font-size: 1.45rem; text-transform: uppercase; letter-spacing: 0.04em; line-height: 1.05; }
+[data-tpl="plaque"] .s-room .s-room-meta { color: inherit; opacity: 0.9; }
+[data-tpl="plaque"] .s-room-price { font-family: var(--s-display); font-size: 1.6rem; }
+[data-tpl="plaque"] .s-room-price small { font-family: var(--s-body); font-size: 0.8rem; }
+/* Une porte sur deux en émail blanc, comme les plaques d'un même couloir. */
+[data-tpl="plaque"] .s-room-list .s-room:nth-child(even) { background: var(--s-enamel-white); color: var(--s-plate); }
+[data-tpl="plaque"] .s-room-list .s-room:nth-child(even) .s-room-num { background: var(--s-plate); color: var(--s-enamel-white); }
+[data-tpl="plaque"] .s-room-list .s-room:nth-child(even) .s-room-meta { color: var(--s-ink-soft); opacity: 1; }
+[data-tpl="plaque"] .s-hero-rooms .s-link { align-self: flex-start; color: var(--s-plate); }
+
+/* ── Sections ───────────────────────────────────────── */
+[data-tpl="plaque"] .s-story-inner { max-width: 760px; }
+[data-tpl="plaque"] .s-story .s-prose { font-size: 1.2rem; color: var(--s-ink); }
+[data-tpl="plaque"] .s-signature { font-family: var(--s-display); font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--s-plate); }
+[data-tpl="plaque"] .s-stat-list { position: relative; padding: 12px; background: var(--s-plate); color: var(--s-enamel-white); border-radius: 14px; box-shadow: var(--s-plate-shadow); --s-stat-rule: rgb(251 250 246 / 0.4); }
+[data-tpl="plaque"] .s-stat-list::before { content: ""; position: absolute; inset: 6px; border: 2px solid currentColor; border-radius: 9px; pointer-events: none; }
+[data-tpl="plaque"] .s-stat-sub { color: inherit; opacity: 0.88; }
+[data-tpl="plaque"] .s-gallery-img { border-radius: 10px; box-shadow: var(--s-plate-shadow); }
+[data-tpl="plaque"] .s-gallery-img img { border-radius: 10px; }
+[data-tpl="plaque"] .s-lead { font-size: 1.3rem; }
+[data-tpl="plaque"] .s-facts { padding: 24px; }
+[data-tpl="plaque"] .s-fact dt { font-family: var(--s-display); text-transform: uppercase; letter-spacing: 0.1em; color: var(--s-plate); }
+[data-tpl="plaque"] .s-fact + .s-fact { padding-top: 14px; border-top: 1px solid var(--s-line); }
+[data-tpl="plaque"] .s-map { border-radius: 14px; box-shadow: 0 0 0 4px var(--s-plate), var(--s-plate-shadow); }
+[data-tpl="plaque"] .s-map-link { border-color: var(--s-plate); color: var(--s-plate); border-radius: 8px; }
+[data-tpl="plaque"] .s-pin-label { background: var(--s-plate); color: var(--s-enamel-white); border-radius: 6px; font-family: var(--s-display); text-transform: uppercase; letter-spacing: 0.06em; box-shadow: inset 0 0 0 2px var(--s-plate), inset 0 0 0 3.5px #fff; }
+[data-tpl="plaque"] .s-pin-dot { background: var(--s-red); box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / 0.3); }
+
+/* ── Pages ──────────────────────────────────────────── */
+[data-tpl="plaque"] .s-room-card .s-room-num { width: 58px; height: 58px; background: var(--s-plate); color: var(--s-enamel-white); justify-items: center; text-align: center; }
+[data-tpl="plaque"] .s-room-card .s-h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); }
+[data-tpl="plaque"] .s-room-card .s-room-price { color: var(--s-plate); }
+[data-tpl="plaque"] .s-room-card-photo { margin: 6px 6px 0; border-radius: 9px; overflow: hidden; }
+[data-tpl="plaque"] .s-room-detail-book { padding: 30px; }
+[data-tpl="plaque"] .s-room-detail-text .s-h1 { align-self: flex-start; padding: 14px 30px; color: var(--s-enamel-white); background: var(--s-plate); border-radius: 999px; box-shadow: inset 0 0 0 5px var(--s-plate), inset 0 0 0 7px var(--s-enamel-white), var(--s-plate-shadow); }
+[data-tpl="plaque"] .s-room-detail-book .s-room-price small { color: inherit; }
+[data-tpl="plaque"] .s-room-detail-text .s-prose { font-size: 1.15rem; color: var(--s-ink); }
+[data-tpl="plaque"] .s-gallery-main { border-radius: 14px; box-shadow: var(--s-plate-shadow); }
+[data-tpl="plaque"] .s-thumb { border-radius: 6px; }
+[data-tpl="plaque"] .s-group legend { color: var(--s-plate); }
+[data-tpl="plaque"] .s-summary {
+  --s-ink: var(--s-enamel-white);
+  --s-ink-soft: rgb(251 250 246 / 0.86);
+  --s-line: rgb(251 250 246 / 0.32);
+  padding: 30px 28px;
+}
+[data-tpl="plaque"] .s-summary-photo { margin: -24px -22px 8px; border-radius: 9px 9px 0 0; }
+[data-tpl="plaque"] .s-confirm-card .s-h1 { font-size: clamp(2.2rem, 5vw, 3.2rem); }
+[data-tpl="plaque"] .s-ref strong { font-family: var(--s-display); font-size: 1.4rem; letter-spacing: 0.08em; color: var(--s-plate); }
+[data-tpl="plaque"] .s-crumbs a { color: var(--s-ink-soft); }
+
+/* ── Footer : bandeau d'émail ───────────────────────── */
+[data-tpl="plaque"] .s-footer {
+  background: var(--s-plate);
+  color: var(--s-enamel-white);
+  box-shadow: inset 0 6px 0 var(--s-plate-deep), inset 0 8px 0 rgb(255 255 255 / 0.7);
+  padding-top: 56px;
+}
+[data-tpl="plaque"] .s-credit { opacity: 0.85; }

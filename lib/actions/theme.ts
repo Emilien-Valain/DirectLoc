@@ -7,7 +7,7 @@ import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
 import { safeParseFormData, type FormResult } from "@/lib/validation";
-import type { TemplateName } from "@/lib/tenant-context";
+import { TEMPLATE_NAMES } from "@/lib/tenant-context";
 import { mergeTenantConfig } from "@/lib/tenant-config";
 
 const hexColor = z
@@ -16,7 +16,7 @@ const hexColor = z
   .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Couleur HEX invalide (#RRGGBB)");
 
 const themeSchema = z.object({
-  template: z.enum(["classic", "boutique"]),
+  template: z.enum(TEMPLATE_NAMES),
   primaryColor: hexColor,
   secondaryColor: hexColor,
 });
@@ -32,7 +32,7 @@ export async function updateTheme(formData: FormData): Promise<FormResult> {
     .update(tenants)
     .set({
       config: mergeTenantConfig({
-        template: data.template as TemplateName,
+        template: data.template,
         primaryColor: data.primaryColor,
         secondaryColor: data.secondaryColor,
       }),

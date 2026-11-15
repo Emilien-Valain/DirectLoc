@@ -45,6 +45,49 @@ colors:
   blocked-bg: "#F8FAFC"
   stripe: "#635BFF"
   stripe-hover: "#4D43E8"
+  # Public guest sites (components/public/templates/*.css). *-default = WORLDS fallback when the host sets no colour.
+  public-plaque-enamel-default: "#1F3B7A"
+  public-plaque-wall-default: "#D8D3C6"
+  public-plaque-stone: "#D3CDBF"
+  public-plaque-enamel-white: "#FBFAF6"
+  public-plaque-red: "#B5342B"
+  public-plaque-red-text: "#9E2B23"
+  public-plaque-ink: "#222428"
+  public-plaque-ink-soft: "#46474C"
+  public-plaque-mortar: "#8A8478"
+  public-plaque-screw: "#D7DAE2"
+  public-plaque-screw-rim: "#8E93A3"
+  public-plaque-good: "#1D6A39"
+  public-plaque-bad: "#A3261E"
+  public-plaque-warn: "#8A4B00"
+  public-linge-stripe-default: "#B23A3A"
+  public-linge-linen-default: "#E2DED3"
+  public-linge-flax: "#D6D4CC"
+  public-linge-napkin: "#FDFDFB"
+  public-linge-ink: "#262B36"
+  public-linge-ink-soft: "#4A4F5A"
+  public-linge-thread: "#8D8A82"
+  public-affiche-band-default: "#1F3B57"
+  public-affiche-sky-default: "#F2B33D"
+  public-affiche-paper: "#F7F0E1"
+  public-affiche-red: "#C4462F"
+  public-affiche-red-text: "#A8361F"
+  public-affiche-green-1: "#6F9A5B"
+  public-affiche-green-2: "#3E7A4F"
+  public-affiche-green-3: "#2B5E3A"
+  public-affiche-green-4: "#1D4429"
+  public-affiche-good: "#1D5E33"
+  public-affiche-bad: "#9E2B1B"
+  public-affiche-warn: "#7A4300"
+  public-standard-brand-default: "#2A5C40"
+  public-standard-ink: "#1C1917"
+  public-standard-ink-soft: "#57534E"
+  public-standard-line: "#D6D3D1"
+  public-standard-card-line: "#E7E5E4"
+  public-standard-hairline: "#EEECEB"
+  public-standard-hover: "#F5F5F4"
+  public-standard-ink-hover: "#292524"
+  public-standard-footer: "#FAFAF9"
 typography:
   page-title:
     fontFamily: "Plus Jakarta Sans, system-ui, sans-serif"
@@ -77,12 +120,112 @@ typography:
     fontSize: "12px"
     fontWeight: 700
     letterSpacing: "0.06em"
+  public-plaque-title:
+    fontFamily: "Antonio, Arial Narrow, sans-serif"
+    fontSize: "clamp(3rem, 8vw, 6rem)"
+    fontWeight: 700
+    lineHeight: 0.92
+    letterSpacing: "0.03em"
+  public-plaque-heading:
+    fontFamily: "Antonio, Arial Narrow, sans-serif"
+    fontSize: "clamp(2.4rem, 5vw, 3.6rem)"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: "0.03em"
+  public-plaque-plate-label:
+    fontFamily: "Antonio, Arial Narrow, sans-serif"
+    fontSize: "1.25rem"
+    fontWeight: 700
+    letterSpacing: "0.06em"
+  public-plaque-body:
+    fontFamily: "Atkinson Hyperlegible, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 400
+    lineHeight: 1.55
+  public-linge-title:
+    fontFamily: "Epilogue, system-ui, sans-serif"
+    fontSize: "clamp(3rem, 8vw, 6rem)"
+    fontWeight: 800
+    lineHeight: 0.92
+    letterSpacing: "-0.035em"
+  public-linge-heading:
+    fontFamily: "Epilogue, system-ui, sans-serif"
+    fontSize: "clamp(1.8rem, 3.4vw, 2.6rem)"
+    fontWeight: 800
+    lineHeight: 1.05
+    letterSpacing: "-0.02em"
+  public-linge-label:
+    fontFamily: "Epilogue, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 800
+    letterSpacing: "0.01em"
+  public-linge-body:
+    fontFamily: "Literata, Georgia, serif"
+    fontSize: "17px"
+    fontWeight: 400
+    lineHeight: 1.55
+  public-linge-story:
+    fontFamily: "Literata, Georgia, serif"
+    fontSize: "1.25rem"
+    fontWeight: 400
+    lineHeight: 1.65
+  public-affiche-title:
+    fontFamily: "League Gothic, Arial Narrow, sans-serif"
+    fontSize: "clamp(4.5rem, 15vw, 12rem)"
+    fontWeight: 400
+    lineHeight: 0.86
+    letterSpacing: "0.01em"
+  public-affiche-heading:
+    fontFamily: "League Gothic, Arial Narrow, sans-serif"
+    fontSize: "clamp(3.2rem, 7vw, 5.2rem)"
+    fontWeight: 400
+    lineHeight: 0.95
+    letterSpacing: "0.01em"
+  public-affiche-label:
+    fontFamily: "League Gothic, Arial Narrow, sans-serif"
+    fontSize: "1.6rem"
+    fontWeight: 400
+    letterSpacing: "0.03em"
+  public-affiche-body:
+    fontFamily: "Libre Franklin, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 400
+    lineHeight: 1.55
+  public-standard-title:
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
+    fontSize: "clamp(2.6rem, 6vw, 4.5rem)"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: "-0.025em"
+  public-standard-heading:
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
+    fontSize: "clamp(2.2rem, 4.5vw, 3rem)"
+    fontWeight: 700
+    lineHeight: 1
+    letterSpacing: "-0.025em"
+  public-standard-body:
+    fontFamily: "Hanken Grotesk, system-ui, sans-serif"
+    fontSize: "16px"
+    fontWeight: 400
+    lineHeight: 1.55
 rounded:
   field: "8px"
   button: "10px"
   card: "12px"
   dialog: "16px"
   pill: "9999px"
+  public-plaque-plate: "14px"
+  public-plaque-plate-inset: "9px"
+  public-plaque-button: "10px"
+  public-plaque-field: "8px"
+  public-plaque-chip: "6px"
+  public-linge-field: "4px"
+  public-linge-tab: "3px"
+  public-affiche-square: "0"
+  public-standard-card: "18px"
+  public-standard-button: "12px"
+  public-standard-field: "10px"
+  public-pill: "999px"
 spacing:
   field-y: "9px"
   field-x: "12px"
@@ -90,6 +233,12 @@ spacing:
   page-x-mobile: "20px"
   page-x: "32px"
   page-y: "28px"
+  public-gutter: "clamp(16px, 4vw, 64px)"
+  public-max: "1240px"
+  public-gap: "clamp(16px, 2vw, 24px)"
+  public-section-y: "clamp(64px, 9vw, 128px)"
+  public-control-height: "52px"
+  public-tap-min: "44px"
 components:
   button-primary:
     backgroundColor: "{colors.forest}"
@@ -129,6 +278,58 @@ components:
     textColor: "{colors.status-pending}"
     rounded: "{rounded.pill}"
     padding: "3px 10px"
+  public-plaque-button:
+    backgroundColor: "{colors.public-plaque-red}"
+    textColor: "#FFFFFF"
+    typography: "{typography.public-plaque-plate-label}"
+    rounded: "{rounded.public-plaque-button}"
+    padding: "0 26px"
+    height: "{spacing.public-control-height}"
+  public-plaque-plate:
+    backgroundColor: "{colors.public-plaque-enamel-default}"
+    textColor: "{colors.public-plaque-enamel-white}"
+    rounded: "{rounded.public-plaque-plate}"
+  public-plaque-counter-plate:
+    backgroundColor: "{colors.public-plaque-enamel-white}"
+    textColor: "{colors.public-plaque-ink}"
+    rounded: "{rounded.public-plaque-plate}"
+    padding: "24px"
+  public-linge-button:
+    backgroundColor: "{colors.public-linge-stripe-default}"
+    textColor: "#FFFFFF"
+    typography: "{typography.public-linge-label}"
+    rounded: "{rounded.public-linge-tab}"
+    padding: "0 26px"
+    height: "{spacing.public-control-height}"
+  public-linge-napkin:
+    backgroundColor: "{colors.public-linge-napkin}"
+    textColor: "{colors.public-linge-ink}"
+    padding: "30px 26px 26px"
+  public-affiche-button:
+    backgroundColor: "{colors.public-affiche-red}"
+    textColor: "#FFFFFF"
+    typography: "{typography.public-affiche-label}"
+    rounded: "{rounded.public-affiche-square}"
+    padding: "0 28px"
+    height: "{spacing.public-control-height}"
+  public-affiche-band:
+    backgroundColor: "{colors.public-affiche-band-default}"
+    textColor: "{colors.public-affiche-paper}"
+  public-standard-button:
+    backgroundColor: "{colors.public-standard-brand-default}"
+    textColor: "#FFFFFF"
+    rounded: "{rounded.public-standard-button}"
+    padding: "0 26px"
+    height: "{spacing.public-control-height}"
+  public-standard-card:
+    backgroundColor: "#FFFFFF"
+    textColor: "{colors.public-standard-ink}"
+    rounded: "{rounded.public-standard-card}"
+    padding: "20px"
+  public-field:
+    backgroundColor: "#FFFFFF"
+    height: "{spacing.public-control-height}"
+    padding: "0 14px"
 ---
 
 # Design System: DirectLoc
@@ -160,7 +361,7 @@ A forest-and-terracotta palette on warm linen: grounded, rural and calm.
 - **Forest Mist** (#EAF2ED): tint behind primary-coloured text (info banners, guest avatars, direct-channel tag).
 
 ### Secondary
-- **Terracotta** (#D4784A): the brand mark tile, the active nav indicator bar, and the hotel icon in the switcher. Accent only.
+- **Terracotta** (#D4784A): the active nav indicator bar and the hotel icon in the switcher. Accent only. The brand mark tile uses the deeper terracotta (#A9532A, `--admin-accent-text`) so its white "D" reaches 5.3:1.
 - **Terracotta Blush** (#FDF0E8): light tint paired with terracotta.
 - **Terracotta Text** (#A9532A): terracotta for text on blush (departure tags, avatars), 4.7:1. Raw terracotta on blush is only 2.9:1.
 
@@ -193,7 +394,26 @@ One status palette everywhere a booking state appears (badge, calendar bar, cale
 ### Named Rules
 **The Terracotta Whisper Rule.** Terracotta marks identity and "you are here" — the logo tile, the active nav bar. It is never a button fill or a large surface.
 
-**The Two Palettes Rule.** `--admin-*` tokens live under `[data-admin]` and are used only in `/admin` and auth screens. The legacy `warm-*` / `amber-accent` scale belongs to the public templates. Never mix them.
+**The Two Palettes Rule.** `--admin-*` tokens live under `[data-admin]` and are used only in `/admin` and auth screens. The guest sites use the `--s-*` contract scoped under `.site[data-tpl]`. Never mix them.
+
+### Public guest-site worlds
+The guest sites never use the admin palette. Each template is a self-contained world that fills the shared `--s-*` contract (ground, ink, ink-soft, surface, field, line, accent, on-accent, accent-ink, focus, good, bad, warn, display, body, field-radius, chip-radius) under `.site[data-tpl="…"]`. The shared stylesheet holds no colour. The host's two colours arrive as `--color-primary` and `--color-secondary` on the `.site` element, falling back to the world's `*-default` tokens, and are clamped in OKLCH relative-colour syntax so the text sitting on them stays legible whatever the host picks.
+
+| World (DB key) | Host primary becomes | Host secondary becomes | Fixed accent |
+|---|---|---|---|
+| La Plaque émaillée (`classic`, and any unknown key) | the enamel of every plate, L ≤ 0.42 | the wall tint, 45% into Limestone | Enamel Red, the one action colour |
+| Le Linge de maison (`boutique`) | the woven stripe and the accent, L ≤ 0.50 | the linen ground, 50% into Flax | none; the stripe is the accent |
+| L'Affiche touristique (`affiche`) | the lower band and the ink, L ≤ 0.36 | the sky, L ≥ 0.80 | Poster Red |
+| Classique (`standard`) | brand: mark, banner, button, prices, L ≤ 0.45 | not used | none; brand is the accent |
+
+- **Plaque:** Enamel White carries text on plates and is the counter-plate surface; Plaque Ink and Ink Soft for reading text on the wall; Mortar Line for field strokes and rules; Enamel Red Text where red is text. Screw Head and Screw Rim exist only in the nameplate's four screws.
+- **Linge:** Napkin White for every surface (search, room labels, cards); Linge Ink / Ink Soft; Thread Line for dashed rules. Headings and prices use the stripe darkened by 0.1 L. Shares Plaque's good / bad / warn values.
+- **Affiche:** Poster Paper is the light surface on the band; the four bocage greens belong to the hero landscape, and Field Green also fills the stats band. Poster Red Text where red is text.
+- **Classique:** pure white page with warm-stone neutrals (lines, hairlines, hover fill, footer). Its good / bad / warn values coincide with the admin status text colours (#15803D, #B91C1C, #A16207); the values match, the tokens stay separate.
+
+**The Bounded Host Colour Rule.** A host colour never reaches the page raw. It passes through `oklch(from … min(l, X) c h)` (or `max` for the Affiche sky) before any text sits on it. A new world sets its bound before it uses the colour.
+
+**The One Contract Rule.** Shared structure (`components/public/site.css`) reads only `--s-*` tokens and holds no colour or font. A world's private variables (`--s-plate*`, `--l-*`, `--a-*`, `--st-*`) stay in its own file.
 
 ## Typography
 
@@ -213,11 +433,22 @@ One status palette everywhere a booking state appears (badge, calendar bar, cale
 ### Named Rules
 **The Weight-Not-Size Rule.** Hierarchy comes from weight and tracking at compact sizes. Nothing in the admin goes above 28px.
 
+### Public guest-site worlds
+Each world pairs a display face with a reading face, loaded through `next/font` with `preload: false` so a guest downloads only the pair its template uses. Body text is 17px / 1.55 (Classique 16px), and the whole site uses tabular figures so prices align.
+- **Plaque:** Antonio (500/700), uppercase, tracked 0.03em on headings up to 0.12em on the place line, for everything lettered on a plate (name, nav, buttons, room numbers, prices). Atkinson Hyperlegible (400/700) for reading.
+- **Linge:** Epilogue 800 with tight tracking (-0.02em, -0.035em on the title), heavy like a laundry mark; Epilogue 500 for nav. Literata for reading; the host's story is set larger and looser (1.25rem / 1.65).
+- **Affiche:** League Gothic in one weight (400), uppercase, line-height 0.86–0.95; the house name grows up to 12rem. Section headings up to 3.8rem, room names and prices 2rem. Libre Franklin for reading.
+- **Classique:** Hanken Grotesk alone, 700 headings at -0.025em.
+
+**The Lettering Rule.** Where a world letters its objects (Plaque, Linge, Affiche), room numbers, prices, nav and buttons take the display face; the reading face is for sentences.
+
 ## Layout
 
 Fixed sidebar on the left (240px, collapsible to 64px, state kept in the `admin-sidebar-collapsed` cookie so the server renders it; a drawer on mobile). The content column is centred with a max width of 1280px and padding of 20px on mobile, 32px from `sm` up, and 28px vertically. Pages stack: `PageHeader` (title + subtitle + one primary action on the right, 28px bottom margin), then cards or settings sections with 20px gaps. KPIs sit in a wrapping flex row (min width 140px each). Settings and rules pages use underline tabs; settings tabs are deep-linkable via `?tab=`.
 
 The calendar is a Gantt-style timeline: rooms as rows with a sticky 160px label column, days as fluid columns, bookings as absolutely positioned spans. Below `md` it falls back to a per-room list.
+
+**Public sites.** All four worlds share one markup. The column is centred with a 1240px max and a fluid gutter; sections are separated by a fluid vertical rhythm (see the `public-*` spacing tokens). The home hero is a grid of name card, photo, date search and room list; from 1000px the name and search take a 1.45fr left column and the rooms (or photo) the right. Worlds rearrange only the grid areas: Affiche stacks name, landscape and band edge to edge, with search and rooms side by side inside the band; Classique puts the name in a full-width banner, overlaps it by 48px with the search bar and lays rooms out as auto-fill cards (min 240px). The nav appears from 820px; below that, a 48px menu button opens a drop panel. Room detail and booking use a 340px sticky right column from 900px. Every tap target is at least 44px; buttons and fields are 52px high. Without host photos the layout is text-led: the name card, search and rooms take the space, and nothing stands in for a missing photo.
 
 ## Elevation & Depth
 
@@ -232,9 +463,18 @@ Mostly flat, with light lift. Cards carry a barely visible two-layer shadow, so 
 ### Named Rules
 **The Paper-on-Linen Rule.** Depth comes from white paper against warm linen plus a sand border first, and from shadow second. Never stack shadows to create hierarchy.
 
+### Public sites
+Depth belongs to each world; no shadow is shared.
+- **Plaque plate** (`box-shadow: 0 1px 0 rgb(255 255 255 / 0.35) inset, 0 12px 24px -16px rgb(40 30 10 / 0.6), 0 2px 3px rgb(40 30 10 / 0.12)`): every plate and counter-plate. Pressed, it shortens to `0 1px 0 rgb(255 255 255 / 0.3) inset, 0 3px 6px -4px rgb(40 30 10 / 0.6)`, as if the enamel moved closer to the wall.
+- **Linge fold** (`box-shadow: 0 1px 2px rgb(38 43 54 / 0.08), 0 14px 28px -18px rgb(38 43 54 / 0.45)`): napkins, the room-label panel, cards, photo frames.
+- **Classique card** (`box-shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 12px 32px -12px rgb(28 25 23 / 0.18)`): the floating search bar, the booking summary, and room cards on hover.
+- **Affiche:** none. Flat lithographic colour; photos and the map get a 10px paper outline instead of a shadow.
+
 ## Shapes
 
-Soft, consistent corners that step up with the size of the object: fields and ghost buttons 8px, primary buttons and avatars 10px, cards and sections 12px, the auth card 16px. Status badges are full pills; channel tags are 6px. Borders are 1px sand, except fields, which use 1.5px so they read as touchable. The brand mark is a 34px terracotta tile with a 9px radius and a white "D".
+Soft, consistent corners that step up with the size of the object: fields and ghost buttons 8px, primary buttons and avatars 10px, cards and sections 12px, the auth card 16px. Status badges are full pills; channel tags are 6px. Borders are 1px sand, except fields, which use 1.5px so they read as touchable. The brand mark is a 34px deep-terracotta tile (#A9532A) with a 9px radius and a white "D".
+
+**Public sites.** Plaque: 14px plates with a 2px white inner filet inset 6px (9px corners); room door plates are full pills with a round number disc; from 640px the date search is clipped into a road sign with a 64px arrow point. Linge: near-square corners (3–4px), 1.5px dashed "stitching" outlines inset 6px, a thick-thin-thick woven stripe band (40px) above the content and the footer, and a short double stripe above each section. Affiche: square everywhere. Classique: 18px cards and banner, 12px buttons and mark, 10px fields, pill nav links.
 
 ## Components
 
@@ -270,10 +510,18 @@ Warm and tactile: they look pressable without shouting.
 - **Tabs:** an underline row (`role="tablist"`, arrow keys move between tabs); the active tab has a 2px forest underline and forest text. Weight stays 600 on every tab so switching never shifts the row.
 
 ### Public templates
-Guest sites are owned by the host, not by DirectLoc. Each template sets its own world and receives the tenant's `--color-primary` and `--color-secondary` (plus an optional logo).
-- **Classic:** Playfair Display headings, Plus Jakarta Sans body, cream #F8F6F3 base. The header and footer are filled with the tenant's primary colour.
-- **Boutique:** Cormorant Garamond headings, Figtree body. The header uses the secondary colour with a centred logo. The primary colour is an accent (links, borders) rather than a fill.
-- **Shared:** staged load reveals (`animate-fade-up` + `stagger-1…6`, 50ms steps) that are disabled under `prefers-reduced-motion`.
+Guest sites belong to the host, not to DirectLoc. The four worlds share one markup and one set of `s-*` class names; each world is a single stylesheet in `components/public/templates/` scoped by `.site[data-tpl]`. `PublicLayout`'s `WORLDS` table maps the stored key to a world: `classic` → plaque, `boutique` → linge, `affiche` → affiche, `standard` → standard, anything else → plaque. A host logo replaces the initials mark.
+- **Plaque (La Plaque émaillée):** an enamel nameplate with four screw heads carries the house name; nav links are small street plates; the date search is a white road sign framed in enamel, and its arrow (and from 640px the whole sign) nudges forward once both dates are valid; rooms are numbered pill door plates alternating enamel and white; buttons are red plates with a white inner filet. Plates lift 1px on hover and press 2px in on active.
+- **Linge (Le Linge de maison):** a woven-linen ground, a stripe band at the top of the content and above the footer, an embroidered dashed monogram, the search as a hemmed napkin with a 10px stripe top, rooms as sewn labels that slide 4px right on hover.
+- **Affiche (L'Affiche touristique):** a 1930s railway poster. The house name in giant condensed caps on the host's sky, a layered bocage landscape drawn in inline SVG and coloured entirely from the world's tokens (hidden in the other worlds), then a dark band carrying the date search and the lettered room list. Stats sit on a full-bleed green band.
+- **Classique (standard):** the category's familiar layout, executed cleanly: white page, a rounded banner (the host photo under a dark gradient, or a brand fill with a soft radial highlight), a floating white search bar, room cards that lift 2px.
+- **Search:** both dates start empty; submitting lists the free rooms, each linking straight to booking.
+- **Booking form:** dates start empty unless the search passed them. The summary column is always visible and always shows a total line (« — » and « Choisissez vos dates pour voir le total. » until priced); the pay button names the amount.
+- **Fields:** 52px, 2px stroke in the world's line colour, world radius; on focus the border takes the focus colour with a 3px halo at 25%. The site-wide focus ring is a 3px outline at 3px offset in the world's focus colour.
+- **Status and note chips:** a currentColor dot plus bold text, tinted with the world's good / bad / warn mixed into its surface.
+- **Motion:** one staged settle on arrival: the home hero's children fade in from 8px above over 0.6s (`cubic-bezier(0.16, 1, 0.3, 1)`), 80ms apart, only under `prefers-reduced-motion: no-preference`. Reduced motion also drops the mobile menu animation (0.24s) and the button transitions.
+
+**The No Invented Content Rule.** A public block renders only from host data. No story, stats, gallery, location block or « Nous trouver » nav link appears without the fields that fill it, and nothing is ever filled with sample text.
 
 ## Do's and Don'ts
 
@@ -283,10 +531,26 @@ Guest sites are owned by the host, not by DirectLoc. Each template sets its own 
 - **Do** keep a single primary action per page header.
 - **Do** keep status and channel colours identical on every screen (list, detail, calendar spans).
 - **Do** respect `prefers-reduced-motion`; admin motion is limited to the 0.22s `admin-fade-in` page entrance and 0.15s colour transitions.
+- **Do** build a new public world as one stylesheet that fills the whole `--s-*` contract under `.site[data-tpl="…"]`, plus a `WORLDS` entry with default host colours and a font pair loaded with `preload: false`.
+- **Do** bound every host colour in OKLCH before text sits on it.
+- **Do** hide a public block when the host has not filled it.
 
 ### Don't:
 - **Don't** use terracotta as a button fill or a large background.
-- **Don't** bring `warm-*`, `amber-accent` or Cormorant into admin screens, or admin tokens into public templates.
+- **Don't** bring `--s-*` tokens or the template faces (Antonio, Atkinson Hyperlegible, Epilogue, Literata, League Gothic, Libre Franklin, Hanken Grotesk) into admin screens, or `--admin-*` tokens into public templates.
 - **Don't** put DirectLoc branding on guest-facing pages beyond a discreet credit.
 - **Don't** use cool greys for admin surfaces; neutrals stay warm (linen, oat, sand).
 - **Don't** add a second type family to the admin.
+- **Don't** put colour or font values in `components/public/site.css`; they belong to a world.
+- **Don't** prefill booking dates or hide the total until payment.
+
+## Site vitrine directloc.app — monde « Almanach »
+
+The platform's own marketing site (`app/vitrine`, served on `MARKETING_HOST`) is a third world, separate from the admin and the guest templates. Its tokens live under `.alm` in `app/vitrine/vitrine.css` and never leak elsewhere.
+
+- **Metaphor:** the wall almanac of a bocage kitchen. Glossy cover blue `#23408E` is the page ground (Committed strategy); content sits on white month leaves; Sundays and holidays take almanac red `#C41F27` on `#FCECEC`; gold foil `#D9B443` letters the cover (headline accent, wordmark, coupon dashes).
+- **Stays** are inked bars on the month grid: direct `#1D6A37` filled, iCal imports `#535D70` dashed on white. The green « Gardé » stamp lands once on arrival.
+- **Type:** Big Shoulders (900, uppercase) for months, headings and big figures; Source Serif 4 for reading text and saints; Archivo for controls, labels and amounts. Tabular figures everywhere.
+- **Components:** the tear-off coupon (dashed gold inset, scissors, underline fields, red uppercase button) is the only call to action; tables are almanac « barèmes » (ink rule on top, blue-grey hairlines); FAQ is « le courrier des hébergeurs » (`details`, red +/–).
+- **Motion:** one staged settle: cover text, leaf, coupon rise 10px; stay bars ink in left to right week by week; the stamp drops last. Nothing animates under reduced motion.
+- **Rules:** no testimonials, logos or counts; demo data is labelled fictitious; the four template covers use the guest worlds' own fonts and default colours.

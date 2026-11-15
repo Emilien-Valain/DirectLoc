@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { parisToday } from "@/lib/date-windows";
+import { EXTRA_UNITS } from "@/lib/extras";
 
 // ── Primitives réutilisables ──────────────────────────────────────────────────
 
@@ -62,6 +63,17 @@ const positiveInt = z.coerce
   .int("Doit être un entier")
   .positive("Doit être supérieur à 0");
 
+// « Dont enfants (−18 ans) » : absent (taxe désactivée) ou vide = 0.
+const childCount = z.coerce
+  .number({ message: "Nombre d'enfants invalide" })
+  .int("Doit être un entier")
+  .min(0, "Ne peut pas être négatif")
+  .default(0);
+const childrenWithinGuests: [(d: { guestCount: number; childCount: number }) => boolean, { message: string; path: string[] }] = [
+  (d) => d.childCount <= d.guestCount,
+  { message: "Plus d'enfants que de personnes", path: ["childCount"] },
+];
+
 const positiveDecimal = z
   .string()
   .regex(/^\d+([.,]\d{1,2})?$/, "Format de prix invalide (ex: 85 ou 85.50)")
@@ -103,7 +115,9 @@ export const bookingPublicSchema = z
     guestEmail: email,
     guestPhone: phone,
     guestCount: positiveInt,
+    childCount,
   })
+  .refine(...childrenWithinGuests)
   .refine(
     (d) => new Date(d.checkOut + "T00:00:00Z") > new Date(d.checkIn + "T00:00:00Z"),
     { message: "La date de départ doit être après la date d'arrivée", path: ["checkOut"] },
@@ -122,6 +136,7 @@ export const bookingManualSchema = z
     guestEmail: email,
     guestPhone: phone,
     guestCount: positiveInt,
+    childCount,
     checkIn: dateString,
     checkOut: dateString,
     notes: safeText.optional().or(z.literal("")),
@@ -138,7 +153,13 @@ export const bookingManualSchema = z
       .string()
       .optional()
       .transform((v) => v === "on"),
+    // Case « Exonérer de la taxe de séjour » (ADR-0011).
+    waiveTax: z
+      .string()
+      .optional()
+      .transform((v) => v === "on"),
   })
+  .refine(...childrenWithinGuests)
   .refine(
     (d) => new Date(d.checkOut + "T00:00:00Z") > new Date(d.checkIn + "T00:00:00Z"),
     { message: "La date de départ doit être après la date d'arrivée", path: ["checkOut"] },
@@ -155,6 +176,43 @@ export const roomSchema = z.object({
 export const roomUpdateSchema = roomSchema.extend({
   actif: z.enum(["on"]).optional(),
 });
+
+// Extra du catalogue (ADR-0010) : gratuit permis (lit bébé sur demande), jamais négatif.
+export const extraSchema = z.object({
+  label: z.string().trim().min(1, "Libellé obligatoire").max(500, "Libellé trop long (500 caractères max)"),
+  description: z.string().trim().max(500, "Description trop longue (500 caractères max)").optional().or(z.literal("")),
+  price: z
+    .string()
+    .trim()
+    .regex(/^\d+([.,]\d{1,2})?$/, "Prix : un montant positif ou nul en euros (ex : 12 ou 8,50)")
+    .refine((s) => parseFloat(s.replace(",", ".")) < 100000, "Prix trop élevé"),
+  unit: z.enum(EXTRA_UNITS, { message: "Choisissez une unité" }),
+});
+
+// Fee (ADR-0011) : même forme qu'un Extra, sans description ; chambres en cases à cocher (lues à part).
+export const feeSchema = extraSchema.omit({ description: true });
+
+/** Montant décimal positif ou nul saisi à la française (virgule ou point). */
+const frDecimal = (label: string, max: number) =>
+  z
+    .string()
+    .trim()
+    .regex(/^\d+([.,]\d{1,2})?$/, `${label} : un nombre positif (ex : 1,50)`)
+    .transform((s) => parseFloat(s.replace(",", ".")))
+    .refine((n) => n <= max, `${label} : ${max} maximum`);
+
+// Taxe de séjour (ADR-0011) : seuls les champs du mode choisi sont lus.
+export const touristTaxSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("off") }),
+  z.object({ mode: z.literal("fixed"), amount: frDecimal("Montant", 100) }),
+  z.object({
+    mode: z.literal("percentage"),
+    rate: frDecimal("Taux", 5).refine((n) => n >= 1, "Taux : entre 1 et 5 % (loi)"),
+    cap: frDecimal("Plafond", 100).refine((n) => n > 0, "Plafond obligatoire"),
+    vat: frDecimal("TVA", 100),
+    additional: frDecimal("Taxes additionnelles", 500),
+  }),
+]);
 
 export const icalSourceSchema = z.object({
   roomId: roomIdString,
@@ -177,7 +235,8 @@ export const manualBlockSchema = z
   .refine(
     (d) => {
       if (d.recurring === "on") return true; // pas de contrainte date pour récurrent
-      return new Date(d.endDate + "T00:00:00Z") >= new Date(d.startDate + "T00:00:00Z");
+      // Fin exclusive : fin = début bloquerait zéro nuit.
+      return new Date(d.endDate + "T00:00:00Z") > new Date(d.startDate + "T00:00:00Z");
     },
     { message: "La date de fin doit être après la date de début", path: ["endDate"] },
   );
@@ -203,6 +262,8 @@ export const pricingRuleSchema = z
     percentageModifier: z
       .string()
       .regex(/^-?\d+([.,]\d{1,2})?$/, "Format invalide (ex: 30 ou -15.50)")
+      // -100 % = nuit à 0 € : Stripe refuse tout paiement sous 0,50 €.
+      .refine((s) => parseFloat(s.replace(",", ".")) > -100, "La réduction doit rester inférieure à 100 %")
       .optional()
       .or(z.literal("")),
   })

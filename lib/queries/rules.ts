@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, or, gt, lt } from "drizzle-orm";
+import { and, asc, eq, or, gt, lt } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { manualBlocks, bookingRules, pricingRules, rooms } from "@/db/schema";
 

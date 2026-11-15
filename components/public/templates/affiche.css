@@ -1,0 +1,228 @@
+/*
+ * Template « L'Affiche touristique » (clé en base : affiche).
+ * Une affiche de chemin de fer des années 1930 : aplats lithographiques,
+ * lettrage condensé géant, paysage de bocage en couches. Le haut de l'affiche
+ * baigne dans la couleur secondaire de l'hôte (le ciel), le bandeau du bas
+ * dans sa couleur primaire, et c'est ce bandeau qui porte la réservation.
+ * Couleurs bornées : ciel toujours clair, bandeau toujours foncé.
+ */
+
+.site[data-tpl="affiche"] {
+  --a-sky: oklch(from var(--color-secondary) max(l, 0.8) c h);
+  --a-band: oklch(from var(--color-primary) min(l, 0.36) c h);
+  --a-paper: #f7f0e1;
+  --a-red: #c4462f;
+  --a-green-1: #6f9a5b;
+  --a-green-2: #3e7a4f;
+  --a-green-3: #2b5e3a;
+  --a-green-4: #1d4429;
+  --s-ground: var(--a-sky);
+  --s-ink: var(--a-band);
+  --s-ink-soft: var(--a-band); /* bandeau ≤ 0.36 sur ciel ≥ 0.8 : ≥ 4.5:1 quel que soit le ciel */
+  --s-surface: var(--a-paper);
+  --s-field: var(--a-paper);
+  --s-line: color-mix(in oklch, var(--a-band) 55%, transparent);
+  --s-accent: var(--a-red);
+  --s-on-accent: #fff;
+  --s-accent-ink: #a8361f;
+  --s-focus: var(--a-band);
+  --s-good: #1d5e33;
+  --s-bad: #9e2b1b;
+  --s-warn: #7a4300;
+  --s-display: var(--font-league-gothic), "Arial Narrow", sans-serif;
+  --s-body: var(--font-franklin), system-ui, sans-serif;
+  --s-field-radius: 0;
+  --s-chip-radius: 0;
+}
+
+/* Lettrage d'affiche */
+[data-tpl="affiche"] :is(.s-h1, .s-h2, .s-h3, .s-title, .s-search-title, .s-summary-room, .s-footer-name, .s-stat-value) {
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 0.95;
+}
+[data-tpl="affiche"] .s-h1 { font-size: clamp(3.2rem, 7vw, 5.2rem); }
+[data-tpl="affiche"] .s-h2 { font-size: clamp(2.6rem, 5vw, 3.8rem); }
+[data-tpl="affiche"] .s-h3 { font-size: 2rem; }
+
+/* ── Header ─────────────────────────────────────────── */
+[data-tpl="affiche"] .s-mark {
+  display: grid; place-items: center; width: 46px; height: 46px;
+  background: var(--a-band); color: var(--a-sky);
+  font-family: var(--s-display); font-size: 24px;
+}
+[data-tpl="affiche"] .s-brand-name { font-family: var(--s-display); font-size: 1.7rem; font-weight: 400; text-transform: uppercase; }
+[data-tpl="affiche"] .s-nav-link {
+  padding: 0 14px;
+  font-family: var(--s-display); font-size: 1.45rem; text-transform: uppercase; letter-spacing: 0.03em;
+  text-decoration: none; border-bottom: 3px solid transparent;
+}
+[data-tpl="affiche"] .s-nav-link:hover { border-bottom-color: var(--a-band); }
+[data-tpl="affiche"] .s-nav-cta { background: var(--a-band); color: var(--a-sky); padding: 0 20px; }
+[data-tpl="affiche"] .s-nav-cta:hover { border-bottom-color: var(--a-red); }
+[data-tpl="affiche"] .s-menu-panel { background: var(--a-sky); border-bottom: 6px solid var(--a-band); }
+
+/* ── L'affiche : titre, paysage, bandeau ────────────── */
+[data-tpl="affiche"] .s-hero {
+  max-width: none;
+  padding: 0;
+  gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "name" "art" "search" "rooms";
+  background: var(--a-band);
+  color: var(--a-paper);
+}
+[data-tpl="affiche"] .s-namecard {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: clamp(8px, 2vw, 24px) max(var(--s-gutter), calc((100% - var(--s-max)) / 2)) 0;
+  background: var(--a-sky);
+  color: var(--a-band);
+}
+[data-tpl="affiche"] .s-title { font-size: clamp(4.5rem, 15vw, 12rem); line-height: 0.86; overflow-wrap: anywhere; }
+[data-tpl="affiche"] .s-place {
+  display: flex; align-items: center; gap: 14px;
+  font-family: var(--s-display); font-size: clamp(1.6rem, 3vw, 2.2rem); text-transform: uppercase; letter-spacing: 0.04em;
+}
+[data-tpl="affiche"] .s-place::before { content: ""; width: 48px; height: 8px; background: var(--a-red); flex: none; }
+[data-tpl="affiche"] .s-pitch { font-size: 1.15rem; font-weight: 500; max-width: 52ch; }
+
+/* Le bas du fond est déjà la couleur du bandeau : pas de liseré à la jointure SVG / bandeau. */
+[data-tpl="affiche"] .s-hero-art { display: block; grid-area: art; background: linear-gradient(var(--a-sky) 60%, var(--a-band) 60%); line-height: 0; margin-bottom: -1px; }
+[data-tpl="affiche"] .s-hero-art svg { display: block; width: 100%; height: clamp(200px, 30vw, 560px); }
+.s-hero-art .a-sun { fill: var(--a-paper); }
+.s-hero-art .a-halo { fill: var(--a-paper); opacity: 0.22; }
+.s-hero-art .a-bird { fill: none; stroke: var(--a-band); stroke-width: 3; stroke-linecap: round; }
+/* Perspective atmosphérique : les collines lointaines pâlissent vers le ciel. */
+.s-hero-art .a-far { fill: color-mix(in oklch, var(--a-green-1) 70%, var(--a-sky)); }
+.s-hero-art .a-distant { fill: color-mix(in oklch, var(--a-green-3) 65%, var(--a-sky)); }
+.s-hero-art .a-mid { fill: var(--a-green-2); }
+.s-hero-art .a-field { fill: color-mix(in oklch, var(--a-sky) 70%, var(--a-red)); }
+.s-hero-art .a-furrow { fill: color-mix(in oklch, var(--a-red) 45%, var(--a-band)); opacity: 0.35; }
+.s-hero-art .a-field-lit { fill: var(--a-green-1); }
+.s-hero-art :is(.a-hedge, .a-tree) { fill: var(--a-green-4); }
+.s-hero-art .a-tree-lit { fill: var(--a-green-3); }
+.s-hero-art .a-trunk { fill: var(--a-band); }
+.s-hero-art .a-near { fill: var(--a-green-3); }
+.s-hero-art .a-front { fill: var(--a-band); }
+.s-hero-art .a-wall { fill: var(--a-paper); }
+.s-hero-art .a-barn { fill: color-mix(in oklch, var(--a-paper) 82%, var(--a-band)); }
+.s-hero-art .a-roof { fill: var(--a-red); }
+.s-hero-art .a-roof-lit { fill: color-mix(in oklch, var(--a-red) 70%, var(--a-paper)); }
+.s-hero-art .a-chimney { fill: oklch(from var(--a-red) calc(l - 0.14) c h); }
+.s-hero-art :is(.a-door, .a-window) { fill: var(--a-band); }
+.s-hero-art .a-shutter { fill: var(--a-green-2); }
+.s-hero-art .a-shadow { fill: var(--a-green-4); opacity: 0.55; }
+.s-hero-art .a-path { fill: color-mix(in oklch, var(--a-sky) 75%, var(--a-paper)); }
+/* Grain de litho : bruit gris en lumière douce, ne fonce pas les aplats. */
+.s-hero-art .a-grain { mix-blend-mode: soft-light; opacity: 0.55; }
+
+/* Le bandeau du bas porte la réservation et les chambres. */
+[data-tpl="affiche"] :is(.s-search, .s-hero-rooms) {
+  padding-inline: max(var(--s-gutter), calc((100% - var(--s-max)) / 2));
+}
+[data-tpl="affiche"] .s-search { padding-top: 32px; }
+[data-tpl="affiche"] .s-hero-rooms { padding-top: 28px; padding-bottom: clamp(40px, 6vw, 72px); }
+@media (min-width: 1000px) {
+  [data-tpl="affiche"] .s-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "name name" "art art" "search rooms";
+  }
+  [data-tpl="affiche"] .s-hero.has-photo { grid-template-areas: "name name" "photo photo" "search rooms"; }
+  /* Le bandeau suit la colonne de la page, pas celle de la grille. */
+  [data-tpl="affiche"] .s-search { padding: 32px 32px clamp(40px, 6vw, 72px) max(var(--s-gutter), calc((100vw - var(--s-max)) / 2)); }
+  [data-tpl="affiche"] .s-hero-rooms { padding: 32px max(var(--s-gutter), calc((100vw - var(--s-max)) / 2)) clamp(40px, 6vw, 72px) 32px; }
+}
+[data-tpl="affiche"] .s-sign-face { display: flex; flex-direction: column; gap: 16px; }
+[data-tpl="affiche"] .s-search-title { font-size: 2.4rem; color: var(--a-sky); }
+[data-tpl="affiche"] .s-search .s-field label { color: var(--a-paper); }
+[data-tpl="affiche"] .s-search .s-field input { border-color: var(--a-paper); }
+[data-tpl="affiche"] .s-search .s-note { background: var(--a-paper); }
+[data-tpl="affiche"] .s-hero-rooms .s-h3 { color: var(--a-sky); font-size: 2.4rem; }
+[data-tpl="affiche"] .s-hero-rooms .s-link { color: var(--a-sky); }
+/* La photo de l'hôte prend la place du paysage dessiné (qui reste le repli sans photo).
+   Traitement d'affiche : teinte chaude du ciel, fondu dans le ciel en haut et dans le bandeau en bas. */
+[data-tpl="affiche"] .s-hero.has-photo .s-hero-art { display: none; }
+@media (max-width: 999px) { [data-tpl="affiche"] .s-hero.has-photo { grid-template-areas: "name" "photo" "search" "rooms"; } }
+[data-tpl="affiche"] .s-hero .s-hero-photo { aspect-ratio: auto; height: clamp(260px, 38vw, 620px); }
+[data-tpl="affiche"] .s-hero-photo img { filter: saturate(1.15) contrast(1.05); }
+[data-tpl="affiche"] .s-hero-photo::before {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: var(--a-sky); mix-blend-mode: multiply; opacity: 0.28;
+}
+[data-tpl="affiche"] .s-hero-photo::after {
+  content: ""; position: absolute; inset: 0; z-index: 1;
+  background: linear-gradient(var(--a-sky), transparent 22%, transparent 68%, var(--a-band));
+}
+
+/* Boutons : aplat rouge, lettrage d'affiche. */
+[data-tpl="affiche"] .s-btn {
+  font-family: var(--s-display); font-size: 1.6rem; font-weight: 400; text-transform: uppercase; letter-spacing: 0.03em;
+  padding: 0 28px;
+}
+
+/* Chambres : entrées lettrées sur le bandeau, filets fins. */
+[data-tpl="affiche"] .s-hero .s-room-list { gap: 0; }
+[data-tpl="affiche"] .s-room {
+  padding: 12px 0;
+  border-top: 1px solid var(--s-line);
+  transition: padding 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-tpl="affiche"] .s-room:hover { padding-left: 10px; }
+/* Hors bandeau, le numéro passe au rouge encre (≥ 3:1 sur le ciel le plus clair) et son « N° » au bleu du bandeau. */
+[data-tpl="affiche"] .s-room-num { font-family: var(--s-display); font-size: 2.6rem; color: var(--s-accent-ink); min-width: 52px; }
+[data-tpl="affiche"] .s-room-num small { color: var(--s-ink); }
+[data-tpl="affiche"] .s-hero .s-room-num small { color: inherit; }
+[data-tpl="affiche"] .s-hero .s-room-num, [data-tpl="affiche"] .s-hero .s-room-price { color: var(--a-sky); }
+[data-tpl="affiche"] .s-room-num small { font-size: 0.85rem; }
+[data-tpl="affiche"] .s-room-name { font-family: var(--s-display); font-weight: 400; font-size: 2rem; text-transform: uppercase; line-height: 1; }
+[data-tpl="affiche"] .s-hero .s-room-meta { color: color-mix(in oklch, var(--a-paper) 85%, transparent); }
+[data-tpl="affiche"] .s-hero .s-room { border-top-color: color-mix(in oklch, var(--a-paper) 35%, transparent); }
+[data-tpl="affiche"] .s-room-price { font-family: var(--s-display); font-weight: 400; font-size: 2rem; color: var(--a-band); }
+[data-tpl="affiche"] .s-room-price small { font-family: var(--s-body); font-size: 0.85rem; }
+
+/* ── Sections : bandes pleine largeur ───────────────── */
+[data-tpl="affiche"] .s-section { padding-top: var(--s-section-y); }
+[data-tpl="affiche"] .s-story-inner { max-width: 760px; }
+[data-tpl="affiche"] .s-story .s-prose { font-size: 1.25rem; color: var(--s-ink); }
+[data-tpl="affiche"] .s-signature { font-family: var(--s-display); font-size: 1.8rem; font-weight: 400; text-transform: uppercase; color: var(--a-band); }
+[data-tpl="affiche"] .s-stats {
+  max-width: none;
+  padding-inline: max(var(--s-gutter), calc((100% - var(--s-max)) / 2));
+  background: var(--a-green-3);
+  color: var(--a-paper);
+}
+[data-tpl="affiche"] .s-stats .s-h2 { color: var(--a-sky); }
+[data-tpl="affiche"] .s-stat { padding: 18px 24px 0 0; border-top: 6px solid var(--a-sky); }
+[data-tpl="affiche"] .s-stat + .s-stat { box-shadow: none; }
+[data-tpl="affiche"] .s-stat-list { gap: 24px; }
+[data-tpl="affiche"] .s-stat-value { font-size: 3rem; color: var(--a-sky); }
+[data-tpl="affiche"] .s-stat-label { font-family: var(--s-display); font-weight: 400; font-size: 2rem; text-transform: uppercase; }
+[data-tpl="affiche"] .s-stat-sub { color: color-mix(in oklch, var(--a-paper) 85%, transparent); }
+[data-tpl="affiche"] .s-gallery-img { outline: 10px solid var(--a-paper); }
+[data-tpl="affiche"] .s-facts { padding: 24px; background: var(--a-paper); }
+[data-tpl="affiche"] .s-fact dt { font-family: var(--s-display); font-weight: 400; font-size: 1.5rem; text-transform: uppercase; color: var(--s-accent-ink); }
+[data-tpl="affiche"] .s-fact + .s-fact { padding-top: 14px; border-top: 2px solid var(--a-band); }
+[data-tpl="affiche"] .s-map { outline: 10px solid var(--a-paper); }
+[data-tpl="affiche"] .s-map-link { border-color: var(--a-band); color: var(--a-band); }
+[data-tpl="affiche"] .s-pin-label { background: var(--a-band); color: var(--a-sky); font-family: var(--s-display); font-size: 18px; font-weight: 400; text-transform: uppercase; }
+[data-tpl="affiche"] .s-pin-dot { background: var(--a-red); box-shadow: 0 0 0 3px var(--a-paper); }
+
+/* ── Pages ──────────────────────────────────────────── */
+[data-tpl="affiche"] :is(.s-group, .s-room-card, .s-confirm-card, .s-search-room) { background: var(--a-paper); }
+[data-tpl="affiche"] .s-room-card .s-room-num { color: var(--s-accent-ink); }
+[data-tpl="affiche"] .s-room-card .s-room-price { color: var(--a-band); }
+[data-tpl="affiche"] :is(.s-summary, .s-room-detail-book) {
+  --s-ink: var(--a-paper);
+  --s-ink-soft: color-mix(in oklch, var(--a-paper) 85%, transparent);
+  --s-line: color-mix(in oklch, var(--a-paper) 35%, transparent);
+  background: var(--a-band);
+  color: var(--a-paper);
+}
+[data-tpl="affiche"] :is(.s-summary-room, .s-total span:last-child) { color: var(--a-sky); }
+[data-tpl="affiche"] .s-room-detail-book .s-room-price { color: var(--a-sky); font-size: 2.6rem; }
+[data-tpl="affiche"] .s-ref strong { font-family: var(--s-display); font-size: 1.8rem; font-weight: 400; color: var(--a-red); }
+
+/* ── Footer ─────────────────────────────────────────── */
+[data-tpl="affiche"] .s-footer { background: var(--a-band); color: var(--a-paper); }
+[data-tpl="affiche"] .s-footer-name { font-size: 2.6rem; color: var(--a-sky); }

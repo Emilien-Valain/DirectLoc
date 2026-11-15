@@ -66,7 +66,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
         onSubmit={form.onSubmit}
       >
         <SettingsSection
-          title="Hero — Image de fond"
+          title="Grande photo d'accueil"
           desc="L'image visible en première page. Sans image, un fond de couleur unie est utilisé."
         >
           <HeroPhotoUploader initialPhoto={config.heroPhoto} />
@@ -80,14 +80,14 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
         </SettingsSection>
 
         <SettingsSection
-          title="Hero — Textes"
-          desc="Le pavé visible en première page. Vide = on n'affiche pas la ligne."
+          title="Textes de la page d'accueil"
+          desc="Ce que vos clients lisent en arrivant sur votre site. Un champ vide n'est pas affiché."
         >
-          <Field label="Petit titre (eyebrow)" hint="Mention au-dessus du grand titre — ex. « Boutique hôtel »">
+          <Field label="Petite ligne au-dessus du titre" hint="Courte mention en petites lettres, par exemple le type de logement et le lieu.">
             <AdminInput
               name="heroEyebrow"
               defaultValue={config.heroEyebrow ?? ""}
-              placeholder="Boutique hôtel · Lyon"
+              placeholder="ex : Gîte de charme · Vendée"
               maxLength={120}
             />
           </Field>
@@ -96,7 +96,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
             <AdminInput
               name="heroTitle"
               defaultValue={config.heroTitle ?? ""}
-              placeholder="Le luxe discret au cœur de Lyon"
+              placeholder="ex : Une longère au calme, au cœur du bocage"
               maxLength={200}
             />
           </Field>
@@ -106,7 +106,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
               name="heroSubtitle"
               defaultValue={config.heroSubtitle ?? ""}
               rows={2}
-              placeholder="12 chambres. Un restaurant étoilé. Un spa pensé pour la déconnexion totale."
+              placeholder="ex : 3 chambres, un jardin clos et le petit-déjeuner maison."
               maxLength={500}
             />
           </Field>
@@ -116,11 +116,11 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
           title="Notre histoire"
           desc="Bloc affiché sous la grande image d'accueil. Laissez vide pour ne pas l'afficher."
         >
-          <Field label="Eyebrow">
+          <Field label="Petite ligne au-dessus du titre">
             <AdminInput
               name="storyEyebrow"
               defaultValue={config.storyEyebrow ?? ""}
-              placeholder="Notre histoire"
+              placeholder="ex : Notre histoire"
               maxLength={120}
             />
           </Field>
@@ -128,7 +128,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
             <AdminInput
               name="storyTitle"
               defaultValue={config.storyTitle ?? ""}
-              placeholder="Un hôtel particulier du XIXe siècle"
+              placeholder="ex : Une ferme du XIXe siècle, restaurée pierre par pierre"
               maxLength={200}
             />
           </Field>
@@ -137,7 +137,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
               name="storyText"
               defaultValue={config.storyText ?? ""}
               rows={5}
-              placeholder="Ancienne demeure d'un soyeux lyonnais…"
+              placeholder="ex : Nous avons repris la ferme familiale en 2015…"
               maxLength={2000}
             />
           </Field>
@@ -145,7 +145,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
 
         <SettingsSection
           title="Chiffres clés"
-          desc={`Jusqu'à ${MAX_STATS} cartes affichées à côté de l'histoire (ex. 12 chambres, 1 restaurant étoilé).`}
+          desc={`Jusqu'à ${MAX_STATS} chiffres affichés à côté de votre histoire (ex : 3 chambres, 1 hectare de jardin).`}
         >
           <div className="space-y-2.5">
             {stats.map((stat, i) => (
@@ -157,7 +157,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
                   <AdminInput
                     value={stat.value}
                     onChange={(e) => updateStat(i, "value", e.target.value)}
-                    placeholder="12"
+                    placeholder="ex : 3"
                     maxLength={20}
                     aria-label={`Valeur du chiffre ${i + 1}`}
                   />
@@ -166,7 +166,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
                   <AdminInput
                     value={stat.label}
                     onChange={(e) => updateStat(i, "label", e.target.value)}
-                    placeholder="Chambres"
+                    placeholder="ex : chambres"
                     maxLength={60}
                     aria-label={`Libellé du chiffre ${i + 1}`}
                   />
@@ -175,7 +175,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
                   <AdminInput
                     value={stat.sub ?? ""}
                     onChange={(e) => updateStat(i, "sub", e.target.value)}
-                    placeholder="d'exception"
+                    placeholder="ex : avec salle de bain"
                     maxLength={80}
                     aria-label={`Détail du chiffre ${i + 1}`}
                   />
@@ -222,14 +222,14 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
         </SettingsSection>
 
         <SettingsSection
-          title="Footer"
-          desc="Note discrète affichée en pied de page (slogan, signature…)."
+          title="Pied de page"
+          desc="Une courte phrase affichée tout en bas de chaque page de votre site."
         >
-          <Field label="Tagline">
+          <Field label="Phrase de pied de page">
             <AdminInput
               name="footerTagline"
               defaultValue={config.footerTagline ?? ""}
-              placeholder="L'art de recevoir, depuis 1921."
+              placeholder="ex : L'accueil vendéen, en toute simplicité."
               maxLength={200}
             />
           </Field>
@@ -251,7 +251,7 @@ export default function ContentSection({ config }: { config: TenantConfig }) {
               opacity: form.pending ? 0.7 : 1,
             }}
           >
-            {form.pending ? "Enregistrement…" : "Enregistrer"}
+            {form.pending ? "Enregistrement…" : "Enregistrer les textes"}
           </button>
         </div>
       </form>

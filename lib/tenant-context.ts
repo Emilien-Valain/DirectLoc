@@ -1,3 +1,4 @@
+import type { TouristTax } from "@/lib/tourist-tax";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -31,7 +32,12 @@ export const requireTenant = cache(async () => {
 
 export type Tenant = Awaited<ReturnType<typeof requireTenant>>;
 
-export type TemplateName = "classic" | "boutique";
+/**
+ * Clés stockées en base. Les deux premières gardent leur nom historique :
+ * classic = « La Plaque émaillée », boutique = « Le Linge de maison ».
+ */
+export const TEMPLATE_NAMES = ["classic", "boutique", "affiche", "standard"] as const;
+export type TemplateName = (typeof TEMPLATE_NAMES)[number];
 
 export type HeroPhoto = {
   id: string;
@@ -80,4 +86,6 @@ export type TenantConfig = {
   confirmationMessage?: string;
   postStayMessage?: string;
   reviewUrl?: string;
+  /** Absente = taxe de séjour désactivée (ADR-0011). */
+  touristTax?: TouristTax;
 };

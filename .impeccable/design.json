@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-21T18:14:16.266662+00:00",
+  "generatedAt": "2026-10-25T19:38:23.218703+00:00",
   "title": "Design System: DirectLoc",
   "extensions": {
     "colorMeta": {
@@ -198,6 +198,636 @@
           "#FAF9F7",
           "#FDFDFC"
         ]
+      },
+      "public-plaque-enamel-default": {
+        "role": "primary",
+        "displayName": "Plaque Default Enamel",
+        "canonical": "host --color-primary via oklch(from … min(l, 0.42) c h); this is the fallback",
+        "tonalRamp": [
+          "#000135",
+          "#061E5B",
+          "#223E7D",
+          "#3F5FA1",
+          "#5F81C6",
+          "#80A4EC",
+          "#AFC9FD",
+          "#E7EFFF"
+        ]
+      },
+      "public-plaque-wall-default": {
+        "role": "neutral",
+        "displayName": "Plaque Default Wall Tint",
+        "canonical": "host --color-secondary, mixed 45% into Stone; this is the fallback",
+        "tonalRamp": [
+          "#0E0B04",
+          "#29251B",
+          "#464237",
+          "#656156",
+          "#878276",
+          "#A9A598",
+          "#CEC9BC",
+          "#F3EEE1"
+        ]
+      },
+      "public-plaque-stone": {
+        "role": "neutral",
+        "displayName": "Limestone",
+        "canonical": "#D3CDBF",
+        "tonalRamp": [
+          "#0F0B03",
+          "#29251A",
+          "#474236",
+          "#666154",
+          "#878275",
+          "#AAA597",
+          "#CFC9BB",
+          "#F4EEE0"
+        ]
+      },
+      "public-plaque-enamel-white": {
+        "role": "neutral",
+        "displayName": "Enamel White",
+        "canonical": "#FBFAF6",
+        "tonalRamp": [
+          "#0C0B09",
+          "#262522",
+          "#43423F",
+          "#62615E",
+          "#83827F",
+          "#A6A5A1",
+          "#CAC9C5",
+          "#EFEEEA"
+        ]
+      },
+      "public-plaque-red": {
+        "role": "secondary",
+        "displayName": "Enamel Red",
+        "canonical": "#B5342B",
+        "tonalRamp": [
+          "#1E0000",
+          "#4C0202",
+          "#7F0607",
+          "#AC2B23",
+          "#D45145",
+          "#FC7667",
+          "#FFB3A8",
+          "#FEE9E6"
+        ]
+      },
+      "public-plaque-red-text": {
+        "role": "secondary",
+        "displayName": "Enamel Red Text",
+        "canonical": "#9E2B23",
+        "tonalRamp": [
+          "#1F0000",
+          "#4D0102",
+          "#800305",
+          "#A6332A",
+          "#CE584B",
+          "#F67B6D",
+          "#FDB4A9",
+          "#FEE9E5"
+        ]
+      },
+      "public-plaque-ink": {
+        "role": "neutral",
+        "displayName": "Plaque Ink",
+        "canonical": "#222428",
+        "tonalRamp": [
+          "#090B0F",
+          "#232529",
+          "#404246",
+          "#5F6166",
+          "#808287",
+          "#A2A5AA",
+          "#C6C9CE",
+          "#ECEEF4"
+        ]
+      },
+      "public-plaque-ink-soft": {
+        "role": "neutral",
+        "displayName": "Plaque Ink Soft",
+        "canonical": "#46474C",
+        "tonalRamp": [
+          "#0A0B0F",
+          "#242529",
+          "#414247",
+          "#606166",
+          "#818287",
+          "#A3A5AA",
+          "#C7C9CF",
+          "#EDEEF4"
+        ]
+      },
+      "public-plaque-mortar": {
+        "role": "neutral",
+        "displayName": "Mortar Line",
+        "canonical": "#8A8478",
+        "tonalRamp": [
+          "#0F0A03",
+          "#29241A",
+          "#474137",
+          "#666155",
+          "#888276",
+          "#ABA498",
+          "#CFC8BC",
+          "#F4EEE0"
+        ]
+      },
+      "public-plaque-screw": {
+        "role": "neutral",
+        "displayName": "Screw Head",
+        "canonical": "#D7DAE2",
+        "tonalRamp": [
+          "#090B10",
+          "#23252B",
+          "#3F4248",
+          "#5E6168",
+          "#7F8289",
+          "#A2A5AC",
+          "#C6C9D1",
+          "#EBEEF6"
+        ]
+      },
+      "public-plaque-screw-rim": {
+        "role": "neutral",
+        "displayName": "Screw Rim",
+        "canonical": "#8E93A3",
+        "tonalRamp": [
+          "#080A15",
+          "#212431",
+          "#3D414F",
+          "#5C6170",
+          "#7D8291",
+          "#9FA4B5",
+          "#C3C9DA",
+          "#E9EEFF"
+        ]
+      },
+      "public-plaque-good": {
+        "role": "neutral",
+        "displayName": "Plaque/Linge Good",
+        "canonical": "#1D6A39",
+        "tonalRamp": [
+          "#001004",
+          "#022E13",
+          "#065026",
+          "#277241",
+          "#4C9561",
+          "#6FB883",
+          "#93DEA6",
+          "#C8FFD4"
+        ]
+      },
+      "public-plaque-bad": {
+        "role": "neutral",
+        "displayName": "Plaque/Linge Bad",
+        "canonical": "#A3261E",
+        "tonalRamp": [
+          "#1F0000",
+          "#4D0001",
+          "#810103",
+          "#AA2E25",
+          "#D25346",
+          "#FA7868",
+          "#FDB4A9",
+          "#FFE9E5"
+        ]
+      },
+      "public-plaque-warn": {
+        "role": "neutral",
+        "displayName": "Plaque/Linge Warn",
+        "canonical": "#8A4B00",
+        "tonalRamp": [
+          "#160700",
+          "#3A1D01",
+          "#633503",
+          "#8E4F08",
+          "#B37135",
+          "#D99359",
+          "#FDB981",
+          "#FFEADA"
+        ]
+      },
+      "public-linge-stripe-default": {
+        "role": "primary",
+        "displayName": "Linge Default Stripe",
+        "canonical": "host --color-primary via oklch(from … min(l, 0.5) c h); this is the fallback",
+        "tonalRamp": [
+          "#1F0001",
+          "#4C0208",
+          "#7F0715",
+          "#A83032",
+          "#CF5552",
+          "#F77973",
+          "#FEB3AD",
+          "#FFE9E6"
+        ]
+      },
+      "public-linge-linen-default": {
+        "role": "neutral",
+        "displayName": "Linge Default Linen Tint",
+        "canonical": "host --color-secondary, mixed 50% into Flax; this is the fallback",
+        "tonalRamp": [
+          "#0E0B05",
+          "#28251D",
+          "#454239",
+          "#646157",
+          "#868278",
+          "#A9A59A",
+          "#CDC9BE",
+          "#F2EEE3"
+        ]
+      },
+      "public-linge-flax": {
+        "role": "neutral",
+        "displayName": "Flax",
+        "canonical": "#D6D4CC",
+        "tonalRamp": [
+          "#0D0B06",
+          "#27251F",
+          "#44423B",
+          "#63615A",
+          "#84827B",
+          "#A7A59D",
+          "#CBC9C1",
+          "#F1EFE6"
+        ]
+      },
+      "public-linge-napkin": {
+        "role": "neutral",
+        "displayName": "Napkin White",
+        "canonical": "#FDFDFB",
+        "tonalRamp": [
+          "#0B0B0A",
+          "#252524",
+          "#424240",
+          "#616160",
+          "#828281",
+          "#A5A5A3",
+          "#C9C9C7",
+          "#EEEEEC"
+        ]
+      },
+      "public-linge-ink": {
+        "role": "neutral",
+        "displayName": "Linge Ink",
+        "canonical": "#262B36",
+        "tonalRamp": [
+          "#070B14",
+          "#202530",
+          "#3D424E",
+          "#5B616E",
+          "#7C8290",
+          "#9FA5B3",
+          "#C3C9D8",
+          "#E8EFFD"
+        ]
+      },
+      "public-linge-ink-soft": {
+        "role": "neutral",
+        "displayName": "Linge Ink Soft",
+        "canonical": "#4A4F5A",
+        "tonalRamp": [
+          "#070B13",
+          "#21252F",
+          "#3D424D",
+          "#5C616D",
+          "#7D828E",
+          "#9FA5B2",
+          "#C3C9D6",
+          "#E8EFFC"
+        ]
+      },
+      "public-linge-thread": {
+        "role": "neutral",
+        "displayName": "Thread Line",
+        "canonical": "#8D8A82",
+        "tonalRamp": [
+          "#0D0B06",
+          "#27251E",
+          "#44423B",
+          "#646159",
+          "#85827A",
+          "#A8A59D",
+          "#CCC9C0",
+          "#F2EEE5"
+        ]
+      },
+      "public-affiche-band-default": {
+        "role": "primary",
+        "displayName": "Affiche Default Band",
+        "canonical": "host --color-primary via oklch(from … min(l, 0.36) c h); this is the fallback",
+        "tonalRamp": [
+          "#000C1C",
+          "#0A2641",
+          "#284461",
+          "#476482",
+          "#6785A5",
+          "#89A9CA",
+          "#ACCDEF",
+          "#E3F0FE"
+        ]
+      },
+      "public-affiche-sky-default": {
+        "role": "secondary",
+        "displayName": "Affiche Default Sky",
+        "canonical": "host --color-secondary via oklch(from … max(l, 0.8) c h); this is the fallback",
+        "tonalRamp": [
+          "#120900",
+          "#332102",
+          "#573C05",
+          "#7F5A0D",
+          "#AA7800",
+          "#D6980F",
+          "#FCBD49",
+          "#FEECCF"
+        ]
+      },
+      "public-affiche-paper": {
+        "role": "neutral",
+        "displayName": "Poster Paper",
+        "canonical": "#F7F0E1",
+        "tonalRamp": [
+          "#0F0A03",
+          "#2A2419",
+          "#474135",
+          "#676154",
+          "#888274",
+          "#ABA496",
+          "#CFC8BA",
+          "#F5EEDF"
+        ]
+      },
+      "public-affiche-red": {
+        "role": "tertiary",
+        "displayName": "Poster Red",
+        "canonical": "#C4462F",
+        "tonalRamp": [
+          "#1D0100",
+          "#4A0700",
+          "#7A1806",
+          "#AB2E17",
+          "#D3543C",
+          "#FB785F",
+          "#FEB4A4",
+          "#FFE9E4"
+        ]
+      },
+      "public-affiche-red-text": {
+        "role": "tertiary",
+        "displayName": "Poster Red Text",
+        "canonical": "#A8361F",
+        "tonalRamp": [
+          "#1D0200",
+          "#490900",
+          "#7B1600",
+          "#A6341D",
+          "#CE5941",
+          "#F67D63",
+          "#FDB5A4",
+          "#FEE9E4"
+        ]
+      },
+      "public-affiche-green-1": {
+        "role": "tertiary",
+        "displayName": "Far Hill Green",
+        "canonical": "#6F9A5B",
+        "tonalRamp": [
+          "#030F00",
+          "#112D00",
+          "#264D0E",
+          "#456E31",
+          "#669052",
+          "#88B474",
+          "#ABD997",
+          "#D0FFBB"
+        ]
+      },
+      "public-affiche-green-2": {
+        "role": "tertiary",
+        "displayName": "Meadow Green",
+        "canonical": "#3E7A4F",
+        "tonalRamp": [
+          "#001004",
+          "#022E13",
+          "#0E4F27",
+          "#347046",
+          "#569266",
+          "#79B688",
+          "#9CDBAB",
+          "#C8FED4"
+        ]
+      },
+      "public-affiche-green-3": {
+        "role": "tertiary",
+        "displayName": "Field Green",
+        "canonical": "#2B5E3A",
+        "tonalRamp": [
+          "#001004",
+          "#012E12",
+          "#1A4E2B",
+          "#3B6E49",
+          "#5D906A",
+          "#7FB48B",
+          "#A2D9AF",
+          "#C7FFD3"
+        ]
+      },
+      "public-affiche-green-4": {
+        "role": "tertiary",
+        "displayName": "Hedge Green",
+        "canonical": "#1D4429",
+        "tonalRamp": [
+          "#001004",
+          "#042E14",
+          "#254C30",
+          "#446C4F",
+          "#658E6F",
+          "#87B191",
+          "#ABD6B4",
+          "#CFFCD9"
+        ]
+      },
+      "public-affiche-good": {
+        "role": "neutral",
+        "displayName": "Affiche Good",
+        "canonical": "#1D5E33",
+        "tonalRamp": [
+          "#001004",
+          "#002E12",
+          "#095026",
+          "#317044",
+          "#549364",
+          "#77B686",
+          "#9ADBA9",
+          "#C9FED4"
+        ]
+      },
+      "public-affiche-bad": {
+        "role": "neutral",
+        "displayName": "Affiche Bad",
+        "canonical": "#9E2B1B",
+        "tonalRamp": [
+          "#1E0100",
+          "#4B0500",
+          "#7E0E01",
+          "#A73423",
+          "#CE5845",
+          "#F67C67",
+          "#FDB4A6",
+          "#FEE9E5"
+        ]
+      },
+      "public-affiche-warn": {
+        "role": "neutral",
+        "displayName": "Affiche Warn",
+        "canonical": "#7A4300",
+        "tonalRamp": [
+          "#150700",
+          "#3A1D00",
+          "#623500",
+          "#8A5218",
+          "#AE733D",
+          "#D49660",
+          "#FABA83",
+          "#FFEADA"
+        ]
+      },
+      "public-standard-brand-default": {
+        "role": "primary",
+        "displayName": "Classique Default Brand",
+        "canonical": "host --color-primary via oklch(from … min(l, 0.45) c h); this is the fallback",
+        "tonalRamp": [
+          "#000F06",
+          "#012E18",
+          "#1A4D32",
+          "#3C6E51",
+          "#5D9071",
+          "#7FB393",
+          "#A3D8B7",
+          "#C7FEDB"
+        ]
+      },
+      "public-standard-ink": {
+        "role": "neutral",
+        "displayName": "Classique Ink",
+        "canonical": "#1C1917",
+        "tonalRamp": [
+          "#0D0B09",
+          "#272422",
+          "#45413F",
+          "#64605E",
+          "#85817F",
+          "#A8A4A1",
+          "#CCC8C5",
+          "#F2EDEB"
+        ]
+      },
+      "public-standard-ink-soft": {
+        "role": "neutral",
+        "displayName": "Classique Ink Soft",
+        "canonical": "#57534E",
+        "tonalRamp": [
+          "#0E0B07",
+          "#282420",
+          "#45413C",
+          "#65605B",
+          "#86827C",
+          "#A9A49F",
+          "#CDC8C2",
+          "#F2EEE8"
+        ]
+      },
+      "public-standard-line": {
+        "role": "neutral",
+        "displayName": "Classique Field Line",
+        "canonical": "#D6D3D1",
+        "tonalRamp": [
+          "#0D0B09",
+          "#272523",
+          "#444140",
+          "#63615F",
+          "#848280",
+          "#A7A4A2",
+          "#CBC8C6",
+          "#F1EEEC"
+        ]
+      },
+      "public-standard-card-line": {
+        "role": "neutral",
+        "displayName": "Classique Card Line",
+        "canonical": "#E7E5E4",
+        "tonalRamp": [
+          "#0C0B0A",
+          "#262524",
+          "#434241",
+          "#626160",
+          "#848281",
+          "#A6A4A4",
+          "#CAC9C8",
+          "#F0EEED"
+        ]
+      },
+      "public-standard-hairline": {
+        "role": "neutral",
+        "displayName": "Classique Hairline",
+        "canonical": "#EEECEB",
+        "tonalRamp": [
+          "#0C0B0A",
+          "#262524",
+          "#434241",
+          "#626160",
+          "#848281",
+          "#A6A4A4",
+          "#CAC9C8",
+          "#F0EEED"
+        ]
+      },
+      "public-standard-hover": {
+        "role": "neutral",
+        "displayName": "Classique Hover Fill",
+        "canonical": "#F5F5F4",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252524",
+          "#424241",
+          "#616160",
+          "#828281",
+          "#A5A5A4",
+          "#C9C9C8",
+          "#EEEEED"
+        ]
+      },
+      "public-standard-ink-hover": {
+        "role": "neutral",
+        "displayName": "Classique Ink Hover",
+        "canonical": "#292524",
+        "tonalRamp": [
+          "#0E0A09",
+          "#282423",
+          "#454140",
+          "#65605F",
+          "#868180",
+          "#A9A4A2",
+          "#CDC8C6",
+          "#F3EDEC"
+        ]
+      },
+      "public-standard-footer": {
+        "role": "neutral",
+        "displayName": "Classique Footer",
+        "canonical": "#FAFAF9",
+        "tonalRamp": [
+          "#0B0B0B",
+          "#252524",
+          "#424241",
+          "#616160",
+          "#828281",
+          "#A5A5A4",
+          "#C9C9C8",
+          "#EEEEED"
+        ]
       }
     },
     "typographyMeta": {
@@ -224,6 +854,70 @@
       "label": {
         "displayName": "Label",
         "purpose": "Uppercase form labels and KPI titles."
+      },
+      "public-plaque-title": {
+        "displayName": "Plaque title",
+        "purpose": "House name on the enamel nameplate."
+      },
+      "public-plaque-heading": {
+        "displayName": "Plaque heading",
+        "purpose": "Page and section headings, enamel colour on the wall."
+      },
+      "public-plaque-plate-label": {
+        "displayName": "Plaque plate label",
+        "purpose": "Buttons; nav plates use 1.1rem at 0.08em."
+      },
+      "public-plaque-body": {
+        "displayName": "Plaque body",
+        "purpose": "Reading text."
+      },
+      "public-linge-title": {
+        "displayName": "Linge title",
+        "purpose": "House name."
+      },
+      "public-linge-heading": {
+        "displayName": "Linge heading",
+        "purpose": "Section headings in the deepened stripe colour."
+      },
+      "public-linge-label": {
+        "displayName": "Linge label",
+        "purpose": "Buttons and the CTA."
+      },
+      "public-linge-body": {
+        "displayName": "Linge body",
+        "purpose": "Reading text."
+      },
+      "public-linge-story": {
+        "displayName": "Linge story",
+        "purpose": "The host's story paragraph."
+      },
+      "public-affiche-title": {
+        "displayName": "Affiche title",
+        "purpose": "House name across the sky."
+      },
+      "public-affiche-heading": {
+        "displayName": "Affiche heading",
+        "purpose": "Page headings; h2 clamp(2.6rem, 5vw, 3.8rem)."
+      },
+      "public-affiche-label": {
+        "displayName": "Affiche label",
+        "purpose": "Buttons; nav 1.45rem, room names and prices 2rem."
+      },
+      "public-affiche-body": {
+        "displayName": "Affiche body",
+        "purpose": "Reading text."
+      },
+      "public-standard-title": {
+        "displayName": "Classique title",
+        "purpose": "House name in the banner."
+      },
+      "public-standard-heading": {
+        "displayName": "Classique heading",
+        "purpose": "Page headings; h2 clamp(1.7rem, 3vw, 2.2rem)."
+      },
+      "public-standard-body": {
+        "displayName": "Classique body",
+        "purpose": "Reading text and controls."
       }
     },
     "shadows": [
@@ -246,6 +940,26 @@
         "name": "floating",
         "value": "0 20px 60px rgba(0,0,0,0.08)",
         "purpose": "Auth card only."
+      },
+      {
+        "name": "public-plaque-plate",
+        "value": "0 1px 0 rgb(255 255 255 / 0.35) inset, 0 12px 24px -16px rgb(40 30 10 / 0.6), 0 2px 3px rgb(40 30 10 / 0.12)",
+        "purpose": "Every Plaque plate and counter-plate."
+      },
+      {
+        "name": "public-plaque-pressed",
+        "value": "0 1px 0 rgb(255 255 255 / 0.3) inset, 0 3px 6px -4px rgb(40 30 10 / 0.6)",
+        "purpose": "Plaque nav plates, room plates and buttons on :active."
+      },
+      {
+        "name": "public-linge-fold",
+        "value": "0 1px 2px rgb(38 43 54 / 0.08), 0 14px 28px -18px rgb(38 43 54 / 0.45)",
+        "purpose": "Linge napkins, cards, photo frames."
+      },
+      {
+        "name": "public-standard-card",
+        "value": "0 1px 2px rgb(28 25 23 / 0.06), 0 12px 32px -12px rgb(28 25 23 / 0.18)",
+        "purpose": "Classique floating search, summary, room-card hover."
       }
     ],
     "motion": [
@@ -260,9 +974,24 @@
         "purpose": "Colour/border transitions on controls."
       },
       {
-        "name": "fade-up",
-        "value": "0.5s cubic-bezier(0.16, 1, 0.3, 1)",
-        "purpose": "Public template staged reveals, stagger 50ms."
+        "name": "public-settle",
+        "value": "0.6s cubic-bezier(0.16, 1, 0.3, 1); opacity 0, translateY(-8px) → none; 80ms steps",
+        "purpose": "Home hero children on arrival; only under prefers-reduced-motion: no-preference."
+      },
+      {
+        "name": "public-drop",
+        "value": "0.24s cubic-bezier(0.16, 1, 0.3, 1); translateY(-6px)",
+        "purpose": "Mobile menu panel; off under reduced motion."
+      },
+      {
+        "name": "public-press",
+        "value": "0.18s cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Button press (2px) and Plaque plate lift/press."
+      },
+      {
+        "name": "public-sign-advance",
+        "value": "0.45s cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Plaque road sign and arrow nudge forward when both dates are valid."
       }
     ],
     "breakpoints": [
@@ -281,6 +1010,30 @@
       {
         "name": "content-max",
         "value": "1280px"
+      },
+      {
+        "name": "public-grid-2",
+        "value": "560px"
+      },
+      {
+        "name": "public-search-row",
+        "value": "640px"
+      },
+      {
+        "name": "public-nav",
+        "value": "820px"
+      },
+      {
+        "name": "public-detail-column",
+        "value": "900px"
+      },
+      {
+        "name": "public-hero-columns",
+        "value": "1000px"
+      },
+      {
+        "name": "public-max",
+        "value": "1240px"
       }
     ]
   },
@@ -340,6 +1093,46 @@
       "description": "Underline tabs for Paramètres / Règles, deep-linkable.",
       "html": "<div class=\"ds-tabs\"><button class=\"ds-tab ds-tab--active\">Général</button><button class=\"ds-tab\">Apparence</button><button class=\"ds-tab\">iCal</button></div>",
       "css": ".ds-tabs{font-family: var(--font-jakarta), 'Plus Jakarta Sans', system-ui, sans-serif;display:flex;gap:4px;border-bottom:1px solid #E7E2DA}.ds-tab{background:none;border:none;border-bottom:2px solid transparent;padding:10px 18px;font:inherit;font-size:13.5px;font-weight:500;color:#6B645F;cursor:pointer;transition:all .15s}.ds-tab:hover{color:#1C1917}.ds-tab:focus-visible{outline:2px solid #2A5C40;outline-offset:-2px}.ds-tab--active{color:#2A5C40;font-weight:700;border-bottom-color:#2A5C40}"
+    },
+    {
+      "name": "Plaque Button",
+      "kind": "button",
+      "refersTo": "public-plaque-button",
+      "description": "Enamel-red plate with a white inner filet; presses 2px in.",
+      "html": "<button class=\"ds-pl-btn\">Réserver</button>",
+      "css": ".ds-pl-btn{font-family:Antonio,'Arial Narrow',sans-serif;font-weight:700;font-size:1.25rem;letter-spacing:.06em;text-transform:uppercase;min-height:52px;padding:0 26px;border:0;border-radius:10px;background:#b5342b;color:#fff;cursor:pointer;box-shadow:inset 0 0 0 4px #b5342b,inset 0 0 0 5.5px rgb(255 255 255/.9),inset 0 -3px 0 rgb(0 0 0/.18),0 6px 12px -6px rgb(126 33 27/.7);transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .18s,filter .18s}.ds-pl-btn:hover{filter:brightness(1.08)}.ds-pl-btn:focus-visible{outline:3px solid #b5342b;outline-offset:3px}.ds-pl-btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgb(255 255 255/.3) inset,0 3px 6px -4px rgb(40 30 10/.6)}"
+    },
+    {
+      "name": "Plaque Room Door Plate",
+      "kind": "custom",
+      "refersTo": "public-plaque-plate",
+      "description": "Numbered pill door plate in the host enamel with a white inner filet.",
+      "html": "<a class=\"ds-pl-room\" href=\"#\"><span class=\"ds-pl-num\"><small>N°</small>1</span><span class=\"ds-pl-body\"><b>Chambre du Lavoir</b><span>2 pers.</span></span><span class=\"ds-pl-price\">85 €<small> / nuit</small></span></a>",
+      "css": ".ds-pl-room{position:relative;display:flex;align-items:center;gap:16px;padding:14px 26px 14px 14px;border-radius:999px;background:#1f3b7a;color:#fbfaf6;text-decoration:none;font-family:'Atkinson Hyperlegible',system-ui,sans-serif;box-shadow:0 1px 0 rgb(255 255 255/.35) inset,0 12px 24px -16px rgb(40 30 10/.6),0 2px 3px rgb(40 30 10/.12);transition:transform .18s cubic-bezier(.16,1,.3,1),box-shadow .18s}.ds-pl-room::before{content:'';position:absolute;inset:5px;border:2px solid currentColor;border-radius:999px;pointer-events:none}.ds-pl-room:hover{transform:translateY(-1px)}.ds-pl-room:focus-visible{outline:3px solid #b5342b;outline-offset:3px}.ds-pl-num{display:grid;place-items:center;width:66px;height:66px;border-radius:50%;background:#fbfaf6;color:#1f3b7a;font-family:Antonio,sans-serif;font-weight:700;font-size:2rem;line-height:.9}.ds-pl-num small{display:block;font-size:.75rem;letter-spacing:.1em}.ds-pl-body{flex:1;display:flex;flex-direction:column}.ds-pl-body b{font-family:Antonio,sans-serif;font-size:1.45rem;text-transform:uppercase;letter-spacing:.04em}.ds-pl-price{font-family:Antonio,sans-serif;font-size:1.6rem;white-space:nowrap}.ds-pl-price small{font-family:'Atkinson Hyperlegible',sans-serif;font-size:.8rem}"
+    },
+    {
+      "name": "Linge Button",
+      "kind": "button",
+      "refersTo": "public-linge-button",
+      "description": "Solid stripe colour with a dashed white stitch inset 6px.",
+      "html": "<button class=\"ds-li-btn\">Rechercher</button>",
+      "css": ".ds-li-btn{font-family:Epilogue,system-ui,sans-serif;font-weight:800;font-size:17px;letter-spacing:.01em;min-height:52px;padding:0 26px;border:0;border-radius:3px;background:#b23a3a;color:#fff;cursor:pointer;outline:1.5px dashed rgb(255 255 255/.8);outline-offset:-6px;box-shadow:0 6px 12px -6px rgb(38 43 54/.55);transition:transform .18s cubic-bezier(.16,1,.3,1),filter .18s}.ds-li-btn:hover{filter:brightness(1.08)}.ds-li-btn:focus-visible{outline:3px solid #b23a3a;outline-offset:3px}.ds-li-btn:active{transform:translateY(2px)}"
+    },
+    {
+      "name": "Affiche Button",
+      "kind": "button",
+      "refersTo": "public-affiche-button",
+      "description": "Square poster-red block with condensed caps.",
+      "html": "<button class=\"ds-af-btn\">Réserver</button>",
+      "css": ".ds-af-btn{font-family:'League Gothic','Arial Narrow',sans-serif;font-weight:400;font-size:1.6rem;letter-spacing:.03em;text-transform:uppercase;min-height:52px;padding:0 28px;border:0;border-radius:0;background:#c4462f;color:#fff;cursor:pointer;transition:transform .18s cubic-bezier(.16,1,.3,1),filter .18s}.ds-af-btn:hover{filter:brightness(1.08)}.ds-af-btn:focus-visible{outline:3px solid #1f3b57;outline-offset:3px}.ds-af-btn:active{transform:translateY(2px)}"
+    },
+    {
+      "name": "Classique Button",
+      "kind": "button",
+      "refersTo": "public-standard-button",
+      "description": "Brand fill, 12px corners; deepens 0.08 L on hover.",
+      "html": "<button class=\"ds-st-btn\">Rechercher</button>",
+      "css": ".ds-st-btn{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;font-size:16px;min-height:52px;padding:0 26px;border:0;border-radius:12px;background:#2a5c40;color:#fff;cursor:pointer;box-shadow:0 1px 2px rgb(28 25 23/.15);transition:background .18s,transform .18s cubic-bezier(.16,1,.3,1)}.ds-st-btn:hover{background:oklch(from #2a5c40 calc(l - 0.08) c h)}.ds-st-btn:focus-visible{outline:3px solid #2a5c40;outline-offset:3px}.ds-st-btn:active{transform:translateY(2px)}"
     }
   ],
   "narrative": {
@@ -360,7 +1153,17 @@
       },
       {
         "name": "The Two Palettes Rule",
-        "body": "`--admin-*` tokens live under `[data-admin]` and are used only in `/admin` and auth screens. The legacy `warm-*` / `amber-accent` scale belongs to the public templates. Never mix them.",
+        "body": "`--admin-*` tokens live under `[data-admin]` and are used only in `/admin` and auth screens. The guest sites use the `--s-*` contract scoped under `.site[data-tpl]`. Never mix them.",
+        "section": "colors"
+      },
+      {
+        "name": "The Bounded Host Colour Rule",
+        "body": "A host colour never reaches the page raw. It passes through `oklch(from … min(l, X) c h)` (or `max` for the Affiche sky) before any text sits on it. A new world sets its bound before it uses the colour.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Contract Rule",
+        "body": "Shared structure (`components/public/site.css`) reads only `--s-*` tokens and holds no colour or font. A world's private variables (`--s-plate*`, `--l-*`, `--a-*`, `--st-*`) stay in its own file.",
         "section": "colors"
       },
       {
@@ -369,9 +1172,19 @@
         "section": "typography"
       },
       {
+        "name": "The Lettering Rule",
+        "body": "Where a world letters its objects (Plaque, Linge, Affiche), room numbers, prices, nav and buttons take the display face; the reading face is for sentences.",
+        "section": "typography"
+      },
+      {
         "name": "The Paper-on-Linen Rule",
         "body": "Depth comes from white paper against warm linen plus a sand border first, and from shadow second. Never stack shadows to create hierarchy.",
         "section": "elevation"
+      },
+      {
+        "name": "The No Invented Content Rule",
+        "body": "A public block renders only from host data. No story, stats, gallery, location block or « Nous trouver » nav link appears without the fields that fill it, and nothing is ever filled with sample text.",
+        "section": "components"
       }
     ],
     "dos": [
@@ -379,14 +1192,19 @@
       "**Do** reuse the shared primitives in `components/admin/ui.tsx` (`Card`, `PageHeader`, `SettingsSection`, `Field`, `PrimaryButton`, `GhostButton`, `StatusBadge`, `Tabs`).",
       "**Do** keep a single primary action per page header.",
       "**Do** keep status and channel colours identical on every screen (list, detail, calendar spans).",
-      "**Do** respect `prefers-reduced-motion`; admin motion is limited to the 0.22s `admin-fade-in` page entrance and 0.15s colour transitions."
+      "**Do** respect `prefers-reduced-motion`; admin motion is limited to the 0.22s `admin-fade-in` page entrance and 0.15s colour transitions.",
+      "**Do** build a new public world as one stylesheet that fills the whole `--s-*` contract under `.site[data-tpl=\"…\"]`, plus a `WORLDS` entry with default host colours and a font pair loaded with `preload: false`.",
+      "**Do** bound every host colour in OKLCH before text sits on it.",
+      "**Do** hide a public block when the host has not filled it."
     ],
     "donts": [
       "**Don't** use terracotta as a button fill or a large background.",
-      "**Don't** bring `warm-*`, `amber-accent` or Cormorant into admin screens, or admin tokens into public templates.",
+      "**Don't** bring `--s-*` tokens or the template faces (Antonio, Atkinson Hyperlegible, Epilogue, Literata, League Gothic, Libre Franklin, Hanken Grotesk) into admin screens, or `--admin-*` tokens into public templates.",
       "**Don't** put DirectLoc branding on guest-facing pages beyond a discreet credit.",
       "**Don't** use cool greys for admin surfaces; neutrals stay warm (linen, oat, sand).",
-      "**Don't** add a second type family to the admin."
+      "**Don't** add a second type family to the admin.",
+      "**Don't** put colour or font values in `components/public/site.css`; they belong to a world.",
+      "**Don't** prefill booking dates or hide the total until payment."
     ]
   }
 }

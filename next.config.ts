@@ -3,7 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   // Bundlé par Turbopack, node-ical (temporal-polyfill) plante : « e.BigInt is not a function ».
-  serverExternalPackages: ["node-ical"],
+  // Bundlé en dev, le scrypt JS de @noble/hashes (mots de passe Better Auth) est ~13x plus lent :
+  // une connexion prenait ~4,5 s (tests de login au bord du timeout).
+  serverExternalPackages: ["node-ical", "@noble/hashes"],
   headers: async () => [
     {
       source: "/(.*)",
@@ -35,7 +37,7 @@ const nextConfig: NextConfig = {
             "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
             "font-src 'self' https://fonts.gstatic.com",
-            "img-src 'self' data: blob: https://*.basemaps.cartocdn.com",
+            "img-src 'self' data: blob: https://tile.openstreetmap.org",
             "connect-src 'self' https://api.stripe.com",
             "frame-src https://js.stripe.com https://hooks.stripe.com https://www.openstreetmap.org",
             "base-uri 'self'",

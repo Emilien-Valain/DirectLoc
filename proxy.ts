@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
+import { apexHost } from "@/lib/tenant-host";
 import { tenants, userTenants } from "@/db/schema";
 import { checkRateLimit, type RateLimitRule } from "@/lib/rate-limit";
 
@@ -57,11 +58,12 @@ async function resolveTenant(host: string): Promise<CachedTenant | null> {
 
     tenant = row ?? undefined;
   } else {
-    // En production : lookup par domain
+    // En production : lookup par domain ; `www.<domaine>` sert le même tenant.
+    // Le host brut reste candidat au cas où le domaine serait stocké avec `www.`.
     const [row] = await db
       .select()
       .from(tenants)
-      .where(eq(tenants.domain, host))
+      .where(inArray(tenants.domain, [host, apexHost(host)]))
       .limit(1);
 
     tenant = row ?? undefined;
@@ -74,6 +76,12 @@ async function resolveTenant(host: string): Promise<CachedTenant | null> {
   const cached2: CachedTenant = { ...tenant, expiresAt: now + CACHE_TTL_MS };
   tenantCache.set(host, cached2);
   return cached2;
+}
+
+// MARKETING_HOST : directloc.app en prod, directloc.localhost en dev.
+function isMarketingHost(host: string): boolean {
+  const marketing = process.env.MARKETING_HOST;
+  return !!marketing && (host === marketing || host === `www.${marketing}`);
 }
 
 export async function proxy(request: NextRequest) {
@@ -125,6 +133,18 @@ export async function proxy(request: NextRequest) {
     request.headers.get("host") ??
     "";
   const host = hostHeader.split(":")[0];
+
+  // ── Site vitrine (directloc.app) : servi par réécriture vers app/vitrine ──
+  // Les chemins /vitrine ne sont jamais accessibles directement depuis un domaine client.
+  if (isMarketingHost(host)) {
+    if (pathname.startsWith("/admin") || pathname.startsWith("/api/")) {
+      return new NextResponse("Not Found", { status: 404 });
+    }
+    return NextResponse.rewrite(new URL(`/vitrine${pathname === "/" ? "" : pathname}`, request.url));
+  }
+  if (pathname === "/vitrine" || pathname.startsWith("/vitrine/")) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
 
   const tenant = await resolveTenant(host);
 

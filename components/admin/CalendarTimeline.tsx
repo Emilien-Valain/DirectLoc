@@ -423,12 +423,14 @@ export default function CalendarTimeline({
                   {new Date(bk.checkIn).toLocaleDateString("fr-FR", {
                     day: "numeric",
                     month: "short",
+                    timeZone: "UTC",
                   })}{" "}
                   →{" "}
                   {new Date(bk.checkOut).toLocaleDateString("fr-FR", {
                     day: "numeric",
                     month: "short",
                     year: "numeric",
+                    timeZone: "UTC",
                   })}
                 </div>
               </div>

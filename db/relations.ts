@@ -12,6 +12,7 @@ import {
   manualBlocks,
   bookingRules,
   pricingRules,
+  bookingLines,
 } from "./schema";
 
 export const tenantsRelations = relations(tenants, ({ many }) => ({
@@ -49,8 +50,9 @@ export const roomsRelations = relations(rooms, ({ one, many }) => ({
   pricingRules: many(pricingRules),
 }));
 
-export const bookingsRelations = relations(bookings, ({ one }) => ({
+export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   tenant: one(tenants, { fields: [bookings.tenantId], references: [tenants.id] }),
+  lines: many(bookingLines),
   room: one(rooms, { fields: [bookings.roomId], references: [rooms.id] }),
   payment: one(payments, { fields: [bookings.id], references: [payments.bookingId] }),
 }));
@@ -85,4 +87,8 @@ export const bookingRulesRelations = relations(bookingRules, ({ one }) => ({
 export const pricingRulesRelations = relations(pricingRules, ({ one }) => ({
   tenant: one(tenants, { fields: [pricingRules.tenantId], references: [tenants.id] }),
   room: one(rooms, { fields: [pricingRules.roomId], references: [rooms.id] }),
+}));
+
+export const bookingLinesRelations = relations(bookingLines, ({ one }) => ({
+  booking: one(bookings, { fields: [bookingLines.bookingId], references: [bookings.id] }),
 }));

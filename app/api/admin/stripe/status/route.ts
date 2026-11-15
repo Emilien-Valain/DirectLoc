@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/session";
-import { stripe } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
 
@@ -23,7 +23,7 @@ export async function GET() {
   }
 
   try {
-    const account = await stripe.accounts.retrieve(tenant.stripeAccountId);
+    const account = await getStripe().accounts.retrieve(tenant.stripeAccountId);
 
     return NextResponse.json({
       connected: true,

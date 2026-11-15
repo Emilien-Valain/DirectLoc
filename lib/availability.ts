@@ -21,8 +21,9 @@ export async function isRoomAvailable(
   checkIn: Date,
   checkOut: Date,
   conn: Tx | typeof db = db,
+  excludeBookingId?: string,
 ): Promise<boolean> {
-  const held = await blockedDates(roomId, tenantId, { start: checkIn, end: checkOut }, conn);
+  const held = await blockedDates(roomId, tenantId, { start: checkIn, end: checkOut }, conn, excludeBookingId);
   return held.size === 0;
 }
 

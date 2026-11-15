@@ -3,16 +3,16 @@ import type { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, payments, rooms, tenants, users, userTenants } from "@/db/schema";
-import { stripe } from "@/lib/stripe";
+import { bookings, payments, users, userTenants } from "@/db/schema";
+import { getStripe } from "@/lib/stripe";
 import {
   sendBookingConfirmation,
   sendAdminNotification,
   sendBookingCancellation,
   sendPaidAfterCancellationAlert,
 } from "@/lib/email";
-import type { TenantConfig } from "@/lib/tenant-context";
 import { isUuid } from "@/lib/validation";
+import { loadEmailContext } from "@/lib/queries/bookings";
 
 /** Emails des admins du tenant (destinataires des notifications hôte). */
 async function tenantAdminEmails(tenantId: string): Promise<string[]> {
@@ -22,49 +22,6 @@ async function tenantAdminEmails(tenantId: string): Promise<string[]> {
     .innerJoin(users, eq(users.id, userTenants.userId))
     .where(eq(userTenants.tenantId, tenantId));
   return rows.map((r) => r.email);
-}
-
-async function loadEmailContext(bookingId: string, tenantId: string) {
-  const [booking] = await db
-    .select()
-    .from(bookings)
-    .where(eq(bookings.id, bookingId))
-    .limit(1);
-  if (!booking) return null;
-
-  const [room] = await db
-    .select({ name: rooms.name })
-    .from(rooms)
-    .where(eq(rooms.id, booking.roomId))
-    .limit(1);
-
-  const [tenant] = await db
-    .select({ name: tenants.name, config: tenants.config })
-    .from(tenants)
-    .where(eq(tenants.id, tenantId))
-    .limit(1);
-
-  const config = (tenant?.config ?? {}) as TenantConfig;
-  const checkIn = new Date(booking.checkIn);
-  const checkOut = new Date(booking.checkOut);
-  const nights = Math.round(
-    (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  return {
-    booking,
-    emailData: {
-      guestName: booking.guestName,
-      guestEmail: booking.guestEmail,
-      roomName: room?.name ?? "Chambre",
-      checkIn,
-      checkOut,
-      nights,
-      totalPrice: parseFloat(booking.totalPrice).toFixed(2),
-      hotelName: tenant?.name ?? "Hôtel",
-      config,
-    },
-  };
 }
 
 export async function POST(request: NextRequest) {
@@ -81,7 +38,7 @@ export async function POST(request: NextRequest) {
   for (const secret of [process.env.STRIPE_WEBHOOK_SECRET, process.env.STRIPE_CONNECT_WEBHOOK_SECRET]) {
     if (!secret) continue;
     try {
-      event = stripe.webhooks.constructEvent(body, signature, secret);
+      event = getStripe().webhooks.constructEvent(body, signature, secret);
       break;
     } catch {}
   }
@@ -89,15 +46,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 });
   }
 
-  // Un événement Connect ne vaut que pour le tenant propriétaire de ce compte :
-  // un compte connecté ne doit pas pouvoir confirmer/annuler la résa d'un autre hôtel.
-  if (event.account && event.type.startsWith("checkout.session.")) {
-    const tenantId = (event.data.object as Stripe.Checkout.Session).metadata?.tenantId;
-    const [tenant] = tenantId && isUuid(tenantId)
-      ? await db.select({ stripeAccountId: tenants.stripeAccountId }).from(tenants).where(eq(tenants.id, tenantId)).limit(1)
+  // La session doit être l'une des nôtres, créée pour CE booking de CE tenant : seul
+  // ce serveur écrit les payments, et Stripe choisit l'id de session. Un autre compte
+  // connecté ne peut donc pas agir sur la résa d'un autre hôtel, et une session créée
+  // avant une déconnexion/reconnexion Stripe reste reconnue (pas le compte actuel).
+  if (event.type.startsWith("checkout.session.")) {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const { bookingId, tenantId } = session.metadata ?? {};
+    const [ours] = bookingId && tenantId && isUuid(bookingId) && isUuid(tenantId)
+      ? await db
+          .select({ id: payments.id })
+          .from(payments)
+          .where(and(
+            eq(payments.stripeSessionId, session.id),
+            eq(payments.bookingId, bookingId),
+            eq(payments.tenantId, tenantId),
+          ))
+          .limit(1)
       : [];
-    if (tenant?.stripeAccountId !== event.account) {
-      console.error(`[stripe] Événement ${event.id} du compte ${event.account} ignoré : ne correspond pas au tenant ${tenantId}`);
+    if (!ours) {
+      console.error(`[stripe] Événement ${event.id} (compte ${event.account ?? "plateforme"}) ignoré : session ${session.id} inconnue pour le booking ${bookingId}`);
       return NextResponse.json({ received: true });
     }
   }
@@ -190,38 +158,8 @@ export async function POST(request: NextRequest) {
       // Envoyer l'email d'annulation au client (best-effort)
       if (tenantId) {
         try {
-          const [booking] = await db
-            .select()
-            .from(bookings)
-            .where(eq(bookings.id, bookingId))
-            .limit(1);
-
-          if (booking) {
-            const [room] = await db
-              .select({ name: rooms.name })
-              .from(rooms)
-              .where(eq(rooms.id, booking.roomId))
-              .limit(1);
-
-            const [tenant] = await db
-              .select({ name: tenants.name, config: tenants.config })
-              .from(tenants)
-              .where(eq(tenants.id, tenantId))
-              .limit(1);
-
-            const config = (tenant?.config ?? {}) as TenantConfig;
-
-            await sendBookingCancellation({
-              guestName: booking.guestName,
-              guestEmail: booking.guestEmail,
-              roomName: room?.name ?? "Chambre",
-              checkIn: new Date(booking.checkIn),
-              checkOut: new Date(booking.checkOut),
-              hotelName: tenant?.name ?? "Hôtel",
-              config,
-              reason: "payment_expired",
-            });
-          }
+          const ctx = await loadEmailContext(bookingId, tenantId);
+          if (ctx) await sendBookingCancellation({ ...ctx.emailData, reason: "payment_expired" });
         } catch (emailError) {
           console.error("Erreur envoi email annulation:", emailError);
         }

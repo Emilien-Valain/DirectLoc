@@ -9,31 +9,17 @@
  *     --email "contact@hotelducoin.fr" \
  *     --password "motdepasse" \
  *     --template boutique        # optionnel, défaut : classic
+ *     --link-existing            # optionnel : donne accès à un utilisateur déjà existant
  */
 
 import { eq } from "drizzle-orm";
-import { scryptAsync } from "@noble/hashes/scrypt.js";
-import { hex } from "@better-auth/utils/hex";
+import { hashPassword } from "better-auth/crypto";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { tenants, users, accounts, properties, userTenants } from "@/db/schema";
-import type { TemplateName } from "@/lib/tenant-context";
+import { TEMPLATE_NAMES, type TemplateName } from "@/lib/tenant-context";
 
-const VALID_TEMPLATES: TemplateName[] = ["classic", "boutique"];
-
-// Même algo que Better Auth — doit rester synchronisé avec
-// node_modules/better-auth/dist/crypto/password.mjs
-async function hashPassword(password: string): Promise<string> {
-  const salt = hex.encode(randomBytes(16));
-  const key = await scryptAsync(password.normalize("NFKC"), salt, {
-    N: 16384,
-    r: 16,
-    p: 1,
-    dkLen: 64,
-    maxmem: 128 * 16384 * 16 * 2,
-  });
-  return `${salt}:${hex.encode(key)}`;
-}
+const VALID_TEMPLATES: readonly TemplateName[] = TEMPLATE_NAMES;
 
 function generateId(): string {
   return randomBytes(16).toString("base64url");
@@ -55,7 +41,7 @@ async function main() {
 
   if (!name || !slug || !email || !password) {
     console.error(
-      "Usage: --name <name> --slug <slug> --email <email> --password <password> [--domain <domain>] [--template classic|boutique]",
+      "Usage: --name <name> --slug <slug> --email <email> --password <password> [--domain <domain>] [--template classic|boutique|affiche|standard]",
     );
     process.exit(1);
   }
@@ -66,6 +52,19 @@ async function main() {
   }
 
   const template = (templateArg as TemplateName | undefined) ?? "classic";
+
+  // Un compte existant n'est relié qu'explicitement : son mot de passe n'est pas
+  // celui passé ici, on donnerait l'hôtel à quiconque a créé ce compte avant nous.
+  const existingUser = await db.query.users.findFirst({
+    where: eq(users.email, email),
+  });
+  if (existingUser && !args.includes("--link-existing")) {
+    console.error(
+      `L'utilisateur ${email} existe déjà et son mot de passe n'est pas --password. ` +
+        "Vérifiez que c'est bien lui, puis relancez avec --link-existing.",
+    );
+    process.exit(1);
+  }
 
   // 1. Créer le tenant (idempotent sur le slug)
   const existing = await db.query.tenants.findFirst({
@@ -91,16 +90,11 @@ async function main() {
     console.log(`✓ Propriété créée : ${name}`);
   }
 
-  // 3. Vérifier si l'email existe déjà
-  const existingUser = await db.query.users.findFirst({
-    where: eq(users.email, email),
-  });
-
   let userId: string;
 
   if (existingUser) {
     userId = existingUser.id;
-    console.log(`ℹ Utilisateur déjà existant : ${email}`);
+    console.log(`ℹ Utilisateur existant relié : ${email}`);
   } else {
     // 3. Créer l'utilisateur + compte email/password au format Better Auth
     userId = generateId();

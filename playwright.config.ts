@@ -23,6 +23,8 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3001",
     trace: "on-first-retry",
+    // Sandbox Chromium : désactivé par défaut dans Playwright.
+    launchOptions: { chromiumSandbox: true },
   },
 
   projects: [
@@ -65,6 +67,9 @@ export default defineConfig({
       BETTER_AUTH_URL: "http://localhost:3001",
       BETTER_AUTH_SECRET: "test-secret-for-playwright-32chars",
       PUBLIC_TENANT_SLUG: "test-tenant",
+      // Site vitrine : http://directloc.localhost:3001
+      MARKETING_HOST: "directloc.localhost",
+      OPERATOR_EMAIL: "operateur@directloc.test",
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "sk_test_placeholder",
       STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_test_XXXX",
       STRIPE_CONNECT_WEBHOOK_SECRET: process.env.STRIPE_CONNECT_WEBHOOK_SECRET,

@@ -1,33 +1,80 @@
-import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, payments, rooms } from "@/db/schema";
+import { bookings, payments, rooms, tenants } from "@/db/schema";
 import { isUuid } from "@/lib/validation";
+import { openCheckoutDeadline } from "@/lib/checkout-window";
+import type { TenantConfig } from "@/lib/tenant-context";
+import { getBookingLines } from "@/lib/queries/extras";
 
 export type BookingStatus = "pending" | "confirmed" | "cancelled" | "completed";
 
+export type BookingView = "a-venir" | "anciennes";
+
 export interface BookingFilters {
+  /** À venir = en attente ou confirmée (rien à faire de plus) ; anciennes = terminées ou annulées. */
+  view?: BookingView;
   status?: BookingStatus;
   roomId?: string;
-  from?: Date;
-  to?: Date;
+  /** Nom, email ou téléphone (chiffres seuls, espaces ignorés). */
+  q?: string;
+  /** Page 1-indexée — anciennes uniquement, à venir reste court. */
+  page?: number;
 }
 
-export async function getBookingsByTenant(
-  tenantId: string,
-  filters: BookingFilters = {},
-) {
-  const conditions = [eq(bookings.tenantId, tenantId)];
+export const OLD_BOOKINGS_PAGE_SIZE = 50;
 
-  if (filters.status) conditions.push(eq(bookings.status, filters.status));
-  if (filters.roomId) conditions.push(eq(bookings.roomId, filters.roomId));
-  if (filters.from) conditions.push(gte(bookings.checkOut, filters.from));
-  if (filters.to) conditions.push(lte(bookings.checkIn, filters.to));
+const VIEW_STATUSES: Record<BookingView, BookingStatus[]> = {
+  "a-venir": ["pending", "confirmed"],
+  anciennes: ["completed", "cancelled"],
+};
 
-  return db.query.bookings.findMany({
-    where: and(...conditions),
-    with: { room: { columns: { name: true } } },
-    orderBy: [desc(bookings.checkIn)],
-  });
+/** La vue qui contient un statut : `?status=cancelled` ouvre directement « Anciennes ». */
+export function viewOfStatus(status?: BookingStatus): BookingView | undefined {
+  if (!status) return undefined;
+  return VIEW_STATUSES.anciennes.includes(status) ? "anciennes" : "a-venir";
+}
+
+export async function getBookingsByTenant(tenantId: string, filters: BookingFilters = {}) {
+  const view = filters.view ?? "a-venir";
+  const conditions = [
+    eq(bookings.tenantId, tenantId),
+    filters.status && VIEW_STATUSES[view].includes(filters.status)
+      ? eq(bookings.status, filters.status)
+      : inArray(bookings.status, VIEW_STATUSES[view]),
+  ];
+  if (filters.roomId && isUuid(filters.roomId)) conditions.push(eq(bookings.roomId, filters.roomId));
+
+  const q = filters.q?.trim().slice(0, 100);
+  if (q) {
+    // Recherche littérale : % et _ saisis par l'hôte ne sont pas des jokers.
+    const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const digits = q.replace(/\D/g, "");
+    conditions.push(
+      or(
+        ilike(bookings.guestName, like),
+        ilike(bookings.guestEmail, like),
+        // « 06 12 34 » trouve « 0612345678 » et inversement.
+        digits.length >= 3
+          ? sql`regexp_replace(coalesce(${bookings.guestPhone}, ''), '\\D', '', 'g') like ${`%${digits}%`}`
+          : undefined,
+      )!,
+    );
+  }
+
+  const where = and(...conditions);
+  const paged = view === "anciennes";
+  const page = Math.max(1, Math.floor(filters.page ?? 1));
+  const [rows, [{ total }]] = await Promise.all([
+    db.query.bookings.findMany({
+      where,
+      with: { room: { columns: { name: true } } },
+      // À venir : la prochaine arrivée d'abord ; anciennes : la plus récente d'abord.
+      orderBy: paged ? [desc(bookings.checkIn)] : [asc(bookings.checkIn)],
+      ...(paged ? { limit: OLD_BOOKINGS_PAGE_SIZE, offset: (page - 1) * OLD_BOOKINGS_PAGE_SIZE } : {}),
+    }),
+    db.select({ total: count() }).from(bookings).where(where),
+  ]);
+  return { rows, total, page, pages: paged ? Math.max(1, Math.ceil(total / OLD_BOOKINGS_PAGE_SIZE)) : 1 };
 }
 
 export async function getBookingByIdAndTenant(id: string, tenantId: string) {
@@ -44,12 +91,31 @@ export async function getLatestPayment(bookingId: string, tenantId: string) {
   // Même garde que getBookingByIdAndTenant : un id mal formé ferait échouer Postgres (500 au lieu de 404).
   if (!isUuid(bookingId)) return undefined;
   const [payment] = await db
-    .select({ status: payments.status, amount: payments.amount, stripePaymentId: payments.stripePaymentId })
+    .select({
+      status: payments.status,
+      amount: payments.amount,
+      stripePaymentId: payments.stripePaymentId,
+      createdAt: payments.createdAt,
+    })
     .from(payments)
     .where(and(eq(payments.bookingId, bookingId), eq(payments.tenantId, tenantId)))
     .orderBy(desc(payments.createdAt))
     .limit(1);
   return payment;
+}
+
+/**
+ * Réservation que l'hôte peut encore modifier : en attente ou confirmée, et pas
+ * en plein paiement en ligne (le prix ne doit pas bouger pendant le Checkout).
+ */
+export async function loadEditableBooking(id: string, tenantId: string) {
+  const [booking, payment] = await Promise.all([
+    getBookingByIdAndTenant(id, tenantId),
+    getLatestPayment(id, tenantId),
+  ]);
+  if (!booking || (booking.status !== "pending" && booking.status !== "confirmed")) return null;
+  if (openCheckoutDeadline(payment)) return null;
+  return { booking, payment };
 }
 
 /**
@@ -115,4 +181,52 @@ export async function getActiveBookingsForCalendar(
       guestName: true,
     },
   });
+}
+
+/** Booking + tout ce qu'un email client/hôte affiche (chambre, hôtel, config). `null` si introuvable. */
+export async function loadEmailContext(bookingId: string, tenantId: string) {
+  const [booking] = await db
+    .select()
+    .from(bookings)
+    .where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, tenantId)))
+    .limit(1);
+  if (!booking) return null;
+
+  const [room] = await db
+    .select({ name: rooms.name })
+    .from(rooms)
+    .where(eq(rooms.id, booking.roomId))
+    .limit(1);
+
+  const [tenant] = await db
+    .select({ name: tenants.name, config: tenants.config })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  const extraLines = await getBookingLines(booking.id);
+
+  const config = (tenant?.config ?? {}) as TenantConfig;
+  const checkIn = new Date(booking.checkIn);
+  const checkOut = new Date(booking.checkOut);
+  const nights = Math.round(
+    (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  return {
+    booking,
+    emailData: {
+      guestName: booking.guestName,
+      guestEmail: booking.guestEmail,
+      roomName: room?.name ?? "Chambre",
+      checkIn,
+      checkOut,
+      nights,
+      totalPrice: parseFloat(booking.totalPrice).toFixed(2),
+      // Taxe : sans détail « q × prix » (prix moyen arrondi en mode %).
+      extras: extraLines.filter((l) => !l.exempt).map((l) => ({ label: l.label, quantity: l.kind === "tax" ? 1 : l.quantity, unitPrice: l.unitPrice, total: l.total })),
+      hotelName: tenant?.name ?? "Hôtel",
+      config,
+    },
+  };
 }

@@ -41,7 +41,8 @@ export default function IcalSyncButton() {
         type="button"
         disabled={loading}
         onClick={handleSync}
-        className="admin-btn admin-btn--ghost"
+        className="admin-btn"
+        style={{ background: "var(--admin-primary)", color: "#fff", border: "none" }}
       >
         {loading ? "Synchronisation…" : "Synchroniser"}
       </button>

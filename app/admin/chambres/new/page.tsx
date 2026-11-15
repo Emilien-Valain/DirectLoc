@@ -1,6 +1,8 @@
 import { createRoom } from "@/lib/actions/rooms";
 import RoomForm from "@/components/admin/RoomForm";
 
+export const metadata = { title: "Nouvelle chambre" };
+
 export default function NewChambrePage() {
   return (
     <div className="space-y-6 max-w-xl admin-fade-in">

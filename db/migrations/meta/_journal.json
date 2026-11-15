@@ -64,6 +64,20 @@
       "when": 1792796031821,
       "tag": "0008_foamy_zombie",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794699420934,
+      "tag": "0009_extras_and_booking_lines",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794754486801,
+      "tag": "0010_fees_and_child_count",
+      "breakpoints": true
     }
   ]
 }

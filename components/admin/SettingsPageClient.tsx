@@ -10,7 +10,6 @@ import {
   SettingsSection,
   StatusBanner,
   Tabs,
-  Toggle,
 } from "@/components/admin/ui";
 import { updateGeneral } from "@/lib/actions/general";
 import { updateTheme } from "@/lib/actions/theme";
@@ -19,26 +18,44 @@ import LocationSection from "@/components/admin/LocationSection";
 import IcalSourcesSection from "@/components/admin/IcalSourcesSection";
 import StripeConnectSection from "@/components/admin/StripeConnectSection";
 import ContentSection from "@/components/admin/ContentSection";
+import ExtrasSection from "@/components/admin/ExtrasSection";
+import type { CatalogExtra } from "@/lib/queries/extras";
+import FeesSection from "@/components/admin/FeesSection";
+import TouristTaxSection from "@/components/admin/TouristTaxSection";
+import type { CatalogFee } from "@/lib/queries/fees";
 import type { TenantConfig, TemplateName } from "@/lib/tenant-context";
 
-type TabId =
-  | "general"
-  | "theme"
-  | "content"
-  | "location"
-  | "email"
-  | "ical"
-  | "stripe";
+type TabId = "etablissement" | "site" | "calendriers" | "emails";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "general", label: "Général" },
-  { id: "theme", label: "Apparence" },
-  { id: "content", label: "Contenu" },
-  { id: "location", label: "Localisation" },
-  { id: "email", label: "Emails" },
-  { id: "ical", label: "iCal" },
-  { id: "stripe", label: "Paiements" },
+// 4 onglets au lieu de 7 (critique du 2026-10-24) : regroupés par ce que l'hôte gère.
+const TABS: { id: TabId; label: string; short: string }[] = [
+  { id: "etablissement", label: "Mon établissement", short: "Établissement" },
+  { id: "site", label: "Mon site", short: "Site" },
+  { id: "calendriers", label: "Calendriers et paiements", short: "Calendriers" },
+  { id: "emails", label: "Emails", short: "Emails" },
 ];
+
+// Anciens ?tab= (liens, favoris, tests) : chacun ouvre l'onglet qui contient désormais sa section.
+const TAB_ALIASES: Record<string, TabId> = {
+  general: "etablissement",
+  location: "etablissement",
+  localisation: "etablissement",
+  theme: "site",
+  apparence: "site",
+  content: "site",
+  contenu: "site",
+  ical: "calendriers",
+  stripe: "calendriers",
+  paiements: "calendriers",
+  email: "emails",
+};
+
+function resolveTab(raw: string | null, fromStripe: boolean): TabId {
+  if (raw && TABS.some((t) => t.id === raw)) return raw as TabId;
+  if (raw && TAB_ALIASES[raw]) return TAB_ALIASES[raw];
+  // Retour de Stripe Connect (?stripe=success|refresh) : on montre le statut du compte.
+  return fromStripe ? "calendriers" : "etablissement";
+}
 
 type Room = { id: string; name: string };
 
@@ -59,6 +76,8 @@ export default function SettingsPageClient({
   rooms,
   icalSources,
   hasStripeAccount,
+  extras,
+  fees,
 }: {
   tenant: { id: string; name: string; slug: string; domain: string | null };
   config: TenantConfig;
@@ -66,12 +85,13 @@ export default function SettingsPageClient({
   rooms: Room[];
   icalSources: IcalSource[];
   hasStripeAccount: boolean;
+  extras: CatalogExtra[];
+  fees: CatalogFee[];
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const urlTab = searchParams.get("tab") as TabId | null;
-  const [tab, setTabState] = useState<TabId>(
-    urlTab && TABS.some((t) => t.id === urlTab) ? urlTab : "general",
+  const [tab, setTabState] = useState<TabId>(() =>
+    resolveTab(searchParams.get("tab"), searchParams.has("stripe")),
   );
 
   const setTab = (next: TabId) => {
@@ -106,34 +126,41 @@ export default function SettingsPageClient({
         id={`panel-${tab}`}
         aria-labelledby={`tab-${tab}`}
       >
-        {tab === "general" && (
-          <GeneralTab tenant={tenant} config={config} />
+        {tab === "etablissement" && (
+          <>
+            <GeneralTab tenant={tenant} config={config} />
+            <LocationSection
+              googleMapsUrl={config.googleMapsUrl}
+              latitude={config.latitude}
+              longitude={config.longitude}
+            />
+            <ExtrasSection extras={extras} />
+            <FeesSection fees={fees} rooms={rooms} />
+            <TouristTaxSection tax={config.touristTax} />
+          </>
         )}
-        {tab === "theme" && <ThemeTab config={config} />}
-        {tab === "content" && <ContentSection config={config} />}
-        {tab === "location" && (
-          <LocationSection
-            googleMapsUrl={config.googleMapsUrl}
-            latitude={config.latitude}
-            longitude={config.longitude}
-          />
+        {tab === "site" && (
+          <>
+            <ThemeTab config={config} />
+            <ContentSection config={config} />
+          </>
         )}
-        {tab === "email" && (
+        {tab === "emails" && (
           <EmailSettingsSection
             confirmationMessage={config.confirmationMessage}
             postStayMessage={config.postStayMessage}
             reviewUrl={config.reviewUrl}
           />
         )}
-        {tab === "ical" && (
-          <IcalSourcesSection
-            baseUrl={baseUrl}
-            rooms={rooms}
-            sources={icalSources}
-          />
-        )}
-        {tab === "stripe" && (
-          <StripeConnectSection hasAccount={hasStripeAccount} />
+        {tab === "calendriers" && (
+          <>
+            <IcalSourcesSection
+              baseUrl={baseUrl}
+              rooms={rooms}
+              sources={icalSources}
+            />
+            <StripeConnectSection hasAccount={hasStripeAccount} />
+          </>
         )}
       </div>
     </div>
@@ -162,8 +189,8 @@ function GeneralTab({
         onSubmit={form.onSubmit}
       >
         <SettingsSection
-          title="Informations de l'hôtel"
-          desc="Visibles sur le site public et les emails."
+          title="Votre établissement"
+          desc="Le nom affiché sur votre site et dans les emails envoyés à vos clients."
         >
           <Field label="Nom de l'établissement" error={form.fieldError("name")}>
             <AdminInput
@@ -209,7 +236,7 @@ function GeneralTab({
                 name="email"
                 defaultValue={config.email ?? ""}
                 type="email"
-                placeholder="contact@hotel.fr"
+                placeholder="ex : contact@gite-du-bocage.fr"
                 maxLength={120}
               />
             </Field>
@@ -218,7 +245,7 @@ function GeneralTab({
                 name="phone"
                 defaultValue={config.phone ?? ""}
                 type="tel"
-                placeholder="02 51 00 00 00"
+                placeholder="ex : 02 51 12 34 56"
                 maxLength={40}
               />
             </Field>
@@ -227,7 +254,7 @@ function GeneralTab({
             <AdminInput
               name="address"
               defaultValue={config.address ?? ""}
-              placeholder="12 rue du Bocage, 85590 Les Épesses"
+              placeholder="ex : 3 chemin de la Grange, 85590 Les Épesses"
               maxLength={200}
             />
           </Field>
@@ -249,7 +276,7 @@ function GeneralTab({
               opacity: form.pending ? 0.7 : 1,
             }}
           >
-            {form.pending ? "Enregistrement…" : "Enregistrer"}
+            {form.pending ? "Enregistrement…" : "Enregistrer les coordonnées"}
           </button>
         </div>
       </form>
@@ -268,17 +295,31 @@ const TEMPLATES: {
 }[] = [
   {
     id: "classic",
-    name: "Classic",
-    desc: "Chaleureux, terracotta",
-    bg: "#1C3A2C",
-    accent: "#D4784A",
+    name: "Plaque émaillée",
+    desc: "Plaques d'émail sur mur de pierre",
+    bg: "#1F3B7A",
+    accent: "#B5342B",
   },
   {
     id: "boutique",
-    name: "Boutique",
-    desc: "Luxe, noir & or",
-    bg: "#0E0E0C",
-    accent: "#C49A52",
+    name: "Linge de maison",
+    desc: "Lin et rayures tissées",
+    bg: "#B23A3A",
+    accent: "#E6E0D2",
+  },
+  {
+    id: "affiche",
+    name: "Affiche touristique",
+    desc: "Affiche d'époque, aplats de couleur",
+    bg: "#1F3B57",
+    accent: "#F2B33D",
+  },
+  {
+    id: "standard",
+    name: "Classique",
+    desc: "Sobre et efficace, façon plateforme",
+    bg: "#2A5C40",
+    accent: "#FFFFFF",
   },
 ];
 
@@ -300,7 +341,7 @@ function ThemeTab({ config }: { config: TenantConfig }) {
       >
       <SettingsSection
         title="Modèle de site"
-        desc="Le design utilisé pour le site public. Chaque template a sa propre identité visuelle."
+        desc="L'allure de votre site. Vous pouvez changer de modèle quand vous voulez : vos textes et photos sont conservés."
       >
         <input type="hidden" name="template" value={template} />
         <div className="grid grid-cols-2 gap-3.5">
@@ -418,7 +459,7 @@ function ThemeTab({ config }: { config: TenantConfig }) {
               opacity: form.pending ? 0.7 : 1,
             }}
           >
-            {form.pending ? "Enregistrement…" : "Enregistrer"}
+            {form.pending ? "Enregistrement…" : "Enregistrer l'apparence"}
           </button>
         </div>
       </form>

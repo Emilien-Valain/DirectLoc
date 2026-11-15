@@ -147,34 +147,14 @@ async function syncSource(source: {
 }
 
 /**
- * Lance la synchronisation des sources iCal actives d'un tenant.
+ * Lance la synchronisation des sources iCal actives d'un tenant, ou de tous
+ * les tenants sans `tenantId` (cron).
  */
-export async function syncTenantIcalSources(tenantId: string) {
+export async function syncIcalSources(tenantId?: string) {
   const sources = await db.query.icalSources.findMany({
-    where: and(eq(icalSources.tenantId, tenantId), eq(icalSources.active, true)),
-  });
-
-  const results = { synced: 0, errors: 0 };
-
-  for (const source of sources) {
-    try {
-      await syncSource(source);
-      results.synced++;
-    } catch (err) {
-      results.errors++;
-      console.error(`[iCal sync] Échec source ${source.id} (${source.name}):`, err);
-    }
-  }
-
-  return results;
-}
-
-/**
- * Lance la synchronisation de toutes les sources iCal actives (tous tenants).
- */
-export async function syncAllIcalSources() {
-  const sources = await db.query.icalSources.findMany({
-    where: eq(icalSources.active, true),
+    where: tenantId
+      ? and(eq(icalSources.tenantId, tenantId), eq(icalSources.active, true))
+      : eq(icalSources.active, true),
   });
 
   const results = { synced: 0, errors: 0 };

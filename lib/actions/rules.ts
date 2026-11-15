@@ -15,6 +15,13 @@ import {
 
 const REVALIDATE_PATHS = ["/admin/regles", "/admin/calendrier"];
 
+/** "0,6" → [0, 6] ; vide ou sans jour valide → null (tous les jours). */
+function parseDays(s?: string) {
+  if (!s) return null;
+  const days = s.split(",").map(Number).filter((n) => n >= 0 && n <= 6);
+  return days.length > 0 ? days : null;
+}
+
 function revalidateAll() {
   for (const path of REVALIDATE_PATHS) revalidatePath(path);
 }
@@ -80,12 +87,6 @@ export async function createBookingRule(formData: FormData): Promise<FormResult>
   const roomId = data.roomId || null;
   if (roomId) await verifyRoomOwnership(roomId, tenantId);
 
-  const parseDays = (s?: string) => {
-    if (!s) return null;
-    const days = s.split(",").map(Number).filter((n) => n >= 0 && n <= 6);
-    return days.length > 0 ? days : null;
-  };
-
   await db.insert(bookingRules).values({
     tenantId,
     roomId,
@@ -118,12 +119,6 @@ export async function createPricingRule(formData: FormData): Promise<FormResult>
 
   const roomId = data.roomId || null;
   if (roomId) await verifyRoomOwnership(roomId, tenantId);
-
-  const parseDays = (s?: string) => {
-    if (!s) return null;
-    const days = s.split(",").map(Number).filter((n) => n >= 0 && n <= 6);
-    return days.length > 0 ? days : null;
-  };
 
   await db.insert(pricingRules).values({
     tenantId,

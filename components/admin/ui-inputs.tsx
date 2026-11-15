@@ -21,8 +21,8 @@ export function AdminInput(props: InputHTMLAttributes<HTMLInputElement>) {
 }
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
-const isoToFr = (v: string) => v.replace(ISO, "$3/$2/$1");
-const frToIso = (v: string) => {
+export const isoToFr = (v: string) => v.replace(ISO, "$3/$2/$1");
+export const frToIso = (v: string) => {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
 };
@@ -186,7 +186,8 @@ export function Tabs<T extends string>({
   onChange,
   label,
 }: {
-  tabs: { id: T; label: string }[];
+  /** `short` : libellé affiché sous 640px pour que tous les onglets tiennent sur un téléphone. */
+  tabs: { id: T; label: string; short?: string }[];
   active: T;
   onChange: (next: T) => void;
   label: string;
@@ -224,13 +225,15 @@ export function Tabs<T extends string>({
             aria-selected={isActive}
             aria-controls={`panel-${t.id}`}
             tabIndex={isActive ? 0 : -1}
+            aria-label={t.short ? t.label : undefined}
             onClick={(e) => {
               onChange(t.id);
               e.currentTarget.scrollIntoView({ block: "nearest", inline: "nearest" });
             }}
-            className="whitespace-nowrap"
+            className="whitespace-nowrap px-3 sm:px-[18px]"
             style={{
-              padding: "10px 18px",
+              paddingTop: 10,
+              paddingBottom: 10,
               background: "none",
               border: "none",
               borderBottom: `2px solid ${
@@ -242,10 +245,17 @@ export function Tabs<T extends string>({
               fontSize: 13.5,
               fontWeight: 600, // poids fixe : l’onglet actif ne décale pas ses voisins
               cursor: "pointer",
-              transition: "all 0.15s",
+              transition: "color 0.15s, border-color 0.15s",
             }}
           >
-            {t.label}
+            {t.short ? (
+              <>
+                <span className="sm:hidden">{t.short}</span>
+                <span className="hidden sm:inline">{t.label}</span>
+              </>
+            ) : (
+              t.label
+            )}
           </button>
         );
       })}

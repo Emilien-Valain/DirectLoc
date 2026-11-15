@@ -9,7 +9,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
-  --font-heading: var(--font-heading);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -46,18 +45,6 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
-  --color-warm-50: oklch(0.98 0.01 75);
-  --color-warm-100: oklch(0.95 0.02 75);
-  --color-warm-200: oklch(0.90 0.03 75);
-  --color-warm-300: oklch(0.82 0.04 70);
-  --color-warm-400: oklch(0.70 0.06 60);
-  --color-warm-500: oklch(0.55 0.08 55);
-  --color-warm-600: oklch(0.45 0.07 50);
-  --color-warm-700: oklch(0.35 0.05 50);
-  --color-warm-800: oklch(0.25 0.03 50);
-  --color-warm-900: oklch(0.18 0.02 50);
-  --color-warm-950: oklch(0.12 0.015 50);
-  --color-amber-accent: oklch(0.78 0.15 70);
 }
 
 :root {
@@ -262,6 +249,11 @@
 [data-admin] .admin-dialog[open] {
   animation: admin-fade-in 0.18s ease-out;
 }
+
+/* Pas de mot orphelin en fin de paragraphe (« samedi. » seul sur sa ligne). */
+[data-admin] p { text-wrap: pretty; }
+
+[data-admin] h1, [data-admin] h2, [data-admin] h3 { text-wrap: balance; }
 
 [data-admin] .admin-btn {
   display: inline-flex;

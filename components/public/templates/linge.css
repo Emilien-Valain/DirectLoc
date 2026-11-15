@@ -1,0 +1,194 @@
+/*
+ * Template « Le Linge de maison » (clé en base : boutique).
+ * Le site est du linge de maison plié : fond de lin tissé, bandes de rayures
+ * tissées (épaisse-fine-épaisse) dans la couleur de l'hôte, monogramme brodé,
+ * serviettes blanches ourlées pour les formulaires, étiquettes cousues pour
+ * les chambres. La couleur primaire est plafonnée en clarté pour garder le
+ * texte blanc lisible.
+ */
+
+.site[data-tpl="linge"] {
+  --l-stripe: oklch(from var(--color-primary) min(l, 0.5) c h);
+  --l-stripe-deep: oklch(from var(--l-stripe) calc(l - 0.1) c h);
+  --l-napkin: #fdfdfb;
+  --l-band: linear-gradient(
+    to bottom,
+    var(--l-stripe) 0 12px,
+    transparent 12px 18px,
+    var(--l-stripe) 18px 22px,
+    transparent 22px 28px,
+    var(--l-stripe) 28px 40px
+  );
+  /* Secondaire bornée (clair, peu saturé) : le texte gris reste ≥ 4.5:1 quelle que soit la couleur de l'hôte. */
+  --s-ground: color-mix(in srgb, oklch(from var(--color-secondary) max(l, 0.85) min(c, 0.04) h) 50%, #d6d4cc);
+  --s-ink: #262b36;
+  --s-ink-soft: #4a4f5a;
+  --s-surface: var(--l-napkin);
+  --s-field: #fff;
+  --s-line: #8d8a82;
+  --s-accent: var(--l-stripe);
+  --s-on-accent: #fff;
+  --s-accent-ink: var(--l-stripe-deep);
+  --s-focus: var(--l-stripe);
+  --s-good: #1d6a39;
+  --s-bad: #a3261e;
+  --s-warn: #8a4b00;
+  --s-display: var(--font-epilogue), system-ui, sans-serif;
+  --s-body: var(--font-literata), Georgia, serif;
+  --s-field-radius: 4px;
+  --s-chip-radius: 3px;
+  --l-fold-shadow: 0 1px 2px rgb(38 43 54 / 0.08), 0 14px 28px -18px rgb(38 43 54 / 0.45);
+
+  /* Lin tissé : trame et chaîne très fines. */
+  background-color: var(--s-ground);
+  background-image:
+    repeating-linear-gradient(0deg, rgb(255 255 255 / 0.07) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, rgb(60 55 45 / 0.05) 0 1px, transparent 1px 4px);
+}
+
+/* Bande tissée en tête de page et au-dessus du pied de page. */
+[data-tpl="linge"] .s-main::before,
+[data-tpl="linge"] .s-footer::before {
+  content: "";
+  display: block;
+  height: 40px;
+  background: var(--l-band);
+}
+[data-tpl="linge"] .s-main::before { margin-bottom: clamp(24px, 4vw, 48px); }
+[data-tpl="linge"] .s-footer::before { margin: -48px calc(-1 * var(--s-gutter)) 40px; }
+
+/* Titres : capitales grasses, comme un marquage de linge. */
+[data-tpl="linge"] :is(.s-h1, .s-h2, .s-h3, .s-title, .s-search-title, .s-summary-room, .s-footer-name, .s-stat-value) {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+[data-tpl="linge"] :is(.s-h1, .s-title) { letter-spacing: -0.035em; }
+[data-tpl="linge"] :is(.s-h2, .s-h3, .s-search-title, .s-group legend) { color: var(--l-stripe-deep); }
+
+/* ── Header : monogramme brodé ──────────────────────── */
+[data-tpl="linge"] .s-mark {
+  display: grid; place-items: center;
+  width: 50px; height: 50px; border-radius: 50%;
+  color: var(--l-stripe);
+  font-family: var(--s-display); font-weight: 800; font-size: 19px; letter-spacing: 0.02em;
+  background: var(--l-napkin);
+  outline: 2px dashed var(--l-stripe);
+  outline-offset: -6px;
+  box-shadow: var(--l-fold-shadow);
+}
+[data-tpl="linge"] .s-brand-name { font-family: var(--s-display); font-weight: 800; font-size: 1.15rem; letter-spacing: -0.01em; }
+[data-tpl="linge"] .s-nav-link {
+  padding: 0 14px;
+  font-family: var(--s-display); font-weight: 500;
+  text-decoration: underline; text-decoration-color: transparent; text-decoration-thickness: 2px;
+  transition: text-decoration-color 0.2s;
+}
+[data-tpl="linge"] .s-nav-link:hover { text-decoration-color: var(--l-stripe); }
+[data-tpl="linge"] .s-nav-cta {
+  padding: 0 20px; margin-left: 6px;
+  background: var(--l-stripe); color: #fff; font-weight: 800; border-radius: 3px;
+  outline: 1.5px dashed rgb(255 255 255 / 0.75); outline-offset: -5px;
+}
+[data-tpl="linge"] .s-menu-panel { background: var(--l-napkin); box-shadow: var(--l-fold-shadow); }
+
+/* ── Accueil ────────────────────────────────────────── */
+[data-tpl="linge"] .s-namecard { display: flex; flex-direction: column; gap: 18px; padding-top: 8px; }
+[data-tpl="linge"] .s-title { color: var(--s-ink); }
+[data-tpl="linge"] .s-place {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-family: var(--s-display); font-weight: 500; font-size: 0.95rem;
+  color: var(--l-stripe-deep);
+  background: var(--l-napkin);
+  outline: 1.5px dashed var(--l-stripe); outline-offset: -4px;
+}
+[data-tpl="linge"] .s-pitch { font-size: 1.2rem; color: var(--s-ink-soft); }
+[data-tpl="linge"] .s-hero-photo { box-shadow: var(--l-fold-shadow); outline: 10px solid var(--l-napkin); }
+
+/* La recherche : une serviette blanche ourlée, avec son pli. */
+[data-tpl="linge"] .s-sign-face {
+  position: relative;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 30px 26px 26px;
+  background: var(--l-napkin);
+  border-top: 10px solid var(--l-stripe);
+  box-shadow: var(--l-fold-shadow);
+}
+[data-tpl="linge"] .s-sign-face::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 3px;
+  background: var(--l-stripe); opacity: 0.6;
+}
+[data-tpl="linge"] .s-search-title { font-size: 1.7rem; }
+
+/* Boutons : rayure pleine avec un point de couture. */
+[data-tpl="linge"] .s-btn {
+  border-radius: 3px;
+  font-family: var(--s-display); font-weight: 800; letter-spacing: 0.01em;
+  outline: 1.5px dashed rgb(255 255 255 / 0.8); outline-offset: -6px;
+  box-shadow: 0 6px 12px -6px rgb(38 43 54 / 0.55);
+}
+[data-tpl="linge"] .s-btn:disabled { outline-color: transparent; box-shadow: none; }
+
+/* Chambres : étiquettes tissées cousues. */
+[data-tpl="linge"] .s-hero-rooms { padding: 26px; background: var(--l-napkin); box-shadow: var(--l-fold-shadow); }
+[data-tpl="linge"] .s-hero-rooms .s-h3 { font-size: 1.5rem; }
+[data-tpl="linge"] .s-room-list { gap: 10px; }
+[data-tpl="linge"] .s-room {
+  padding: 14px 18px;
+  background: #fff;
+  outline: 1.5px dashed var(--l-stripe); outline-offset: -6px;
+  box-shadow: 0 1px 2px rgb(38 43 54 / 0.12);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-tpl="linge"] .s-room:hover { transform: translateX(4px); }
+[data-tpl="linge"] .s-room-num { color: var(--l-stripe); font-family: var(--s-display); font-weight: 800; font-size: 1.6rem; min-width: 40px; }
+[data-tpl="linge"] .s-room-num small { font-size: 0.7rem; }
+[data-tpl="linge"] .s-room-name { font-family: var(--s-display); font-size: 1.15rem; }
+[data-tpl="linge"] .s-room-price { font-family: var(--s-display); color: var(--l-stripe-deep); }
+[data-tpl="linge"] .s-hero-rooms .s-link { color: var(--l-stripe-deep); }
+@media (max-width: 560px) {
+  /* Le nom garde sa ligne : le prix passe dessous. */
+  [data-tpl="linge"] .s-room { flex-wrap: wrap; }
+  [data-tpl="linge"] .s-room-body { flex-basis: calc(100% - 60px); }
+  [data-tpl="linge"] .s-room-price { margin-left: 56px; }
+}
+
+/* ── Sections ───────────────────────────────────────── */
+[data-tpl="linge"] .s-section { padding-top: 40px; }
+[data-tpl="linge"] .s-section::before {
+  grid-column: 1 / -1;
+  content: ""; display: block; height: 14px; width: min(220px, 40%);
+  background: linear-gradient(to bottom, var(--l-stripe) 0 5px, transparent 5px 9px, var(--l-stripe) 9px 14px);
+}
+[data-tpl="linge"] .s-story-inner { max-width: 760px; }
+[data-tpl="linge"] .s-story .s-prose { font-size: 1.25rem; line-height: 1.65; color: var(--s-ink); }
+[data-tpl="linge"] .s-signature { font-style: italic; color: var(--l-stripe-deep); }
+[data-tpl="linge"] .s-stat-list { background: var(--l-napkin); border-top: 10px solid var(--l-stripe); box-shadow: var(--l-fold-shadow); --s-stat-rule: var(--s-line); }
+[data-tpl="linge"] .s-stat + .s-stat { box-shadow: none; border-left: 1px dashed var(--s-line); }
+@media (max-width: 640px) { [data-tpl="linge"] .s-stat + .s-stat { border-left: 0; border-top: 1px dashed var(--s-line); } }
+[data-tpl="linge"] .s-stat-value { color: var(--l-stripe-deep); }
+[data-tpl="linge"] .s-gallery-img { outline: 8px solid var(--l-napkin); box-shadow: var(--l-fold-shadow); }
+[data-tpl="linge"] .s-facts { padding: 24px; background: var(--l-napkin); box-shadow: var(--l-fold-shadow); }
+[data-tpl="linge"] .s-fact dt { font-family: var(--s-display); color: var(--l-stripe-deep); }
+[data-tpl="linge"] .s-fact + .s-fact { padding-top: 14px; border-top: 1px dashed var(--s-line); }
+[data-tpl="linge"] .s-map { outline: 8px solid var(--l-napkin); box-shadow: var(--l-fold-shadow); }
+[data-tpl="linge"] .s-map-link { border-color: var(--l-stripe); color: var(--l-stripe-deep); }
+[data-tpl="linge"] .s-pin-label { background: var(--l-napkin); color: var(--l-stripe-deep); border-top: 4px solid var(--l-stripe); font-family: var(--s-display); box-shadow: 0 2px 6px rgb(0 0 0 / 0.25); }
+[data-tpl="linge"] .s-pin-dot { background: var(--l-stripe); box-shadow: 0 0 0 3px #fff; }
+
+/* ── Pages ──────────────────────────────────────────── */
+[data-tpl="linge"] :is(.s-group, .s-room-card, .s-confirm-card, .s-room-detail-book, .s-summary, .s-search-room) {
+  background: var(--l-napkin);
+  box-shadow: var(--l-fold-shadow);
+}
+[data-tpl="linge"] :is(.s-summary, .s-room-detail-book, .s-confirm-card, .s-room-card) { border-top: 10px solid var(--l-stripe); }
+[data-tpl="linge"] .s-room-card .s-room-num { color: var(--l-stripe); font-family: var(--s-display); font-weight: 800; font-size: 1.4rem; }
+[data-tpl="linge"] .s-room-card .s-room-price { font-family: var(--s-display); font-size: 1.3rem; color: var(--l-stripe-deep); }
+[data-tpl="linge"] .s-room-detail-book .s-room-price { color: var(--l-stripe-deep); font-family: var(--s-display); }
+[data-tpl="linge"] .s-summary-photo { margin-top: -24px; }
+[data-tpl="linge"] .s-total span:last-child { color: var(--l-stripe-deep); }
+[data-tpl="linge"] .s-ref strong { font-family: var(--s-display); color: var(--l-stripe-deep); }
+
+/* ── Footer ─────────────────────────────────────────── */
+[data-tpl="linge"] .s-footer { margin-top: 24px; background: var(--l-napkin); }
+[data-tpl="linge"] .s-credit { color: var(--s-ink-soft); }

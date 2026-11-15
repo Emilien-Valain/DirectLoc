@@ -78,7 +78,7 @@ export default function LocationSection({
             name="googleMapsUrl"
             type="url"
             defaultValue={googleMapsUrl ?? ""}
-            placeholder="https://maps.app.goo.gl/... ou https://www.google.com/maps/place/..."
+            placeholder="ex : https://maps.app.goo.gl/…"
           />
         </Field>
 
@@ -90,7 +90,7 @@ export default function LocationSection({
             ref={coordsRef}
             id="loc-coords"
             type="text"
-            placeholder="Collez les coordonnées : 48.8566, 2.3522"
+            placeholder="ex : 46.8906, -0.9295"
             onChange={(e) => handleCoordsPaste(e.target.value)}
             onPaste={(e) => {
               const input = e.currentTarget;
@@ -127,7 +127,7 @@ export default function LocationSection({
               inputMode="decimal"
               value={lat}
               onChange={(e) => setLat(e.target.value)}
-              placeholder="48.8566"
+              placeholder="ex : 46.8906"
             />
           </Field>
           <Field label="Longitude" error={form.fieldError("longitude")}>
@@ -137,7 +137,7 @@ export default function LocationSection({
               inputMode="decimal"
               value={lng}
               onChange={(e) => setLng(e.target.value)}
-              placeholder="2.3522"
+              placeholder="ex : -0.9295"
             />
           </Field>
         </div>
@@ -174,7 +174,7 @@ export default function LocationSection({
               opacity: form.pending ? 0.7 : 1,
             }}
           >
-            {form.pending ? "Enregistrement…" : "Enregistrer"}
+            {form.pending ? "Enregistrement…" : "Enregistrer l'adresse et la carte"}
           </button>
         </div>
       </form>

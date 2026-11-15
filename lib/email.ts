@@ -14,10 +14,12 @@ const transporter = nodemailer.createTransport({
 const fromAddress = process.env.SMTP_FROM ?? "noreply@directloc.app";
 
 function formatDate(d: Date): string {
+  // Dates de séjour stockées en UTC minuit (ADR-0005) : sans timeZone, un serveur à l'ouest de UTC affiche la veille.
   return d.toLocaleDateString("fr-FR", {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -136,9 +138,28 @@ type BookingEmailData = {
   checkOut: Date;
   nights: number;
   totalPrice: string;
+  /** Lignes d'Extras (ADR-0010), déjà incluses dans `totalPrice`. */
+  extras?: EmailExtraLine[];
   hotelName: string;
   config?: TenantConfig;
 };
+
+type EmailExtraLine = { label: string; quantity: number; unitPrice: number; total: number };
+
+const euros = (n: number) => n.toFixed(2).replace(".", ",");
+
+/** Une ligne de tableau par Extra (libellé échappé : saisi par l'hôte). */
+function renderExtraRows(extras: EmailExtraLine[] = [], cell: string): string {
+  return extras
+    .map(
+      (x) => `
+  <tr>
+    <td style="${cell} color: #666;">${escapeHtml(x.label)}${x.quantity > 1 ? ` (${x.quantity} &times; ${euros(x.unitPrice)} &euro;)` : ""}</td>
+    <td style="${cell} text-align: right;">${x.total === 0 ? "Offert" : `${euros(x.total)} &euro;`}</td>
+  </tr>`,
+    )
+    .join("");
+}
 
 function renderBookingSummaryTable(data: {
   roomName: string;
@@ -146,8 +167,9 @@ function renderBookingSummaryTable(data: {
   checkOut: Date;
   nights: number;
   totalPrice: string;
-}): string {
-  const { roomName, checkIn, checkOut, nights, totalPrice } = data;
+  extras?: EmailExtraLine[];
+}, totalLabel = "Total pay&eacute;"): string {
+  const { roomName, checkIn, checkOut, nights, totalPrice, extras } = data;
   return `
 <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
   <tr>
@@ -165,9 +187,9 @@ function renderBookingSummaryTable(data: {
   <tr>
     <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">Dur&eacute;e</td>
     <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; text-align: right; font-size: 15px;">${nights} nuit${nights > 1 ? "s" : ""}</td>
-  </tr>
+  </tr>${renderExtraRows(extras, "padding: 10px 0; border-bottom: 1px solid #e5e5e5; font-size: 15px;")}
   <tr>
-    <td style="padding: 10px 0; color: #666; font-weight: 600; font-size: 15px;">Total pay&eacute;</td>
+    <td style="padding: 10px 0; color: #666; font-weight: 600; font-size: 15px;">${totalLabel}</td>
     <td style="padding: 10px 0; text-align: right; font-size: 20px; font-weight: 700;">${escapeHtml(totalPrice)} &euro;</td>
   </tr>
 </table>`;
@@ -201,6 +223,27 @@ ${customMessage}
   });
 }
 
+// ─── 1b. Séjour modifié par l'établissement (client) ───────────────────────
+
+export async function sendBookingModification(data: BookingEmailData) {
+  const { guestName, guestEmail, hotelName, config } = data;
+
+  const body = `
+<h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">Votre s&eacute;jour a &eacute;t&eacute; modifi&eacute;</h2>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
+<p style="font-size: 15px; color: #333; line-height: 1.6;"><strong>${escapeHtml(hotelName)}</strong> a mis &agrave; jour votre r&eacute;servation. Voici le nouveau r&eacute;capitulatif :</p>
+${renderBookingSummaryTable(data, "Total du s&eacute;jour")}
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Une question ? R&eacute;pondez simplement &agrave; cet email.</p>`;
+
+  await sendEmail({
+    to: guestEmail,
+    subject: `Votre réservation a été modifiée — ${hotelName}`,
+    html: renderEmailLayout({ hotelName, config }, body),
+    hotelName,
+    replyTo: config?.email,
+  });
+}
+
 // ─── 2. Notification admin ──────────────────────────────────────────────────
 
 type AdminNotificationData = BookingEmailData & {
@@ -209,7 +252,7 @@ type AdminNotificationData = BookingEmailData & {
 };
 
 export async function sendAdminNotification(data: AdminNotificationData) {
-  const { guestName, guestEmail, guestPhone, roomName, checkIn, checkOut, nights, totalPrice, hotelName, adminEmail, config } = data;
+  const { guestName, guestEmail, guestPhone, roomName, checkIn, checkOut, nights, totalPrice, extras, hotelName, adminEmail, config } = data;
 
   const body = `
 <h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #1a1a1a;">Nouvelle r&eacute;servation pay&eacute;e</h2>
@@ -230,7 +273,7 @@ export async function sendAdminNotification(data: AdminNotificationData) {
   <tr>
     <td style="padding: 8px 0; color: #666; font-size: 15px;">Dates</td>
     <td style="padding: 8px 0; text-align: right; font-size: 15px;">${formatDate(checkIn)} &rarr; ${formatDate(checkOut)} (${nights} nuit${nights > 1 ? "s" : ""})</td>
-  </tr>
+  </tr>${renderExtraRows(extras, "padding: 8px 0; font-size: 15px;")}
   <tr>
     <td style="padding: 8px 0; color: #666; font-weight: 600; font-size: 15px;">Montant</td>
     <td style="padding: 8px 0; text-align: right; font-weight: 700; font-size: 18px;">${escapeHtml(totalPrice)} &euro;</td>
@@ -460,4 +503,17 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData) {
     html,
     hotelName: displayName,
   });
+}
+
+// ─── Site vitrine : demande de rappel d'un hébergeur prospect ───────────────
+
+export async function sendCallbackRequest(data: { name: string; phone: string; place: string }) {
+  const to = process.env.OPERATOR_EMAIL ?? fromAddress;
+  const html = `<p>Demande de rappel depuis directloc.app :</p>
+<ul>
+  <li>Nom : <strong>${escapeHtml(data.name)}</strong></li>
+  <li>Téléphone : <strong>${escapeHtml(data.phone)}</strong></li>
+  ${data.place ? `<li>Hébergement / commune : ${escapeHtml(data.place)}</li>` : ""}
+</ul>`;
+  await sendEmail({ to, subject: `Rappel demandé — ${data.name}`, html, hotelName: "DirectLoc" });
 }

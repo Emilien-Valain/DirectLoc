@@ -180,6 +180,8 @@ export const bookings = pgTable(
     guestEmail: text("guest_email").notNull(),
     guestPhone: text("guest_phone"),
     guestCount: integer("guest_count").notNull().default(1),
+    // Dont mineurs (−18 ans), exonérés de taxe de séjour (ADR-0011) ; ≤ guestCount.
+    childCount: integer("child_count").notNull().default(0),
     notes: text("notes"),
     source: text("source").notNull().default("direct"),
     // Règlement hors ligne (saisie manuelle) marqué par l'hôte ; le paiement en ligne vit dans `payments`.
@@ -197,6 +199,83 @@ export const bookings = pgTable(
     ),
     index("bookings_tenant_idx").on(table.tenantId),
   ],
+);
+
+// ─── EXTRAS ──────────────────────────────────────────────────────────────────
+// Options payantes du catalogue (petit-déj, linge…), toutes chambres (ADR-0010).
+
+export const extraUnitEnum = pgEnum("extra_unit", [
+  "per_stay",
+  "per_night",
+  "per_guest",
+  "per_guest_night",
+]);
+
+export const extras = pgTable(
+  "extras",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    label: text("label").notNull(),
+    description: text("description"),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    unit: extraUnitEnum("unit").notNull(),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("extras_tenant_idx").on(table.tenantId)],
+);
+
+// ─── FEES ────────────────────────────────────────────────────────────────────
+// Frais obligatoires (ménage, frais de dossier…), appliqués d'office (ADR-0011).
+
+export const fees = pgTable(
+  "fees",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    label: text("label").notNull(),
+    price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+    unit: extraUnitEnum("unit").notNull(),
+    // Chambres concernées ; vide = toutes. Pas de FK : un id de chambre supprimée ne matche plus rien.
+    roomIds: uuid("room_ids").array().notNull().default([]),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("fees_tenant_idx").on(table.tenantId)],
+);
+
+// Tout ce qui s'ajoute à l'hébergement d'une réservation (ADR-0010, ADR-0011) :
+// Extras, Fees et taxe de séjour, copiés (libellé, unité, prix) à l'admission.
+// `totalPrice` = hébergement + Σ total. Quantité dérivée, jamais saisie.
+export const bookingLineKindEnum = pgEnum("booking_line_kind", ["extra", "fee", "tax"]);
+
+export const bookingLines = pgTable(
+  "booking_lines",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bookingId: uuid("booking_id")
+      .notNull()
+      .references(() => bookings.id, { onDelete: "cascade" }),
+    kind: bookingLineKindEnum("kind").notNull(),
+    // Extra ou Fee d'origine (pas de FK : polymorphe, et la copie survit à sa suppression).
+    sourceId: uuid("source_id"),
+    label: text("label").notNull(),
+    unit: extraUnitEnum("unit").notNull(),
+    unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+    quantity: integer("quantity").notNull(),
+    total: decimal("total", { precision: 10, scale: 2 }).notNull(),
+    // Fee ou taxe retirés par l'admin : ligne gardée à 0 € (export de la taxe).
+    exempt: boolean("exempt").notNull().default(false),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("booking_lines_booking_idx").on(table.bookingId)],
 );
 
 // ─── PAYMENTS ────────────────────────────────────────────────────────────────

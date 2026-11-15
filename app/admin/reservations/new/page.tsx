@@ -3,6 +3,10 @@ import { requireSession } from "@/lib/session";
 import { getRoomsByTenant } from "@/lib/queries/rooms";
 import Link from "next/link";
 import ManualBookingForm from "@/components/admin/ManualBookingForm";
+import { getExtrasByTenant } from "@/lib/queries/extras";
+import { getFeesByTenant, getTouristTax } from "@/lib/queries/fees";
+
+export const metadata = { title: "Nouvelle réservation" };
 
 export default async function NewReservationPage({
   searchParams,
@@ -10,7 +14,13 @@ export default async function NewReservationPage({
   searchParams: Promise<{ roomId?: string; checkIn?: string; checkOut?: string }>;
 }) {
   const { tenantId } = await requireSession();
-  const [chambres, params] = await Promise.all([getRoomsByTenant(tenantId), searchParams]);
+  const [chambres, params, catalog, feeCatalog, touristTax] = await Promise.all([
+    getRoomsByTenant(tenantId),
+    searchParams,
+    getExtrasByTenant(tenantId, { activeOnly: true }),
+    getFeesByTenant(tenantId, { activeOnly: true }),
+    getTouristTax(tenantId),
+  ]);
 
   // Pré-remplissage depuis le calendrier (?roomId=…&checkIn=AAAA-MM-JJ[&checkOut=…]) ;
   // valeur invalide → défaut, départ absent ou incohérent → une nuit.
@@ -54,6 +64,9 @@ export default async function NewReservationPage({
         rooms={chambres
           .filter((c) => c.active)
           .map((c) => ({ id: c.id, name: c.name, pricePerNight: String(c.pricePerNight) }))}
+        extras={catalog}
+        fees={feeCatalog}
+        taxEnabled={!!touristTax}
         today={today}
         tomorrow={tomorrow}
         defaultRoomId={defaultRoomId}

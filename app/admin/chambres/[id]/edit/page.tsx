@@ -14,6 +14,8 @@ import type { RoomPhoto } from "@/app/api/admin/rooms/[id]/photos/route";
 
 const DAY_NAMES_FR = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
 
+export const metadata = { title: "Modifier la chambre" };
+
 export default async function EditChambrePage({
   params,
 }: {
@@ -33,6 +35,13 @@ export default async function EditChambrePage({
 
   return (
     <div className="space-y-6 max-w-xl admin-fade-in">
+      <Link
+        href="/admin/chambres"
+        className="inline-block text-[13px] font-semibold transition-colors"
+        style={{ color: "var(--admin-text-muted)" }}
+      >
+        ← Chambres
+      </Link>
       <h1
         className="text-[24px] font-extrabold leading-tight"
         style={{ color: "var(--admin-text)", letterSpacing: "-0.6px" }}

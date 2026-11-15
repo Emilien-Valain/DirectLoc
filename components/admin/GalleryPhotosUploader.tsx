@@ -190,7 +190,7 @@ export default function GalleryPhotosUploader({
                   type="text"
                   value={photo.caption ?? ""}
                   onChange={(e) => updateCaption(photo.id, e.target.value)}
-                  placeholder="Description (optionnel)"
+                  placeholder="ex : La terrasse au coucher du soleil"
                   maxLength={80}
                   aria-label={`Description de la photo ${idx + 1}`}
                   className="admin-field"

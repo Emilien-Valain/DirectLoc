@@ -9,6 +9,8 @@ import {
 } from "@/lib/queries/rules";
 import RulesPageClient from "@/components/admin/RulesPageClient";
 
+export const metadata = { title: "Règles" };
+
 export default async function ReglesPage() {
   const { tenantId } = await requireSession();
 

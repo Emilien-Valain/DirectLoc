@@ -1,0 +1,292 @@
+/* Site vitrine directloc.app — monde « Almanach ».
+   Scopé sous .alm : jamais chargé par l'admin ni par les sites clients. */
+
+.alm {
+  --cover: #23408e;
+  --cover-deep: #162b66;
+  --cover-ink: #c9d5f5;        /* texte secondaire sur la couverture, 7:1 */
+  --gold: #d9b443;             /* dorure sur bleu, 6:1 */
+  --gold-line: #c9a227;
+  --paper: #ffffff;
+  --leaf-tint: #f3f5fa;
+  --rule: #c7ccd8;
+  --ink: #101828;
+  --ink-soft: #3b4559;          /* 9:1 sur blanc */
+  --red: #c41f27;               /* dimanches et action, 5.6:1 sur blanc */
+  --red-tint: #fcecec;
+  --direct: #1d6a37;
+  --direct-tint: #e7f2ea;
+  --ical: #535d70;
+  --display: var(--alm-display), "Arial Narrow", sans-serif;
+  --serif: var(--alm-serif), Georgia, serif;
+  --ui: var(--alm-ui), system-ui, sans-serif;
+  --gutter: clamp(16px, 4vw, 48px);
+  --max: 1344px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  background: var(--cover);
+  color: var(--ink);
+  font: 400 18px/1.55 var(--serif);
+  font-variant-numeric: tabular-nums;
+  min-height: 100vh;
+  caret-color: var(--red);
+  scrollbar-color: var(--gold-line) var(--cover-deep);
+}
+.alm ::selection { background: var(--gold); color: var(--cover-deep); }
+.alm :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; border-radius: 2px; }
+.alm .alm-sheet :focus-visible, .alm .alm-first :focus-visible { outline-color: var(--cover); }
+.alm a { color: inherit; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+.alm h1, .alm h2, .alm h3 { font-family: var(--display); font-weight: 900; text-transform: uppercase; letter-spacing: 0.005em; text-wrap: balance; }
+
+.alm-skip { position: absolute; left: -9999px; }
+.alm-skip:focus { left: 16px; top: 16px; z-index: 10; background: var(--gold); color: var(--cover-deep); padding: 10px 14px; font: 700 15px var(--ui); }
+
+/* ── Couverture ─────────────────────────────────────────────────────────── */
+.alm-cover { max-width: var(--max); margin: 0 auto; padding: 22px var(--gutter) 30px; color: var(--paper); display: grid; grid-template-columns: minmax(0, 2.35fr) minmax(300px, 1fr); column-gap: 32px; align-items: end; }
+.alm-nav { grid-column: 1 / -1; }
+.alm-nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.alm-mark { font: 900 32px/1 var(--display); text-transform: uppercase; letter-spacing: 0.04em; text-decoration: none; }
+.alm-mark span { color: var(--gold); }
+.alm-nav ul { display: flex; align-items: center; gap: 6px 26px; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; font: 600 16px var(--ui); }
+.alm-nav a { text-decoration: none; padding: 10px 0; display: inline-block; }
+.alm-nav a:hover { color: var(--gold); }
+.alm-nav .alm-nav-cta { border: 2px solid var(--gold); color: var(--gold); padding: 10px 16px; }
+.alm-nav .alm-nav-cta:hover { background: var(--gold); color: var(--cover-deep); }
+.alm-cover h1 { margin: 30px 0 0; font-size: clamp(2.4rem, 4.4vw, 3.9rem); line-height: 0.9; }
+.alm-cover h1 span { color: var(--gold); }
+.alm-lede { margin: 18px 0 0; max-width: 62ch; color: var(--cover-ink); font-size: 17px; line-height: 1.5; }
+
+/* ── Premier écran : feuille du mois + coupon ───────────────────────────── */
+.alm-first {
+  max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter);
+  display: grid; grid-template-columns: minmax(0, 2.35fr) minmax(300px, 1fr); gap: 32px; align-items: start;
+}
+.alm-leaf { position: relative; margin: 0; background: var(--paper); padding: 22px 24px 18px; box-shadow: 0 24px 40px -28px rgb(5 12 40 / 0.7); }
+.alm-leaf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; border-bottom: 3px solid var(--ink); padding-bottom: 8px; }
+.alm-month { font: 900 clamp(2.4rem, 4.4vw, 3.6rem)/1 var(--display); text-transform: uppercase; }
+.alm-leaf figcaption { margin-top: 10px; font: italic 400 14px/1.35 var(--serif); color: var(--ink-soft); }
+.alm-weekdays, .alm-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.alm-weekdays span { font: 700 12px var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); padding: 8px 8px 4px; }
+.alm-weekdays span:last-child { color: var(--red); }
+.alm-week { grid-template-rows: 54px 34px 8px; border-top: 1px solid var(--rule); }
+.alm-day { grid-row: 1 / -1; padding: 6px 8px 0; border-right: 1px solid var(--rule); font: 400 13px/1.2 var(--serif); color: var(--ink-soft); }
+.alm-day:nth-child(7) { border-right: 0; }
+.alm-day > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.alm-day b { display: block; font: 700 26px/1 var(--display); color: var(--ink); margin-bottom: 2px; }
+.alm-red { background: var(--red-tint); }
+.alm-red b { color: var(--red); }
+.alm-empty { background: var(--leaf-tint); }
+.alm-stay {
+  grid-row: 2; align-self: center; z-index: 1; margin: 0 4px; height: 30px; padding: 0 10px;
+  font: 700 13px/30px var(--ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-radius: 2px;
+}
+.alm-direct { background: var(--direct); color: var(--paper); }
+.alm-ical { background: var(--paper); color: var(--ical); border: 2px dashed var(--ical); line-height: 26px; }
+.alm-stamp {
+  position: absolute; right: 22px; top: 10px; margin: 0; padding: 10px 14px; transform: rotate(-7deg);
+  border: 3px solid var(--direct); color: var(--direct); background: rgb(255 255 255 / 0.92);
+  font: 900 24px/1 var(--display); text-transform: uppercase; letter-spacing: 0.03em; pointer-events: none;
+}
+.alm-stamp small { display: block; margin-top: 4px; font: 600 12px var(--ui); text-transform: none; letter-spacing: 0; }
+
+.alm-side { display: flex; flex-direction: column; gap: 18px; padding-top: 12px; scroll-margin-top: 24px; }
+.alm .alm-try { color: var(--paper); font: 600 16px/1.4 var(--ui); text-decoration: underline; text-decoration-color: var(--gold); }
+.alm .alm-try:hover { color: var(--gold); }
+
+/* Coupon détachable */
+.alm-coupon { position: relative; background: var(--paper); padding: 26px 28px 24px; outline: 2px dashed var(--gold-line); outline-offset: -12px; }
+.alm-scissors { position: absolute; top: -13px; left: 30px; width: 26px; height: 26px; padding: 2px; background: var(--cover); fill: none; stroke: var(--gold); stroke-width: 1.8; stroke-linecap: round; }
+.alm-coupon h2 { margin: 0; font-size: 2.6rem; line-height: 0.95; }
+.alm-coupon p { margin: 8px 0 4px; font-size: 17px; line-height: 1.45; color: var(--ink-soft); }
+.alm-coupon label { display: block; margin-top: 12px; font: 700 13px var(--ui); letter-spacing: 0.1em; text-transform: uppercase; }
+.alm-coupon label span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--ink-soft); }
+.alm-coupon input {
+  width: 100%; height: 44px; border: 0; border-bottom: 2px solid var(--ink); background: transparent;
+  font: 400 19px var(--serif); color: var(--ink); padding: 0 2px; border-radius: 0;
+}
+.alm-coupon input::placeholder { color: #5d677b; font-size: 16px; }
+.alm-coupon input:focus { outline: none; border-bottom-color: var(--cover); box-shadow: 0 2px 0 var(--cover); }
+.alm-coupon input[aria-invalid="true"] { border-bottom-color: var(--red); }
+.alm-err { display: block; margin-top: 6px; font: 600 14px/1.35 var(--ui); color: var(--red); }
+.alm-hp { position: absolute; left: -9999px; width: 1px; height: 1px; }
+.alm-coupon button {
+  margin-top: 18px; width: 100%; height: 56px; border: 0; background: var(--red); color: var(--paper);
+  font: 900 24px/1 var(--display); text-transform: uppercase; letter-spacing: 0.06em; cursor: pointer;
+  transition: background 0.15s, transform 0.15s var(--ease);
+}
+.alm-coupon button:hover { background: #a3171e; }
+.alm-coupon button:active { transform: translateY(1px); }
+.alm-coupon button:disabled { opacity: 0.6; cursor: progress; }
+.alm-coupon-ok { font-size: 18px !important; color: var(--direct) !important; font-weight: 600; }
+
+/* ── Feuilles intérieures ───────────────────────────────────────────────── */
+.alm-sheet {
+  max-width: var(--max); margin: 48px auto 0; padding: clamp(28px, 4vw, 56px) clamp(20px, 4vw, 56px);
+  background: var(--paper); scroll-margin-top: 16px;
+}
+.alm-first + .alm-sheet { margin-top: 72px; }
+@media (min-width: 1440px) { .alm-sheet { max-width: calc(var(--max) - 2 * 48px); } }
+.alm-sheet h2 { margin: 0; font-size: clamp(2.2rem, 4.4vw, 3.6rem); line-height: 0.95; border-bottom: 3px solid var(--ink); padding-bottom: 10px; }
+.alm-h3 { margin: 56px 0 0; font-size: clamp(1.7rem, 3vw, 2.4rem); line-height: 1; }
+.alm-intro { margin: 18px 0 0; max-width: 66ch; font-size: 19px; }
+.alm-source { margin: 18px 0 0; max-width: 90ch; font: italic 400 15px/1.5 var(--serif); color: var(--ink-soft); }
+.alm .alm-link { display: inline-block; margin-top: 26px; font: 700 17px var(--ui); color: var(--cover); }
+
+/* Éphéméride : deux feuilles du jour */
+.alm-ephem { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px; margin-top: 28px; }
+.alm-day-sheet { border: 2px solid var(--ink); }
+.alm-day-sheet header { display: grid; grid-template-columns: 1fr auto; align-items: end; padding: 14px 18px; background: var(--leaf-tint); border-bottom: 2px solid var(--ink); }
+.alm-day-sheet header span { font: 900 26px/1 var(--display); text-transform: uppercase; }
+.alm-day-sheet header b { grid-row: span 2; font: 900 76px/0.8 var(--display); color: var(--ical); }
+.alm-day-sheet header small { font: 600 13px var(--ui); color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.1em; }
+.alm-day-direct header { background: var(--direct-tint); }
+.alm-day-direct header b { color: var(--direct); }
+.alm-day-sheet dl { margin: 0; padding: 8px 18px 14px; }
+.alm-day-sheet dl div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.alm-day-sheet dt { font-size: 18px; }
+.alm-day-sheet dd { margin: 0; font: 700 22px var(--ui); }
+.alm-minus { color: var(--red); }
+.alm-day-sheet .alm-total { border-bottom: 0; border-top: 2px solid var(--ink); }
+.alm-day-sheet .alm-total dd { font: 900 34px/1 var(--display); }
+.alm-day-direct .alm-total dd { color: var(--direct); }
+
+/* Barème */
+.alm-bareme { margin-top: 20px; max-width: 860px; }
+.alm-bareme label { display: block; font: 700 14px var(--ui); letter-spacing: 0.08em; text-transform: uppercase; }
+.alm-ca { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
+.alm-ca input {
+  width: 9ch; border: 0; border-bottom: 3px solid var(--ink); background: var(--leaf-tint); color: var(--ink);
+  font: 900 clamp(2.4rem, 5vw, 3.6rem)/1.1 var(--display); padding: 2px 10px 0; border-radius: 0;
+}
+.alm-ca input:focus { outline: none; border-bottom-color: var(--cover); background: #e6ebf7; }
+.alm-ca span { font: 700 18px var(--ui); }
+.alm-bareme table { width: 100%; margin-top: 18px; border-collapse: collapse; }
+.alm-bareme th, .alm-bareme td { padding: 12px 0; border-bottom: 1px solid var(--rule); text-align: left; font-weight: 400; vertical-align: baseline; }
+.alm-bareme td { text-align: right; font: 700 22px var(--ui); white-space: nowrap; padding-left: 16px; }
+.alm-good { color: var(--direct); }
+.alm-note { margin: 14px 0 0; font-style: italic; color: var(--ink-soft); }
+
+/* Travaux de la saison */
+.alm-works ol { list-style: none; margin: 28px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--rule); }
+.alm-works li { padding: 18px 24px 4px 0; }
+.alm-works li + li { padding-left: 24px; border-left: 1px solid var(--rule); }
+.alm-works li b { display: block; font: 700 13px var(--ui); letter-spacing: 0.12em; text-transform: uppercase; color: var(--red); }
+.alm-works li span { display: block; margin-top: 6px; font: 900 30px/1 var(--display); text-transform: uppercase; }
+.alm-works li p { margin: 10px 0 0; }
+
+/* Calendriers fusionnés */
+.alm-merge { margin-top: 30px; display: grid; gap: 10px; }
+.alm-lane { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 16px; }
+.alm-lane > span { font: 700 15px var(--ui); }
+.alm-lane > div {
+  position: relative; height: 34px;
+  background: repeating-linear-gradient(90deg, var(--leaf-tint) 0 calc(100% / 31 - 1px), var(--rule) calc(100% / 31 - 1px) calc(100% / 31));
+}
+.alm-lane i { position: absolute; top: 5px; bottom: 5px; border-radius: 2px; background: var(--ical); }
+.alm-lane:nth-child(3) i { background: var(--direct); }
+.alm-lane-all { margin-top: 14px; padding-top: 16px; border-top: 3px solid var(--ink); }
+.alm-lane-all > span { font: 900 22px/1 var(--display); text-transform: uppercase; }
+.alm-lane-all > div { height: 48px; }
+.alm-lane-all i { background: var(--ink); top: 7px; bottom: 7px; }
+
+/* Quatre couvertures (polices des templates, déjà chargées par le layout racine) */
+.alm-covers { list-style: none; margin: 30px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+.alm-cv { aspect-ratio: 3 / 4; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 14px 24px -18px rgb(5 12 40 / 0.6); }
+.alm-cv b { font-size: 30px; line-height: 0.95; }
+.alm-cv span { font: 700 14px var(--ui); letter-spacing: 0.06em; text-transform: uppercase; }
+.alm-cv-plaque { background: #d8d3c6; color: #fbfaf6; }
+.alm-cv-plaque b { background: #1f3b7a; padding: 16px; border-radius: 12px; box-shadow: inset 0 0 0 2px #1f3b7a, inset 0 0 0 4px #fbfaf6; font-family: var(--font-antonio), sans-serif; text-transform: uppercase; letter-spacing: 0.03em; }
+.alm-cv-plaque span { color: #222428; }
+.alm-cv-linge { background: repeating-linear-gradient(90deg, #e2ded3 0 3px, #d6d4cc 3px 4px); color: #262b36; border-top: 22px solid #b23a3a; }
+.alm-cv-linge b { font-family: var(--font-epilogue), sans-serif; font-weight: 800; letter-spacing: -0.03em; }
+.alm-cv-affiche { background: linear-gradient(#f2b33d 0 58%, #3e7a4f 58% 70%, #1f3b57 70%); color: #1f3b57; }
+.alm-cv-affiche b { font-family: var(--font-league-gothic), sans-serif; font-weight: 400; font-size: 46px; text-transform: uppercase; }
+.alm-cv-affiche span { color: #f7f0e1; }
+.alm-cv-standard { background: #fff; color: #1c1917; border: 1px solid #e7e5e4; }
+.alm-cv-standard b { font-family: var(--font-hanken), sans-serif; font-weight: 700; letter-spacing: -0.025em; background: #2a5c40; color: #fff; padding: 18px; border-radius: 14px; }
+
+/* Réseau */
+.alm-net-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.alm-slip { margin-top: 22px; padding: 22px 24px; background: var(--leaf-tint); border: 2px solid var(--ink); transform: rotate(1.2deg); }
+.alm-slip p { margin: 0; }
+.alm-slip-full { font: 900 26px/1 var(--display) !important; text-transform: uppercase; color: var(--red); margin-bottom: 10px !important; }
+.alm-slip ul { list-style: none; margin: 14px 0 0; padding: 0; }
+.alm-slip li { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 0; border-top: 1px solid var(--rule); }
+.alm-slip li b { font: 700 17px var(--ui); color: var(--cover); text-decoration: underline; text-underline-offset: 4px; }
+.alm-slip li span { font-size: 15px; color: var(--ink-soft); }
+.alm-slip small { display: block; margin-top: 8px; font: italic 400 13px var(--serif); color: var(--ink-soft); }
+
+/* Tarifs */
+.alm-prices { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 40px; margin-top: 26px; }
+.alm-prices table { width: 100%; border-collapse: collapse; }
+.alm-prices caption { text-align: left; font: 900 26px/1 var(--display); text-transform: uppercase; padding-bottom: 12px; }
+.alm-prices th, .alm-prices td { text-align: left; padding: 12px 10px 12px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.alm-prices thead th { font: 700 12px var(--ui); letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 2px solid var(--ink); }
+.alm-prices tbody th { font: 900 22px/1.1 var(--display); text-transform: uppercase; }
+.alm-prices td:last-child { font: 700 17px var(--ui); }
+
+/* Courrier des hébergeurs */
+.alm-faq { margin-top: 18px; columns: 2; column-gap: 48px; }
+.alm-faq details { break-inside: avoid; border-bottom: 1px solid var(--rule); padding: 14px 0; }
+.alm-faq summary { cursor: pointer; font: 700 18px/1.35 var(--ui); list-style: none; padding-right: 28px; position: relative; }
+.alm-faq summary::-webkit-details-marker { display: none; }
+.alm-faq summary::after { content: "+"; position: absolute; right: 0; top: -2px; font: 900 26px var(--display); color: var(--red); }
+.alm-faq details[open] summary::after { content: "–"; }
+.alm-faq details p { margin: 10px 0 0; }
+
+/* Dos de couverture */
+.alm-back {
+  max-width: var(--max); margin: 0 auto; padding: 80px var(--gutter) 40px; color: var(--paper);
+  display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, 1fr); gap: 48px; align-items: center;
+}
+.alm-back h2 { margin: 0; font-size: clamp(2.6rem, 5.6vw, 4.8rem); line-height: 0.9; color: var(--gold); }
+.alm-back-copy p { color: var(--cover-ink); max-width: 52ch; margin: 18px 0 22px; }
+.alm-back .alm-coupon { color: var(--ink); }
+.alm-colophon { grid-column: 1 / -1; margin: 40px 0 0; padding-top: 18px; border-top: 1px solid rgb(201 213 245 / 0.35); font: 500 14px var(--ui); color: var(--cover-ink); }
+
+/* ── Arrivée : la feuille se pose, les séjours s'inscrivent, le tampon tombe ── */
+@media (prefers-reduced-motion: no-preference) {
+  .alm-cover h1, .alm-lede { animation: alm-settle 0.7s var(--ease) both; }
+  .alm-lede { animation-delay: 0.08s; }
+  .alm-leaf { animation: alm-settle 0.8s var(--ease) 0.16s both; }
+  .alm-side { animation: alm-settle 0.8s var(--ease) 0.24s both; }
+  .alm-stay { animation: alm-ink 0.6s var(--ease) both; animation-delay: calc(0.6s + var(--i, 0) * 0.09s); }
+  .alm-stamp { animation: alm-stamp 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) 1.35s both; }
+  .alm-nav a, .alm-try { transition: color 0.15s; }
+}
+@keyframes alm-settle { from { opacity: 0; transform: translateY(10px); } }
+@keyframes alm-ink { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes alm-stamp { from { opacity: 0; transform: rotate(-7deg) scale(1.6); } to { opacity: 1; transform: rotate(-7deg) scale(1); } }
+
+/* ── Petits écrans ──────────────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .alm-first, .alm-back, .alm-cover { grid-template-columns: 1fr; }
+  .alm-side { padding-top: 0; max-width: 560px; }
+  .alm-covers { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .alm-net-grid, .alm-prices { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .alm { font-size: 17px; }
+  .alm-nav ul li:not(:last-child) { display: none; }
+  .alm-cover h1 { margin-top: 28px; }
+  .alm-leaf { padding: 16px 10px 12px; }
+  .alm-leaf figcaption { text-align: left; }
+  .alm-weekdays span { padding: 6px 2px; font-size: 11px; letter-spacing: 0; text-align: center; }
+  .alm-day { padding: 4px 3px 0; }
+  .alm-day span { display: none; }
+  .alm-day b { font-size: 20px; }
+  .alm-week { grid-template-rows: 30px 24px 6px; }
+  .alm-stay { height: 22px; font-size: 0; margin: 0 1px; padding: 0; }
+  .alm-ical { line-height: 18px; }
+  .alm-stamp { position: static; display: inline-block; margin-top: 14px; font-size: 20px; transform: rotate(-3deg); }
+  .alm-ephem, .alm-works ol { grid-template-columns: 1fr; gap: 20px; }
+  .alm-works li + li { padding-left: 0; border-left: 0; border-top: 1px solid var(--rule); }
+  .alm-lane { grid-template-columns: 1fr; gap: 4px; }
+  .alm-faq { columns: 1; }
+  .alm-prices { overflow-x: auto; }
+  .alm-coupon { padding: 28px 22px 24px; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .alm-stamp { animation-name: alm-stamp-sm; }
+  @keyframes alm-stamp-sm { from { opacity: 0; transform: rotate(-3deg) scale(1.5); } to { opacity: 1; transform: rotate(-3deg) scale(1); } }
+}

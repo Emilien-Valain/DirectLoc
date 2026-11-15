@@ -4,6 +4,8 @@ import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import { db } from "@/lib/db";
 import { bookings, rooms, tenants } from "@/db/schema";
 import { isUuid } from "@/lib/validation";
+import { getBookingLines } from "@/lib/queries/extras";
+import { grandTotal } from "@/lib/extras";
 
 const STATUS_LABELS: Record<string, string> = {
   pending: "En attente",
@@ -159,7 +161,23 @@ export async function GET(
     y -= 18;
   }
 
-  function drawRow(label: string, value: string) {
+  // Helvetica standard = WinAnsi : un caractère hors jeu (emoji, idéogramme) ferait échouer tout le PDF.
+  const printable = (text: string) =>
+    [...text]
+      .filter((c) => {
+        if (c === "\n") return true; // drawText découpe les lignes lui-même
+        try {
+          helvetica.encodeText(c);
+          return true;
+        } catch {
+          return false;
+        }
+      })
+      .join("");
+
+  function drawRow(rawLabel: string, rawValue: string) {
+    const label = printable(rawLabel);
+    const value = printable(rawValue);
     page.drawText(label, {
       x: margin,
       y,
@@ -210,12 +228,18 @@ export async function GET(
 
   // ── Paiement ──
   drawSection("Paiement");
-  const pricePerNight =
-    nights > 0
-      ? (parseFloat(booking.totalPrice) / nights).toFixed(2)
-      : booking.totalPrice;
+  // Prix / nuit sur l'hébergement seul : les Extras sont listés à part.
+  const extraLines = await getBookingLines(booking.id);
+  const accommodation = grandTotal(parseFloat(booking.totalPrice), extraLines.map((l) => ({ total: -l.total })));
+  const pricePerNight = nights > 0 ? (accommodation / nights).toFixed(2) : accommodation.toFixed(2);
   drawRow("Prix / nuit", `${pricePerNight} €`);
   drawRow("Nombre de nuits", String(nights));
+  if (extraLines.length > 0) drawRow("Hébergement", `${accommodation.toFixed(2)} €`);
+  for (const l of extraLines) {
+    const label = l.kind !== "tax" && l.quantity > 1 ? `${l.label} (${l.quantity} × ${l.unitPrice.toFixed(2)} €)` : l.label;
+    // Libellé jusqu'à 500 caractères : tronqué pour tenir dans la colonne.
+    drawRow(label.length > 28 ? label.slice(0, 27) + "…" : label, l.exempt ? "Exonérée" : l.total === 0 ? "Offert" : `${l.total.toFixed(2)} €`);
+  }
 
   y -= 4;
   page.drawLine({
@@ -250,7 +274,7 @@ export async function GET(
   // ── Notes ──
   if (booking.notes) {
     drawSection("Notes");
-    page.drawText(booking.notes, {
+    page.drawText(printable(booking.notes), {
       x: margin,
       y,
       size: 10,

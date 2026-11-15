@@ -1,14 +1,7 @@
 import Image from "next/image";
+import { sortedPhotos } from "@/components/public/photos";
 
-type Photo = {
-  id: string;
-  url: string;
-  position: number;
-};
-
-/**
- * Affiche la photo principale d'une chambre, ou un placeholder.
- */
+/** Photo principale d'une chambre ; rien si la chambre n'a pas de photo. */
 export default function RoomPhoto({
   photos,
   alt,
@@ -20,29 +13,11 @@ export default function RoomPhoto({
   className?: string;
   sizes?: string;
 }) {
-  const photoList = Array.isArray(photos) ? (photos as Photo[]) : [];
-  const sorted = [...photoList].sort((a, b) => a.position - b.position);
-  const main = sorted[0];
-
-  if (!main) {
-    return (
-      <div
-        className={`bg-warm-100 flex items-center justify-center text-warm-400 text-sm ${className}`}
-      >
-        Photo à venir
-      </div>
-    );
-  }
-
+  const main = sortedPhotos(photos)[0];
+  if (!main) return null;
   return (
-    <div className={`relative ${className}`}>
-      <Image
-        src={main.url}
-        alt={alt}
-        fill
-        className="object-cover"
-        sizes={sizes}
-      />
+    <div className={`relative overflow-hidden ${className}`}>
+      <Image src={main.url} alt={alt} fill className="object-cover" sizes={sizes} />
     </div>
   );
 }

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, isNull, sql, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, rooms, tenants } from "@/db/schema";
+import { bookings } from "@/db/schema";
 import { sendCheckInReminder, sendPostStayThankYou } from "@/lib/email";
-import type { TenantConfig } from "@/lib/tenant-context";
-import { cancelOrphanPending, completeFinishedStays } from "@/lib/queries/bookings";
+import { cancelOrphanPending, completeFinishedStays, loadEmailContext } from "@/lib/queries/bookings";
 
 /**
  * GET /api/cron/booking-emails
@@ -56,15 +55,7 @@ export async function GET(request: NextRequest) {
     const targetDate = twoDaysFromNow.toISOString().split("T")[0]; // YYYY-MM-DD
 
     const reminderBookings = await db
-      .select({
-        id: bookings.id,
-        guestName: bookings.guestName,
-        guestEmail: bookings.guestEmail,
-        checkIn: bookings.checkIn,
-        checkOut: bookings.checkOut,
-        tenantId: bookings.tenantId,
-        roomId: bookings.roomId,
-      })
+      .select({ id: bookings.id, tenantId: bookings.tenantId })
       .from(bookings)
       .where(
         and(
@@ -76,35 +67,9 @@ export async function GET(request: NextRequest) {
 
     for (const booking of reminderBookings) {
       try {
-        const [room] = await db
-          .select({ name: rooms.name })
-          .from(rooms)
-          .where(eq(rooms.id, booking.roomId))
-          .limit(1);
-
-        const [tenant] = await db
-          .select({ name: tenants.name, config: tenants.config })
-          .from(tenants)
-          .where(eq(tenants.id, booking.tenantId))
-          .limit(1);
-
-        const config = (tenant?.config ?? {}) as TenantConfig;
-        const checkIn = new Date(booking.checkIn);
-        const checkOut = new Date(booking.checkOut);
-        const nights = Math.round(
-          (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24),
-        );
-
-        await sendCheckInReminder({
-          guestName: booking.guestName,
-          guestEmail: booking.guestEmail,
-          roomName: room?.name ?? "Chambre",
-          checkIn,
-          checkOut,
-          nights,
-          hotelName: tenant?.name ?? "Hôtel",
-          config,
-        });
+        const ctx = await loadEmailContext(booking.id, booking.tenantId);
+        if (!ctx) continue;
+        await sendCheckInReminder(ctx.emailData);
 
         await db
           .update(bookings)
@@ -130,12 +95,7 @@ export async function GET(request: NextRequest) {
     const targetDate = yesterday.toISOString().split("T")[0];
 
     const thankYouBookings = await db
-      .select({
-        id: bookings.id,
-        guestName: bookings.guestName,
-        guestEmail: bookings.guestEmail,
-        tenantId: bookings.tenantId,
-      })
+      .select({ id: bookings.id, tenantId: bookings.tenantId })
       .from(bookings)
       .where(
         and(
@@ -147,20 +107,9 @@ export async function GET(request: NextRequest) {
 
     for (const booking of thankYouBookings) {
       try {
-        const [tenant] = await db
-          .select({ name: tenants.name, config: tenants.config })
-          .from(tenants)
-          .where(eq(tenants.id, booking.tenantId))
-          .limit(1);
-
-        const config = (tenant?.config ?? {}) as TenantConfig;
-
-        await sendPostStayThankYou({
-          guestName: booking.guestName,
-          guestEmail: booking.guestEmail,
-          hotelName: tenant?.name ?? "Hôtel",
-          config,
-        });
+        const ctx = await loadEmailContext(booking.id, booking.tenantId);
+        if (!ctx) continue;
+        await sendPostStayThankYou(ctx.emailData);
 
         await db
           .update(bookings)

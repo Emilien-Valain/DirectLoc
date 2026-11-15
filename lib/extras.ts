@@ -1,0 +1,72 @@
+/**
+ * Calcul des Extras (ADR-0010) — pur, partagé client et serveur : le récap public
+ * et le montant facturé sortent de la même fonction.
+ */
+
+export const EXTRA_UNITS = ["per_stay", "per_night", "per_guest", "per_guest_night"] as const;
+export type ExtraUnit = (typeof EXTRA_UNITS)[number];
+
+export const EXTRA_UNIT_LABELS: Record<ExtraUnit, string> = {
+  per_stay: "par séjour",
+  per_night: "par nuit",
+  per_guest: "par personne",
+  per_guest_night: "par personne et par nuit",
+};
+
+/** Quantité dérivée du séjour, jamais saisie. `guests` compte tous les âges. */
+export function extraQuantity(unit: ExtraUnit, nights: number, guests: number): number {
+  switch (unit) {
+    case "per_stay":
+      return 1;
+    case "per_night":
+      return nights;
+    case "per_guest":
+      return guests;
+    case "per_guest_night":
+      return guests * nights;
+  }
+}
+
+export type ExtraLine = {
+  /** Extra du catalogue (null s'il a été supprimé depuis). */
+  sourceId: string | null;
+  label: string;
+  unit: ExtraUnit;
+  unitPrice: number;
+  quantity: number;
+  total: number;
+};
+
+/** Ligne d'une réservation, quel que soit son type (ADR-0011) : ce qu'admitBooking enregistre. */
+export type StayLine = ExtraLine & { kind: "extra" | "fee" | "tax"; exempt: boolean };
+
+const cents = (n: number) => Math.round(n * 100);
+
+/** Une ligne au prix donné (catalogue ou figé), quantité recalculée. Montants au centime. */
+export function priceExtraLine(
+  extra: { sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number },
+  nights: number,
+  guests: number,
+): ExtraLine {
+  const quantity = extraQuantity(extra.unit, nights, guests);
+  return { ...extra, unitPrice: cents(extra.unitPrice) / 100, quantity, total: (cents(extra.unitPrice) * quantity) / 100 };
+}
+
+/** Hébergement + lignes, additionnés en centimes (pas de 0,1 + 0,2). */
+export function grandTotal(accommodation: number, lines: { total: number }[]): number {
+  return (cents(accommodation) + lines.reduce((s, l) => s + cents(l.total), 0)) / 100;
+}
+
+/**
+ * Reste à payer (Balance due) : total − payé en ligne, jamais négatif ;
+ * 0 dès que l'hôte a noté le règlement hors ligne (`paidAt`) ou sans paiement en ligne
+ * (une saisie manuelle se suit avec « À régler », pas avec un reste).
+ */
+export function balanceDue(total: number, paidOnline: number, paidAt: Date | null): number {
+  if (paidAt || paidOnline <= 0) return 0;
+  return Math.max(0, (cents(total) - cents(paidOnline)) / 100);
+}
+
+/** Un Fee (ADR-0011) s'applique-t-il à cette chambre ? `roomIds` vide = toutes. */
+export const feeAppliesTo = (fee: { roomIds: string[] }, roomId: string) =>
+  fee.roomIds.length === 0 || fee.roomIds.includes(roomId);

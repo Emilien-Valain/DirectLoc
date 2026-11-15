@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import PublicLayout from "@/components/public/PublicLayout";
-import ConfirmationSection from "@/components/public/sections/ConfirmationSection";
+import Confirmation from "@/components/public/Confirmation";
 import { requireTenant } from "@/lib/tenant-context";
 import { db } from "@/lib/db";
 import { bookings, payments, rooms } from "@/db/schema";
 import type { TenantConfig } from "@/lib/tenant-context";
+import { getBookingLines } from "@/lib/queries/extras";
 
 export default async function ConfirmationPage({
   searchParams,
@@ -51,6 +52,8 @@ export default async function ConfirmationPage({
     notFound();
   }
 
+  const extraLines = await getBookingLines(booking.id);
+
   const [room] = await db
     .select({ name: rooms.name })
     .from(rooms)
@@ -71,7 +74,7 @@ export default async function ConfirmationPage({
 
   return (
     <PublicLayout>
-      <ConfirmationSection
+      <Confirmation
         isPaid={isPaid}
         guestName={booking.guestName}
         guestEmail={booking.guestEmail}
@@ -80,8 +83,8 @@ export default async function ConfirmationPage({
         checkOut={checkOut}
         nights={nights}
         totalPrice={booking.totalPrice}
+        extras={extraLines}
         reference={reference}
-        tenant={tenant}
         config={config}
       />
     </PublicLayout>

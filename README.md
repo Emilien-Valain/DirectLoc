@@ -63,6 +63,7 @@ npm run create-admin -- \
   --email "admin@monhotel.fr" \
   --password "motdepasse" \
   --template classic
+# Email déjà admin d'un autre hôtel : ajouter --link-existing (son mot de passe reste le sien)
 
 # Dev
 npm run dev

@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lt, or, type Column } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, ne, or, type Column } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type { Tx } from "@/lib/booking-intake";
 import { bookings, icalBlocks, manualBlocks } from "@/db/schema";
@@ -59,6 +59,8 @@ export async function blockedDates(
   tenantId: string,
   window: Window,
   conn: Tx | typeof db = db,
+  /** Réservation en cours de modification : elle ne se bloque pas elle-même. */
+  excludeBookingId?: string,
 ): Promise<Set<IsoDate>> {
   const overlapsWindow = (start: Column, end: Column) =>
     and(lt(start, window.end), gt(end, window.start));
@@ -73,6 +75,7 @@ export async function blockedDates(
           eq(bookings.tenantId, tenantId),
           or(eq(bookings.status, "pending"), eq(bookings.status, "confirmed")),
           overlapsWindow(bookings.checkIn, bookings.checkOut),
+          excludeBookingId ? ne(bookings.id, excludeBookingId) : undefined,
         ),
       ),
     conn

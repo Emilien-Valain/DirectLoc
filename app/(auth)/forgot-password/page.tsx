@@ -36,7 +36,8 @@ export default function ForgotPasswordPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
-          redirectTo: "/reset-password",
+          // URL absolue : le lien de l'email doit ramener sur le domaine du tenant
+          redirectTo: `${window.location.origin}/reset-password`,
         }),
       });
 

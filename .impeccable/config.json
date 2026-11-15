@@ -1,3 +1,44 @@
 {
-  "buildPath": "code"
+  "buildPath": "code",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/model-pick.html"
+        ],
+        "createdAt": "2026-10-25T17:27:54.436Z",
+        "reason": "calling agent's brief: exploration mock for direction 'La Plaque émaillée' specifies Antonio + Atkinson Hyperlegible"
+      },
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "components/public/templates/plaque.css"
+        ],
+        "createdAt": "2026-10-25T19:10:51.042Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "*",
+        "files": [
+          ".impeccable/mocks/decision/vitrine-*.html"
+        ],
+        "createdAt": "2026-11-05T14:41:36.142Z",
+        "reason": "agent: exploration mocks for a new directloc.app marketing world, fonts deliberately outside the admin DESIGN.md"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "app/vitrine/vitrine.css"
+        ],
+        "createdAt": "2026-11-05T15:31:16.327Z",
+        "reason": "agent: flagged input has border-radius 0 (almanac underline field), not a rounded card"
+      }
+    ]
+  }
 }

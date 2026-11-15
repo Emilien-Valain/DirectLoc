@@ -88,7 +88,7 @@ export default function IcalSourcesSection({
   return (
     <SettingsSection
       title="Calendriers externes"
-      desc="Vos disponibilités sont synchronisées avec Airbnb, Booking.com et les autres plateformes via leurs liens iCal."
+      desc="Dans les deux sens : ajoutez ici le lien iCal de chaque annonce Airbnb ou Booking (ses nuits réservées se bloquent sur votre site), et collez le « lien d'export » de chaque chambre dans l'annonce (vos réservations directes s'y bloquent)."
       action={
         <button
           type="button"
@@ -141,7 +141,7 @@ export default function IcalSourcesSection({
                 name="name"
                 type="text"
                 required
-                placeholder="Airbnb"
+                placeholder="ex : Airbnb"
               />
             </Field>
             <Field label="URL iCal" error={form.fieldError("url")}>
@@ -150,7 +150,7 @@ export default function IcalSourcesSection({
                 name="url"
                 type="url"
                 required
-                placeholder="https://www.airbnb.com/calendar/ical/..."
+                placeholder="ex : https://www.airbnb.fr/calendar/ical/….ics"
               />
             </Field>
           </div>
@@ -282,6 +282,7 @@ export default function IcalSourcesSection({
                                     month: "short",
                                     hour: "2-digit",
                                     minute: "2-digit",
+                                    timeZone: "Europe/Paris",
                                   },
                                 )}
                               </p>

@@ -4,15 +4,19 @@ import { useActionState, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createBookingPublic, type PublicBookingState } from "@/lib/actions/bookings-public";
 import RoomPhoto from "@/components/public/RoomPhoto";
-import type { TemplateName } from "@/lib/tenant-context";
 import { parisToday } from "@/lib/date-windows";
+import DateField from "@/components/public/DateField";
+import { formatEuros } from "@/lib/utils";
+import { EXTRA_UNIT_LABELS, grandTotal, priceExtraLine, type ExtraLine } from "@/lib/extras";
+import type { CatalogExtra } from "@/lib/queries/extras";
+import type { CatalogFee } from "@/lib/queries/fees";
+import { touristTaxLine, type TouristTax } from "@/lib/tourist-tax";
 
 type Room = {
   id: string;
   name: string;
   pricePerNight: string;
   capacity: number;
-  /** Optional — utilisé uniquement par le sidebar du template Classic. */
   photos?: unknown;
 };
 
@@ -62,12 +66,8 @@ function addDay(dateStr: string): string {
   return d.toISOString().split("T")[0];
 }
 
-const fmtCurrency = (n: number): string =>
-  new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(n);
+// Centimes affichés dès qu'il y en a : le total doit être exactement celui débité par Stripe.
+const fmtCurrency = formatEuros;
 
 const fmtDateShort = (s: string): string =>
   new Date(s + "T12:00:00").toLocaleDateString("fr-FR", {
@@ -75,12 +75,21 @@ const fmtDateShort = (s: string): string =>
     month: "long",
   });
 
+type Host = { phone?: string; checkInTime?: string; checkOutTime?: string };
+
 export default function BookingForm({
   room,
-  template = "classic",
+  extras = [],
+  fees = [],
+  touristTax,
+  host = {},
 }: {
   room: Room;
-  template?: TemplateName;
+  extras?: CatalogExtra[];
+  /** Fees actifs qui s'appliquent à cette chambre, ajoutés d'office (ADR-0011). */
+  fees?: CatalogFee[];
+  touristTax?: TouristTax;
+  host?: Host;
 }) {
   const today = getToday();
   const tomorrow = getTomorrow();
@@ -92,9 +101,17 @@ export default function BookingForm({
   );
   const v = state?.values ?? {};
 
-  const [checkIn, setCheckIn] = useState(searchParams.get("checkIn") ?? today);
-  const [checkOut, setCheckOut] = useState(searchParams.get("checkOut") ?? tomorrow);
-  const [guestCount, setGuestCount] = useState(1);
+  const [checkIn, setCheckIn] = useState(searchParams.get("checkIn") ?? "");
+  const [checkOut, setCheckOut] = useState(searchParams.get("checkOut") ?? "");
+  // Saisie brute : le champ peut être vidé puis retapé ; borné seulement à la sortie du champ.
+  const [guestInput, setGuestInput] = useState("1");
+  const parsedGuests = parseInt(guestInput, 10);
+  const guestCount = Number.isNaN(parsedGuests) ? 1 : Math.min(Math.max(1, parsedGuests), room.capacity);
+  const [childInput, setChildInput] = useState(v.childCount ?? "0");
+  const parsedChildren = parseInt(childInput, 10);
+  const childCount = Number.isNaN(parsedChildren) ? 0 : Math.min(Math.max(0, parsedChildren), guestCount);
+  const datesInverted = !!checkIn && !!checkOut && checkOut <= checkIn;
+  const datesPast = !!checkIn && checkIn < today;
   const [fetchedAvailability, setAvailability] = useState<AvailabilityStatus>("idle");
   // Dates incomplètes ou incohérentes : rien à vérifier, statut dérivé plutôt que posé dans l'effet.
   const datesValid =
@@ -104,6 +121,8 @@ export default function BookingForm({
   const [totalPrice, setTotalPrice] = useState(0);
   const [nightPrices, setNightPrices] = useState<NightPrice[]>([]);
   const [violations, setViolations] = useState<RuleViolation[]>([]);
+  // Contrôlé (pas defaultChecked) : survit au remontage du formulaire après une erreur serveur.
+  const [chosenExtras, setChosenExtras] = useState<string[]>([]);
   const [rules, setRules] = useState<EffectiveRules | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -180,437 +199,281 @@ export default function BookingForm({
 
   const handleCheckInChange = (val: string) => {
     setCheckIn(val);
-    if (val >= checkOut) {
+    if (val && (!checkOut || val >= checkOut)) {
       setCheckOut(addDay(val));
     }
   };
 
-  // ── Styling helpers per template ─────────────────────────────────────────
-  const isBoutique = template === "boutique";
-  const isClassic = !isBoutique;
-
-  const inputClass = isBoutique
-    ? "w-full bg-transparent border-0 border-b py-3 text-[15px] text-[color:var(--color-primary)] outline-none transition-colors font-light focus:border-[color:var(--color-primary)]"
-    : "w-full border border-warm-200 rounded-sm px-3 py-2.5 text-sm text-warm-900 bg-warm-50/50 focus:outline-none focus:ring-2 focus:ring-amber-accent/40 focus:border-amber-accent transition-colors";
-
-  const inputBorderStyle = isBoutique
-    ? { borderBottomColor: "color-mix(in oklch, var(--color-primary) 20%, transparent)" }
-    : undefined;
-
-  const labelClass = isBoutique
-    ? "block text-[10px] font-semibold tracking-[0.14em] uppercase mb-1"
-    : "block text-sm font-medium text-warm-700 mb-1.5";
-
-  const labelStyle = isBoutique
-    ? { color: "color-mix(in oklch, var(--color-primary) 55%, transparent)" }
-    : undefined;
-
-  // ── Form pieces (réutilisés dans les deux layouts) ───────────────────────
-
-  const cancelledWarning = wasCancelled ? (
-    <div className="bg-amber-50 border border-amber-200 rounded-sm p-4 text-sm text-amber-800">
-      Le paiement a été annulé. Vous pouvez réessayer ci-dessous.
-    </div>
-  ) : null;
-
-  const serverError = state?.error ? (
-    <div role="alert" data-testid="booking-error" className="bg-red-50 border border-red-200 rounded-sm p-4 text-sm text-red-800">
-      {state.error}
-    </div>
-  ) : null;
-
-  const dateRow = (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div>
-        <label htmlFor="checkIn" className={labelClass} style={labelStyle}>
-          Date d&apos;arrivée
-        </label>
-        <input
-          id="checkIn"
-          type="date"
-          name="checkIn"
-          required
-          min={today}
-          value={checkIn}
-          onChange={(e) => handleCheckInChange(e.target.value)}
-          className={inputClass}
-          style={inputBorderStyle}
-        />
-      </div>
-      <div>
-        <label htmlFor="checkOut" className={labelClass} style={labelStyle}>
-          Date de départ
-        </label>
-        <input
-          id="checkOut"
-          type="date"
-          name="checkOut"
-          required
-          min={checkIn ? addDay(checkIn) : tomorrow}
-          value={checkOut}
-          onChange={(e) => setCheckOut(e.target.value)}
-          className={inputClass}
-          style={inputBorderStyle}
-        />
-      </div>
-    </div>
-  );
-
-  const rulesInfo =
-    rules &&
-    (rules.minStay || rules.allowedCheckInDays || rules.allowedCheckOutDays) ? (
-      <div
-        className="text-xs space-x-3"
-        style={{
-          color: isBoutique
-            ? "color-mix(in oklch, var(--color-primary) 50%, transparent)"
-            : undefined,
-        }}
-      >
-        {rules.minStay && (
-          <span>
-            Min. {rules.minStay} nuit{rules.minStay > 1 ? "s" : ""}
-          </span>
-        )}
-        {rules.maxStay && (
-          <span>
-            Max. {rules.maxStay} nuit{rules.maxStay > 1 ? "s" : ""}
-          </span>
-        )}
-        {rules.allowedCheckInDays && (
-          <span>
-            Arrivée :{" "}
-            {rules.allowedCheckInDays.map((d) => DAY_NAMES_FR[d]).join(", ")}
-          </span>
-        )}
-        {rules.allowedCheckOutDays && (
-          <span>
-            Départ :{" "}
-            {rules.allowedCheckOutDays.map((d) => DAY_NAMES_FR[d]).join(", ")}
-          </span>
-        )}
-      </div>
-    ) : null;
-
-  const availabilityIndicator = (
-    <div className="min-h-[28px] space-y-2">
-      {availability === "checking" && (
-        <span className="inline-flex items-center gap-1.5 text-sm text-warm-500">
-          <span className="inline-block w-3 h-3 border-2 border-warm-400 border-t-transparent rounded-full animate-spin" />
-          Vérification de la disponibilité…
-        </span>
-      )}
-      {availability === "available" && violations.length === 0 && (
-        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-sm px-3 py-1">
-          <span className="w-2 h-2 bg-green-500 rounded-full" />
-          Disponible
-        </span>
-      )}
-      {availability === "unavailable" && violations.length === 0 && (
-        <span className="inline-flex items-center gap-1.5 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-sm px-3 py-1">
-          <span className="w-2 h-2 bg-red-500 rounded-full" />
-          Non disponible pour ces dates
-        </span>
-      )}
-      {violations.length > 0 && (
-        <div className="space-y-1">
-          {violations.map((v, i) => (
-            <span
-              key={i}
-              className="block text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-sm px-3 py-1"
-            >
-              {v.message}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const guestCountInput = (
-    <div>
-      <label htmlFor="guestCount" className={labelClass} style={labelStyle}>
-        Nombre de personnes
-      </label>
-      <input
-        id="guestCount"
-        type="number"
-        name="guestCount"
-        required
-        min={1}
-        max={room.capacity}
-        value={guestCount}
-        onChange={(e) => {
-          const v = parseInt(e.target.value, 10);
-          if (Number.isNaN(v)) {
-            setGuestCount(1);
-          } else {
-            setGuestCount(Math.min(Math.max(1, v), room.capacity));
-          }
-        }}
-        className={inputClass}
-        style={inputBorderStyle}
-      />
-      <p
-        className="text-xs mt-1"
-        style={{
-          color: isBoutique
-            ? "color-mix(in oklch, var(--color-primary) 50%, transparent)"
-            : undefined,
-        }}
-      >
-        Capacité maximale : {room.capacity} personnes
-      </p>
-    </div>
-  );
-
-  const identityRow = (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      <div>
-        <label htmlFor="guestName" className={labelClass} style={labelStyle}>
-          Nom complet <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="guestName"
-          type="text"
-          name="guestName"
-          required
-          defaultValue={v.guestName}
-          className={inputClass}
-          style={inputBorderStyle}
-        />
-      </div>
-      <div>
-        <label htmlFor="guestEmail" className={labelClass} style={labelStyle}>
-          Email <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="guestEmail"
-          type="email"
-          name="guestEmail"
-          required
-          defaultValue={v.guestEmail}
-          className={inputClass}
-          style={inputBorderStyle}
-        />
-      </div>
-    </div>
-  );
-
-  const phoneInput = (
-    <div>
-      <label htmlFor="guestPhone" className={labelClass} style={labelStyle}>
-        Téléphone
-      </label>
-      <input
-        id="guestPhone"
-        type="tel"
-        name="guestPhone"
-        defaultValue={v.guestPhone}
-        className={inputClass}
-        style={inputBorderStyle}
-      />
-    </div>
-  );
-
+  // Même calcul que le serveur (lib/extras) ; nuits estimées tant que le tarif n'est pas arrivé.
+  const stayNights = nights > 0 ? nights : datesValid
+    ? Math.round((new Date(checkOut + "T00:00:00Z").getTime() - new Date(checkIn + "T00:00:00Z").getTime()) / 86_400_000)
+    : 1;
+  const priceOf = (x: CatalogExtra) =>
+    priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: x.price }, stayNights, guestCount);
+  const extraLines = extras.filter((x) => chosenExtras.includes(x.id)).map(priceOf);
   const hasValidPricing =
     availability === "available" && violations.length === 0 && totalPrice > 0;
-
-  const inlineBreakdown = hasValidPricing ? (
-    <div
-      className={
-        isBoutique
-          ? "p-5 bg-white border space-y-2"
-          : "bg-warm-50 border border-warm-200 rounded-sm p-4 space-y-2"
-      }
-      style={
-        isBoutique
-          ? { borderColor: "color-mix(in oklch, var(--color-primary) 15%, transparent)" }
-          : undefined
-      }
-    >
-      {nightPrices.length > 0 && nightPrices.some((n) => n.appliedRule) ? (
-        <>
-          <div className="space-y-1">
-            {nightPrices.map((np) => (
-              <div
-                key={np.date}
-                className="flex justify-between text-xs"
-                style={
-                  isBoutique
-                    ? { color: "color-mix(in oklch, var(--color-primary) 55%, transparent)" }
-                    : { color: "var(--color-warm-500, #78716C)" }
-                }
-              >
-                <span>
-                  {new Date(np.date + "T00:00:00Z").toLocaleDateString("fr-FR", {
-                    weekday: "short",
-                    day: "numeric",
-                    month: "short",
-                  })}
-                  {np.appliedRule && (
-                    <span className="ml-1 text-amber-600">({np.appliedRule})</span>
-                  )}
-                </span>
-                <span>{np.price.toFixed(2)} €</span>
-              </div>
-            ))}
-          </div>
-          <div
-            className="pt-2 mt-2 flex justify-between text-sm border-t"
-            style={
-              isBoutique
-                ? { borderColor: "color-mix(in oklch, var(--color-primary) 15%, transparent)" }
-                : undefined
-            }
-          >
-            <span>
-              {nights} nuit{nights > 1 ? "s" : ""}
-            </span>
-            <span className="font-semibold">{totalPrice.toFixed(2)} €</span>
-          </div>
-        </>
-      ) : (
-        <div className="flex justify-between text-sm">
-          <span>
-            {parseFloat(room.pricePerNight).toFixed(0)} € × {nights} nuit
-            {nights > 1 ? "s" : ""}
-          </span>
-          <span className="font-semibold">{totalPrice.toFixed(2)} €</span>
-        </div>
-      )}
-    </div>
-  ) : null;
-
-  const submitBtn = (
-    <button
-      type="submit"
-      disabled={submitting || availability !== "available" || violations.length > 0}
-      data-testid="booking-submit"
-      className={
-        isBoutique
-          ? "w-full py-4 text-[12px] font-semibold tracking-[0.12em] uppercase transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          : "w-full py-3.5 px-6 rounded-lg font-bold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-white hover:brightness-110 disabled:hover:brightness-100"
-      }
-      style={
-        isBoutique
-          ? { background: "var(--color-primary)", color: "#fff" }
-          : { background: "var(--color-primary)" }
-      }
-    >
-      {isClassic && hasValidPricing
-        ? `Payer ${fmtCurrency(totalPrice)} et confirmer`
-        : "Procéder au paiement"}
-    </button>
+  // Fees et taxe : même calcul que le serveur (lib/extras, lib/tourist-tax).
+  const chargeLines: ExtraLine[] = fees.map((f) =>
+    priceExtraLine({ sourceId: f.id, label: f.label, unit: f.unit, unitPrice: f.price }, stayNights, guestCount),
   );
-
-  // ── Layout Classic : 2 colonnes form + sidebar réactive ──────────────────
-
-  if (isClassic) {
-    const reassuranceBanner = (
-      <div
-        className="rounded-lg p-3.5 flex gap-2.5 items-start border"
-        style={{
-          background: "var(--classic-cream)",
-          borderColor: "var(--classic-border)",
-          color: "var(--color-primary)",
-        }}
-      >
-        <svg
-          className="flex-shrink-0 mt-px"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="12" cy="12" r="10" />
-          <line x1="12" y1="8" x2="12" y2="12" />
-          <line x1="12" y1="16" x2="12.01" y2="16" />
-        </svg>
-        <p className="text-[12.5px] text-warm-600 leading-[1.6]">
-          Annulation gratuite jusqu&apos;à 7 jours avant l&apos;arrivée. Paiement
-          sécurisé par Stripe. Confirmation par email immédiate.
-        </p>
-      </div>
-    );
-
-    return (
-      // Remonte le formulaire à chaque réponse : les defaultValue reprennent la saisie.
-      <form action={action} key={JSON.stringify(v)}>
-        <input type="hidden" name="roomId" value={room.id} />
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-7 items-start">
-          {/* Form column */}
-          <div
-            className="bg-white border rounded-2xl p-6 sm:p-7 space-y-5"
-            style={{ borderColor: "var(--classic-border)" }}
-          >
-            {cancelledWarning}
-            {serverError}
-            {dateRow}
-            {rulesInfo}
-            {availabilityIndicator}
-            {guestCountInput}
-            {identityRow}
-            {phoneInput}
-            {reassuranceBanner}
-            {submitBtn}
-          </div>
-
-          {/* Reactive summary sidebar */}
-          <aside
-            className="md:sticky md:top-24"
-            data-testid="booking-summary"
-          >
-            <SummaryCard
-              room={room}
-              checkIn={checkIn}
-              checkOut={checkOut}
-              guestCount={guestCount}
-              nights={nights}
-              totalPrice={totalPrice}
-              nightPrices={nightPrices}
-              hasValidPricing={hasValidPricing}
-              availability={availability}
-            />
-          </aside>
-        </div>
-      </form>
-    );
-  }
-
-  // ── Layout par défaut (Boutique) : flux vertical ─────────────────────────
+  const tax = touristTaxLine(
+    touristTax,
+    nightPrices.length === stayNights ? nightPrices.map((n) => n.price) : Array(stayNights).fill(totalPrice / stayNights),
+    guestCount,
+    childCount,
+  );
+  if (tax) chargeLines.push(tax);
+  const grand = grandTotal(totalPrice, [...extraLines, ...chargeLines]);
+  // Même règle pour le bouton principal et celui de la barre mobile.
+  const payBlocked = submitting || availability !== "available" || violations.length > 0 || datesPast;
 
   return (
-    <form action={action} key={JSON.stringify(v)} className="space-y-6">
+    // Remonte le formulaire à chaque réponse : les defaultValue reprennent la saisie.
+    <form action={action} key={JSON.stringify(v)} className="s-book">
       <input type="hidden" name="roomId" value={room.id} />
-      {cancelledWarning}
-      {serverError}
-      {dateRow}
-      {rulesInfo}
-      {availabilityIndicator}
-      {guestCountInput}
-      {identityRow}
-      {phoneInput}
-      {inlineBreakdown}
-      {submitBtn}
+
+      <div className="s-book-main">
+        {wasCancelled && (
+          <p className="s-alert">Le paiement a été annulé. Vous pouvez réessayer ci-dessous.</p>
+        )}
+        {state?.error && (
+          <p role="alert" data-testid="booking-error" className="s-alert is-bad">
+            {state.error}
+          </p>
+        )}
+
+        <fieldset className="s-group">
+          <legend className="s-h3">Votre séjour</legend>
+          <div className="s-grid-2">
+            <DateField
+              id="checkIn"
+              name="checkIn"
+              label="Arrivée"
+              required
+              min={today}
+              value={checkIn}
+              onChange={handleCheckInChange}
+            />
+            <DateField
+              id="checkOut"
+              name="checkOut"
+              label="Départ"
+              required
+              min={checkIn ? addDay(checkIn) : tomorrow}
+              value={checkOut}
+              onChange={setCheckOut}
+            />
+          </div>
+
+          {rules && (rules.minStay || rules.maxStay || rules.allowedCheckInDays || rules.allowedCheckOutDays) && (
+            <ul className="s-hint-list">
+              {rules.minStay && <li>Séjour de {rules.minStay} nuit{rules.minStay > 1 ? "s" : ""} minimum</li>}
+              {rules.maxStay && <li>{rules.maxStay} nuit{rules.maxStay > 1 ? "s" : ""} maximum</li>}
+              {rules.allowedCheckInDays && (
+                <li>Arrivée le {rules.allowedCheckInDays.map((d) => DAY_NAMES_FR[d]).join(", ")}</li>
+              )}
+              {rules.allowedCheckOutDays && (
+                <li>Départ le {rules.allowedCheckOutDays.map((d) => DAY_NAMES_FR[d]).join(", ")}</li>
+              )}
+            </ul>
+          )}
+
+          <div className="s-status-row" aria-live="polite">
+            {datesInverted && (
+              <span className="s-status is-bad" data-testid="booking-dates-error">
+                Le départ doit être après l&apos;arrivée
+              </span>
+            )}
+            {datesPast && (
+              <span className="s-status is-bad" data-testid="booking-dates-error">
+                L&apos;arrivée est déjà passée
+              </span>
+            )}
+            {availability === "checking" && <span className="s-status">Vérification…</span>}
+            {availability === "available" && violations.length === 0 && (
+              <span className="s-status is-good">Disponible</span>
+            )}
+            {availability === "unavailable" && violations.length === 0 && (
+              <span className="s-status is-bad">Non disponible pour ces dates</span>
+            )}
+            {violations.map((viol, i) => (
+              <span key={i} className="s-status is-warn">
+                {viol.message}
+              </span>
+            ))}
+          </div>
+
+          <div className="s-field s-field-short">
+            <label htmlFor="guestCount">Nombre de personnes</label>
+            <input
+              id="guestCount"
+              type="number"
+              name="guestCount"
+              required
+              min={1}
+              max={room.capacity}
+              value={guestInput}
+              aria-describedby="guestCount-hint"
+              onChange={(e) => setGuestInput(e.target.value)}
+              onBlur={() => setGuestInput(String(guestCount))}
+            />
+            <p id="guestCount-hint" className="s-hint">
+              Jusqu&apos;à {room.capacity} personne{room.capacity > 1 ? "s" : ""}
+            </p>
+          </div>
+          {touristTax && (
+            <div className="s-field s-field-short">
+              <label htmlFor="childCount">Dont enfants (−18 ans)</label>
+              <input
+                id="childCount"
+                type="number"
+                name="childCount"
+                min={0}
+                max={guestCount}
+                value={childInput}
+                aria-describedby="childCount-hint"
+                aria-invalid={!!state?.fieldErrors?.childCount}
+                onChange={(e) => setChildInput(e.target.value)}
+                onBlur={() => setChildInput(String(childCount))}
+              />
+              <p id="childCount-hint" className="s-hint">
+                {state?.fieldErrors?.childCount ?? "Exonérés de taxe de séjour"}
+              </p>
+            </div>
+          )}
+        </fieldset>
+
+        {extras.length > 0 && (
+          <fieldset className="s-group" data-testid="booking-extras">
+            <legend className="s-h3">Options</legend>
+            <ul className="s-extras">
+              {extras.map((x) => {
+                const line = priceOf(x);
+                const checked = chosenExtras.includes(x.id);
+                return (
+                  <li key={x.id}>
+                    <label className="s-extra">
+                      <input
+                        type="checkbox"
+                        name="extraIds"
+                        value={x.id}
+                        checked={checked}
+                        onChange={() =>
+                          setChosenExtras((ids) => (checked ? ids.filter((id) => id !== x.id) : [...ids, x.id]))
+                        }
+                      />
+                      <span className="s-extra-text">
+                        <span className="s-extra-label">{x.label}</span>
+                        <span className="s-hint">
+                          {x.price === 0 ? "Offert, sur demande" : `${fmtCurrency(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
+                          {x.description && <> · {x.description}</>}
+                        </span>
+                      </span>
+                      <span className="s-extra-price" data-testid="booking-extra-price">
+                        {line.total === 0 ? "Offert" : fmtCurrency(line.total)}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          </fieldset>
+        )}
+
+        <fieldset className="s-group">
+          <legend className="s-h3">Pour vous joindre</legend>
+          <div className="s-grid-2">
+            <div className="s-field">
+              <label htmlFor="guestName">Nom complet</label>
+              <input id="guestName" type="text" name="guestName" required autoComplete="name" defaultValue={v.guestName} />
+            </div>
+            <div className="s-field">
+              <label htmlFor="guestEmail">Email</label>
+              <input id="guestEmail" type="email" name="guestEmail" required autoComplete="email" defaultValue={v.guestEmail} />
+            </div>
+          </div>
+          <div className="s-field s-field-mid">
+            <label htmlFor="guestPhone">
+              Téléphone <span className="s-optional">(facultatif)</span>
+            </label>
+            <input id="guestPhone" type="tel" name="guestPhone" autoComplete="tel" defaultValue={v.guestPhone} />
+          </div>
+        </fieldset>
+
+        {/* Version contractée du récapitulatif, collée en bas d'écran sur téléphone (masquée ≥ 900px). */}
+        {hasValidPricing && (
+          <div className="s-book-bar">
+            <p className="s-book-bar-total">
+              <span>Total</span>
+              <strong>{fmtCurrency(grand)}</strong>
+            </p>
+            <button type="submit" disabled={payBlocked} className="s-btn" data-testid="booking-bar-submit">
+              {submitting ? "Redirection…" : "Payer"}
+            </button>
+          </div>
+        )}
+      </div>
+
+      <aside className="s-summary" data-testid="booking-summary">
+        <Summary
+          room={room}
+          checkIn={checkIn}
+          checkOut={checkOut}
+          guestCount={guestCount}
+          nights={nights}
+          totalPrice={totalPrice}
+          extraLines={extraLines}
+          chargeLines={chargeLines}
+          grand={grand}
+          nightPrices={nightPrices}
+          hasValidPricing={hasValidPricing}
+          availability={availability}
+        />
+        <button
+          type="submit"
+          disabled={payBlocked}
+          data-testid="booking-submit"
+          className="s-btn s-btn-block"
+        >
+          {submitting
+            ? "Redirection vers le paiement…"
+            : hasValidPricing
+              ? `Payer ${fmtCurrency(grand)} et confirmer`
+              : "Procéder au paiement"}
+        </button>
+        <div className="s-reassure" data-testid="booking-reassure">
+          <p className="s-hint">Paiement sécurisé par Stripe. Confirmation envoyée par email.</p>
+          {(host.checkInTime || host.checkOutTime) && (
+            <p className="s-hint">
+              {[host.checkInTime && `Arrivée : ${host.checkInTime}`, host.checkOutTime && `Départ : ${host.checkOutTime}`]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+          {host.phone && (
+            <p className="s-hint">
+              Une question avant de payer ? <a href={`tel:${host.phone}`}>{host.phone}</a>
+            </p>
+          )}
+        </div>
+      </aside>
     </form>
   );
 }
 
-// ── Reactive booking summary (Classic) ─────────────────────────────────────
+// ── Récapitulatif réactif (toujours visible : le total s'affiche avant de payer) ──
 
-function SummaryCard({
+function Summary({
   room,
   checkIn,
   checkOut,
   guestCount,
   nights,
   totalPrice,
+  extraLines,
+  chargeLines,
+  grand,
   nightPrices,
   hasValidPricing,
   availability,
@@ -621,155 +484,111 @@ function SummaryCard({
   guestCount: number;
   nights: number;
   totalPrice: number;
+  extraLines: ExtraLine[];
+  chargeLines: ExtraLine[];
+  grand: number;
   nightPrices: NightPrice[];
   hasValidPricing: boolean;
   availability: AvailabilityStatus;
 }) {
   const basePrice = parseFloat(room.pricePerNight);
-  const hasPerNightRules =
-    nightPrices.length > 0 && nightPrices.some((n) => n.appliedRule);
+  const hasPerNightRules = nightPrices.some((n) => n.appliedRule);
+  const photo = Array.isArray(room.photos) && room.photos.length > 0;
 
   return (
-    <div
-      className="bg-white border rounded-2xl overflow-hidden"
-      style={{ borderColor: "var(--classic-border)" }}
-    >
-      <RoomPhoto
-        photos={room.photos}
-        alt={room.name}
-        className="h-32"
-        sizes="(max-width: 768px) 100vw, 320px"
-      />
-      <div className="p-5">
-        <div
-          className="font-heading text-[17px] font-bold text-warm-900"
-          style={{ letterSpacing: "-0.01em" }}
-        >
-          {room.name}
-        </div>
-        <div className="text-[12.5px] text-warm-500 mt-0.5">
-          Jusqu&apos;à {room.capacity} personne{room.capacity > 1 ? "s" : ""}
-        </div>
+    <div className="s-summary-card">
+      {photo && <RoomPhoto photos={room.photos} alt={room.name} className="s-summary-photo" sizes="(max-width: 900px) 100vw, 340px" />}
+      <p className="s-summary-room">{room.name}</p>
+      <p className="s-hint">
+        Jusqu&apos;à {room.capacity} personne{room.capacity > 1 ? "s" : ""} · {fmtCurrency(basePrice)} / nuit
+      </p>
 
-        <dl className="mt-4 space-y-0">
-          <SummaryRow
-            label="Arrivée"
-            value={checkIn ? fmtDateShort(checkIn) : "—"}
-            testId="booking-summary-checkin"
-          />
-          <SummaryRow
-            label="Départ"
-            value={checkOut ? fmtDateShort(checkOut) : "—"}
-            testId="booking-summary-checkout"
-          />
-          <SummaryRow
-            label="Durée"
-            value={
-              nights > 0 ? `${nights} nuit${nights > 1 ? "s" : ""}` : "—"
-            }
-            testId="booking-summary-nights"
-          />
-          <SummaryRow
-            label="Voyageurs"
-            value={`${guestCount} pers.`}
-            testId="booking-summary-guests"
-          />
-        </dl>
+      <dl className="s-rows">
+        <Row label="Arrivée" value={checkIn ? fmtDateShort(checkIn) : "—"} testId="booking-summary-checkin" />
+        <Row label="Départ" value={checkOut ? fmtDateShort(checkOut) : "—"} testId="booking-summary-checkout" />
+        <Row label="Durée" value={nights > 0 && hasValidPricing ? `${nights} nuit${nights > 1 ? "s" : ""}` : "—"} testId="booking-summary-nights" />
+        <Row label="Voyageurs" value={`${guestCount} pers.`} testId="booking-summary-guests" />
+      </dl>
 
-        <div
-          className="my-4 h-px"
-          style={{ background: "var(--classic-border)" }}
-        />
-
-        {hasValidPricing ? (
-          <div className="space-y-1.5">
-            {hasPerNightRules ? (
-              <div className="space-y-1">
-                {nightPrices.map((np) => (
-                  <div
-                    key={np.date}
-                    className="flex justify-between text-[11.5px] text-warm-500"
-                  >
-                    <span>
-                      {new Date(np.date + "T00:00:00Z").toLocaleDateString(
-                        "fr-FR",
-                        { weekday: "short", day: "numeric", month: "short" },
-                      )}
-                      {np.appliedRule && (
-                        <span className="ml-1 text-amber-600">
-                          ({np.appliedRule})
-                        </span>
-                      )}
-                    </span>
-                    <span>{fmtCurrency(np.price)}</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex justify-between text-[12.5px] text-warm-600">
+      {hasValidPricing ? (
+        hasPerNightRules ? (
+          <ul className="s-nights">
+            {nightPrices.map((np) => (
+              <li key={np.date}>
                 <span>
-                  {fmtCurrency(basePrice)} × {nights} nuit
-                  {nights > 1 ? "s" : ""}
+                  {new Date(np.date + "T00:00:00Z").toLocaleDateString("fr-FR", {
+                    weekday: "short",
+                    day: "numeric",
+                    month: "short",
+                    timeZone: "UTC",
+                  })}
+                  {np.appliedRule && <em> · {np.appliedRule}</em>}
                 </span>
-                <span>{fmtCurrency(totalPrice)}</span>
-              </div>
-            )}
-          </div>
+                <span>{fmtCurrency(np.price)}</span>
+              </li>
+            ))}
+          </ul>
         ) : (
-          <div className="text-[12px] text-warm-500 leading-[1.5]">
-            {availability === "checking"
-              ? "Vérification du tarif…"
-              : availability === "unavailable"
-              ? "Choisissez d'autres dates pour voir le tarif."
-              : "Sélectionnez des dates valides pour voir le total."}
-          </div>
-        )}
+          <p className="s-calc">
+            <span>
+              {fmtCurrency(basePrice)} × {nights} nuit{nights > 1 ? "s" : ""}
+            </span>
+            <span>{fmtCurrency(totalPrice)}</span>
+          </p>
+        )
+      ) : null}
 
-        <div
-          className="mt-4 rounded-lg px-3.5 py-3 flex justify-between items-center"
-          style={{
-            background:
-              "color-mix(in oklch, var(--color-primary) 7%, white)",
-          }}
-        >
-          <span className="text-sm font-bold text-warm-900">Total</span>
-          <span
-            data-testid="booking-summary-total"
-            className="font-heading text-xl font-bold"
-            style={{
-              color: "var(--color-primary)",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            {hasValidPricing ? fmtCurrency(totalPrice) : "—"}
-          </span>
-        </div>
-      </div>
+      {hasValidPricing && extraLines.length > 0 && (
+        <ul className="s-nights" data-testid="booking-summary-extras">
+          {extraLines.map((l) => (
+            <li key={l.sourceId}>
+              <span>
+                {l.label}
+                {l.quantity > 1 && <em> · {l.quantity} × {fmtCurrency(l.unitPrice)}</em>}
+              </span>
+              <span>{l.total === 0 ? "Offert" : fmtCurrency(l.total)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {hasValidPricing && chargeLines.length > 0 && (
+        <ul className="s-nights" data-testid="booking-summary-fees">
+          {chargeLines.map((l) => (
+            <li key={l.sourceId ?? l.label}>
+              <span>
+                {l.label}
+                {l.quantity > 1 && l.sourceId && <em> · {l.quantity} × {fmtCurrency(l.unitPrice)}</em>}
+              </span>
+              <span>{fmtCurrency(l.total)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!hasValidPricing && (
+        <p className="s-hint">
+          {availability === "checking"
+            ? "Calcul du tarif…"
+            : availability === "unavailable"
+              ? "Choisissez d'autres dates pour voir le tarif."
+              : "Choisissez vos dates pour voir le total."}
+        </p>
+      )}
+
+      <p className="s-total">
+        <span>Total</span>
+        <span data-testid="booking-summary-total">{hasValidPricing ? fmtCurrency(grand) : "—"}</span>
+      </p>
     </div>
   );
 }
 
-function SummaryRow({
-  label,
-  value,
-  testId,
-}: {
-  label: string;
-  value: string;
-  testId: string;
-}) {
+function Row({ label, value, testId }: { label: string; value: string; testId: string }) {
   return (
-    <div
-      className="flex justify-between py-1.5 border-b last:border-b-0"
-      style={{ borderColor: "var(--classic-border)" }}
-    >
-      <dt className="text-[13px] text-warm-500">{label}</dt>
-      <dd
-        className="text-[13px] font-semibold text-warm-900"
-        data-testid={testId}
-      >
-        {value}
-      </dd>
+    <div className="s-row">
+      <dt>{label}</dt>
+      <dd data-testid={testId}>{value}</dd>
     </div>
   );
 }

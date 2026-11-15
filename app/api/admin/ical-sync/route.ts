@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/session";
-import { syncTenantIcalSources } from "@/lib/ical-sync";
+import { syncIcalSources } from "@/lib/ical-sync";
 
 /**
  * POST /api/admin/ical-sync
@@ -11,7 +11,7 @@ export async function POST() {
   const { tenantId } = await requireSession();
 
   try {
-    const results = await syncTenantIcalSources(tenantId);
+    const results = await syncIcalSources(tenantId);
     return NextResponse.json(results);
   } catch (err) {
     console.error("[iCal manual sync] Erreur:", err);

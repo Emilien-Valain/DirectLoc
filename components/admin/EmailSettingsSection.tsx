@@ -47,7 +47,7 @@ export default function EmailSettingsSection({
             name="confirmationMessage"
             rows={3}
             defaultValue={confirmationMessage ?? ""}
-            placeholder="Ex: Nous avons hâte de vous accueillir ! N'hésitez pas à nous contacter pour toute demande spéciale."
+            placeholder="ex : Nous avons hâte de vous accueillir ! N'hésitez pas à nous contacter pour toute demande spéciale."
           />
         </Field>
 
@@ -60,7 +60,7 @@ export default function EmailSettingsSection({
             name="postStayMessage"
             rows={3}
             defaultValue={postStayMessage ?? ""}
-            placeholder="Ex: Merci pour votre séjour ! Nous espérons vous revoir bientôt."
+            placeholder="ex : Merci pour votre séjour ! Nous espérons vous revoir bientôt."
           />
         </Field>
 
@@ -73,7 +73,7 @@ export default function EmailSettingsSection({
             name="reviewUrl"
             type="url"
             defaultValue={reviewUrl ?? ""}
-            placeholder="https://g.page/r/votre-etablissement/review"
+            placeholder="ex : https://g.page/r/votre-etablissement/review"
           />
         </Field>
 

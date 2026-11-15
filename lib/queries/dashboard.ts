@@ -1,6 +1,6 @@
 import { and, eq, gte, lt, lte, or, inArray, count, sum, asc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, rooms } from "@/db/schema";
+import { bookings, icalSources, rooms } from "@/db/schema";
 import {
   todayStart,
   tomorrowStart,
@@ -22,7 +22,7 @@ export async function getTodayMovements(tenantId: string) {
   const tomorrow = tomorrowStart();
   const withRoom = { room: { columns: { name: true } } } as const;
 
-  const [arrivals, departures] = await Promise.all([
+  const [arrivals, departures, staying] = await Promise.all([
     db.query.bookings.findMany({
       where: and(
         eq(bookings.tenantId, tenantId),
@@ -43,36 +43,57 @@ export async function getTodayMovements(tenantId: string) {
       with: withRoom,
       orderBy: [asc(bookings.guestName)],
     }),
+    // Déjà là et encore là ce soir : avec les arrivées du jour, « qui dort ici ce soir ».
+    db.query.bookings.findMany({
+      where: and(
+        eq(bookings.tenantId, tenantId),
+        lt(bookings.checkIn, today),
+        gte(bookings.checkOut, tomorrow),
+        inArray(bookings.status, ["pending", "confirmed"]),
+      ),
+      with: withRoom,
+      orderBy: [asc(bookings.checkOut), asc(bookings.guestName)],
+    }),
   ]);
 
-  return { arrivals, departures };
+  return { arrivals, departures, staying };
 }
 
-// ─── Prochaines arrivées / départs (à partir de demain : aujourd'hui a son bloc) ───
+// ─── 7 prochains jours (à partir de demain : aujourd'hui a son bloc) ─────────
 
-export async function getUpcomingCheckIns(tenantId: string, limit = 6) {
+export const WEEK_DAYS = 7;
+
+/** Arrivées et départs de demain à J+7, pour un planning jour par jour. */
+export async function getWeekMovements(tenantId: string) {
+  const from = tomorrowStart();
+  const to = new Date(from);
+  to.setUTCDate(to.getUTCDate() + WEEK_DAYS);
+  const inWeek = (col: typeof bookings.checkIn | typeof bookings.checkOut) => and(gte(col, from), lt(col, to));
   return db.query.bookings.findMany({
     where: and(
       eq(bookings.tenantId, tenantId),
-      gte(bookings.checkIn, tomorrowStart()),
-      or(eq(bookings.status, "pending"), eq(bookings.status, "confirmed")),
+      inArray(bookings.status, [...LIVE]),
+      or(inWeek(bookings.checkIn), inWeek(bookings.checkOut)),
     ),
     with: { room: { columns: { name: true } } },
-    orderBy: [asc(bookings.checkIn)],
-    limit,
+    orderBy: [asc(bookings.checkIn), asc(bookings.guestName)],
   });
 }
 
-export async function getUpcomingCheckOuts(tenantId: string, limit = 6) {
+// ─── À traiter : séjours non confirmés qui arrivent bientôt (ou sont déjà là) ─
+
+/** En attente avec arrivée d'ici après-demain, y compris passée (webhook manqué, oubli). */
+export async function getPendingSoon(tenantId: string) {
+  const limit = tomorrowStart();
+  limit.setUTCDate(limit.getUTCDate() + 2);
   return db.query.bookings.findMany({
     where: and(
       eq(bookings.tenantId, tenantId),
-      gte(bookings.checkOut, tomorrowStart()),
-      or(eq(bookings.status, "confirmed"), eq(bookings.status, "completed")),
+      eq(bookings.status, "pending"),
+      lt(bookings.checkIn, limit),
     ),
     with: { room: { columns: { name: true } } },
-    orderBy: [asc(bookings.checkOut)],
-    limit,
+    orderBy: [asc(bookings.checkIn)],
   });
 }
 
@@ -162,17 +183,32 @@ export async function getMonthRevenue(tenantId: string) {
   return parseFloat(result?.revenue ?? "0");
 }
 
+// ─── Mise en route ──────────────────────────────────────────────────────────
+
+/** Ce qu'un nouvel hôte a déjà fait : une chambre, un calendrier synchronisé, une réservation. */
+export async function getSetupProgress(tenantId: string) {
+  const [[r], [i], [b]] = await Promise.all([
+    db.select({ n: count() }).from(rooms).where(and(eq(rooms.tenantId, tenantId), eq(rooms.active, true))),
+    db.select({ n: count() }).from(icalSources).where(and(eq(icalSources.tenantId, tenantId), eq(icalSources.active, true))),
+    db.select({ n: count() }).from(bookings).where(eq(bookings.tenantId, tenantId)),
+  ]);
+  const progress = { rooms: r.n > 0, ical: i.n > 0, bookings: b.n > 0 };
+  // Le site tourne dès qu'il y a une chambre et des dates réelles (import iCal ou réservation).
+  return { ...progress, done: progress.rooms && (progress.ical || progress.bookings) };
+}
+
 // ─── Tout en un ─────────────────────────────────────────────────────────────
 
 export async function getDashboardData(tenantId: string) {
-  const [today, checkIns, checkOuts, channels, occupancy, monthRevenue] = await Promise.all([
+  const [today, week, pendingSoon, channels, occupancy, monthRevenue, setup] = await Promise.all([
     getTodayMovements(tenantId),
-    getUpcomingCheckIns(tenantId),
-    getUpcomingCheckOuts(tenantId),
+    getWeekMovements(tenantId),
+    getPendingSoon(tenantId),
     getBookingsByChannel(tenantId),
     getOccupancyRate(tenantId),
     getMonthRevenue(tenantId),
+    getSetupProgress(tenantId),
   ]);
 
-  return { today, checkIns, checkOuts, channels, occupancy, monthRevenue };
+  return { today, week, pendingSoon, channels, occupancy, monthRevenue, setup };
 }

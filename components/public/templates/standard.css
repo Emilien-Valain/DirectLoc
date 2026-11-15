@@ -1,0 +1,140 @@
+/*
+ * Template « Classique » (clé en base : standard).
+ * Le standard de la catégorie, exécuté proprement : page blanche, grand
+ * bandeau photo (ou aplat de la couleur de l'hôte sans photo), barre de dates
+ * flottante, cartes de chambres. Rien d'exotique ; tout est net.
+ */
+
+.site[data-tpl="standard"] {
+  --st-brand: oklch(from var(--color-primary) min(l, 0.42) c h);
+  --st-brand-deep: oklch(from var(--st-brand) calc(l - 0.08) c h);
+  --st-tint: color-mix(in oklch, var(--st-brand) 7%, #fff);
+  --s-ground: #ffffff;
+  --s-ink: #1c1917;
+  --s-ink-soft: #57534e;
+  --s-surface: #ffffff;
+  --s-field: #ffffff;
+  --s-line: #d6d3d1;
+  --s-field-line: #8f8a85; /* bordure de champ ≥ 3:1 sur blanc (WCAG 1.4.11) */
+  --s-accent: var(--st-brand);
+  --s-on-accent: #fff;
+  --s-accent-ink: var(--st-brand);
+  --s-focus: var(--st-brand);
+  --s-good: #166534;
+  --s-bad: #b91c1c;
+  --s-warn: #a16207;
+  --s-display: var(--font-hanken), system-ui, sans-serif;
+  --s-body: var(--font-hanken), system-ui, sans-serif;
+  --s-field-radius: 10px;
+  --s-chip-radius: 999px;
+  --st-radius: 18px;
+  --st-shadow: 0 1px 2px rgb(28 25 23 / 0.06), 0 12px 32px -12px rgb(28 25 23 / 0.18);
+  font-size: 1rem;
+}
+
+[data-tpl="standard"] :is(.s-h1, .s-h2, .s-h3, .s-title, .s-search-title, .s-summary-room, .s-footer-name, .s-stat-value) {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+[data-tpl="standard"] .s-h1 { font-size: clamp(2.2rem, 4.5vw, 3rem); }
+[data-tpl="standard"] .s-h2 { font-size: clamp(1.7rem, 3vw, 2.2rem); }
+
+/* ── Header ─────────────────────────────────────────── */
+[data-tpl="standard"] .s-header { border-bottom: 1px solid #eeeceb; max-width: none; padding-inline: max(var(--s-gutter), calc((100% - var(--s-max)) / 2)); }
+[data-tpl="standard"] .s-mark {
+  display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px;
+  background: var(--st-brand); color: #fff; font-weight: 700; font-size: 15px;
+}
+[data-tpl="standard"] .s-brand-name { font-size: 1.1rem; letter-spacing: -0.01em; }
+[data-tpl="standard"] .s-nav-link { padding: 0 14px; border-radius: 999px; font-weight: 600; transition: background 0.15s; }
+[data-tpl="standard"] .s-nav-link:hover { background: #f5f5f4; }
+[data-tpl="standard"] .s-nav-cta { background: var(--s-ink); color: #fff; padding: 0 20px; }
+[data-tpl="standard"] .s-nav-cta:hover { background: #292524; }
+[data-tpl="standard"] .s-menu-panel { background: #fff; box-shadow: var(--st-shadow); }
+
+/* ── Bandeau + barre de dates flottante ─────────────── */
+[data-tpl="standard"] .s-hero {
+  padding-top: 24px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "name" "search" "rooms";
+  row-gap: 0;
+}
+[data-tpl="standard"] .s-namecard {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 12px;
+  min-height: clamp(320px, 46vw, 480px);
+  padding: clamp(28px, 5vw, 56px) clamp(24px, 5vw, 56px) clamp(72px, 9vw, 104px);
+  border-radius: var(--st-radius);
+  background:
+    radial-gradient(120% 90% at 85% 10%, color-mix(in oklch, var(--st-brand) 85%, #fff) 0, transparent 60%),
+    var(--st-brand);
+  color: #fff;
+  overflow: hidden;
+}
+[data-tpl="standard"] .s-title { font-size: clamp(2.6rem, 6vw, 4.5rem); line-height: 1; overflow-wrap: anywhere; }
+[data-tpl="standard"] .s-place { font-weight: 600; color: rgb(255 255 255 / 0.92); }
+[data-tpl="standard"] .s-pitch { color: rgb(255 255 255 / 0.9); }
+/* Avec photo : la photo remplit le bandeau, un voile garde le texte lisible. */
+[data-tpl="standard"] .s-hero.has-photo { grid-template-areas: "name" "search" "rooms"; }
+[data-tpl="standard"] .s-hero.has-photo .s-hero-photo {
+  grid-area: name; z-index: 0; aspect-ratio: auto; border-radius: var(--st-radius);
+}
+[data-tpl="standard"] .s-hero.has-photo .s-namecard {
+  background: linear-gradient(to top, rgb(12 10 9 / 0.72), rgb(12 10 9 / 0.1) 70%);
+}
+
+[data-tpl="standard"] .s-search { position: relative; z-index: 2; margin: -48px clamp(12px, 4vw, 48px) 0; }
+[data-tpl="standard"] .s-sign-face {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 20px; border-radius: var(--st-radius);
+  background: #fff; box-shadow: var(--st-shadow);
+}
+[data-tpl="standard"] .s-search-title { font-size: 1.05rem; }
+[data-tpl="standard"] .s-search-fields { gap: 12px; }
+[data-tpl="standard"] .s-btn { border-radius: 12px; font-weight: 700; box-shadow: 0 1px 2px rgb(28 25 23 / 0.15); }
+[data-tpl="standard"] .s-btn:hover { filter: none; background: var(--st-brand-deep); }
+
+/* Cartes de chambres */
+[data-tpl="standard"] .s-hero-rooms { margin-top: clamp(48px, 7vw, 80px); }
+[data-tpl="standard"] .s-hero-rooms .s-h3 { font-size: 1.6rem; }
+[data-tpl="standard"] .s-hero .s-room-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+[data-tpl="standard"] .s-room {
+  flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 20px; border-radius: var(--st-radius);
+  background: #fff; border: 1px solid #e7e5e4;
+  transition: box-shadow 0.2s, transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-tpl="standard"] .s-room:hover { box-shadow: var(--st-shadow); transform: translateY(-2px); }
+[data-tpl="standard"] .s-room-num { display: none; }
+[data-tpl="standard"] .s-room-name { font-size: 1.15rem; }
+[data-tpl="standard"] .s-room-price { margin-top: 6px; font-size: 1.1rem; }
+[data-tpl="standard"] .s-hero-rooms .s-link { color: var(--st-brand); }
+
+/* ── Sections ───────────────────────────────────────── */
+[data-tpl="standard"] .s-story-inner { max-width: 720px; }
+[data-tpl="standard"] .s-story .s-prose { font-size: 1.15rem; }
+[data-tpl="standard"] .s-signature { color: var(--st-brand); }
+[data-tpl="standard"] .s-stat-list { border-radius: var(--st-radius); background: var(--st-tint); --s-stat-rule: color-mix(in oklch, var(--st-brand) 18%, transparent); }
+[data-tpl="standard"] .s-stat-value { color: var(--st-brand); }
+[data-tpl="standard"] :is(.s-gallery-img, .s-map, .s-gallery-main, .s-room-card-photo) { border-radius: var(--st-radius); }
+[data-tpl="standard"] .s-room-card-photo { margin: 8px 8px 0; border-radius: 12px; overflow: hidden; }
+[data-tpl="standard"] .s-facts { padding: 24px; border-radius: var(--st-radius); border: 1px solid #e7e5e4; }
+[data-tpl="standard"] .s-fact + .s-fact { padding-top: 14px; border-top: 1px solid #eeeceb; }
+[data-tpl="standard"] .s-map { border: 1px solid #e7e5e4; }
+[data-tpl="standard"] .s-map-link { border: 0; border-radius: 999px; box-shadow: var(--st-shadow); }
+[data-tpl="standard"] .s-pin-label { background: #fff; color: var(--s-ink); border-radius: 999px; box-shadow: 0 2px 8px rgb(0 0 0 / 0.2); }
+[data-tpl="standard"] .s-pin-dot { background: var(--st-brand); box-shadow: 0 0 0 3px #fff; }
+
+/* ── Pages ──────────────────────────────────────────── */
+[data-tpl="standard"] :is(.s-group, .s-room-card, .s-confirm-card, .s-room-detail-book, .s-summary, .s-search-room) {
+  background: #fff; border: 1px solid #e7e5e4; border-radius: var(--st-radius);
+}
+[data-tpl="standard"] :is(.s-summary, .s-room-detail-book) { box-shadow: var(--st-shadow); }
+[data-tpl="standard"] .s-room-card .s-room-num { display: none; }
+[data-tpl="standard"] .s-summary-photo { border-radius: var(--st-radius) var(--st-radius) 0 0; }
+[data-tpl="standard"] .s-total span:last-child { color: var(--st-brand); }
+[data-tpl="standard"] .s-ref strong { letter-spacing: 0.04em; }
+
+/* ── Footer ─────────────────────────────────────────── */
+[data-tpl="standard"] .s-footer { background: #fafaf9; border-top: 1px solid #eeeceb; margin-top: 24px; }
+[data-tpl="standard"] .s-credit { color: var(--s-ink-soft); }

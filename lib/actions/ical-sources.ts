@@ -2,6 +2,7 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { icalBlocks, icalSources, rooms } from "@/db/schema";
@@ -76,3 +77,14 @@ export async function toggleIcalSource(formData: FormData) {
   revalidatePath("/admin/parametres");
 }
 
+
+/** Masque le rappel « Synchronisez Airbnb/Booking » du dashboard sur cet appareil (même modèle que le repli du menu). */
+export async function dismissIcalNudge() {
+  await requireSession();
+  (await cookies()).set("admin-ical-nudge", "dismissed", {
+    path: "/admin",
+    maxAge: 31536000,
+    sameSite: "lax",
+  });
+  revalidatePath("/admin");
+}

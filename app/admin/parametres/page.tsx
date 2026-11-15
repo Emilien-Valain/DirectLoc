@@ -6,6 +6,10 @@ import { db } from "@/lib/db";
 import { tenants, rooms, icalSources } from "@/db/schema";
 import SettingsPageClient from "@/components/admin/SettingsPageClient";
 import type { TenantConfig } from "@/lib/tenant-context";
+import { getExtrasByTenant } from "@/lib/queries/extras";
+import { getFeesByTenant } from "@/lib/queries/fees";
+
+export const metadata = { title: "Paramètres" };
 
 export default async function ParametresPage() {
   const { tenantId } = await requireSession();
@@ -51,6 +55,8 @@ export default async function ParametresPage() {
     .where(eq(icalSources.tenantId, tenantId))
     .orderBy(asc(rooms.name), asc(icalSources.name));
 
+  const [extras, fees] = await Promise.all([getExtrasByTenant(tenantId), getFeesByTenant(tenantId)]);
+
   return (
     <Suspense fallback={null}>
       <SettingsPageClient
@@ -73,6 +79,8 @@ export default async function ParametresPage() {
           lastSyncAt: s.lastSyncAt?.toISOString() ?? null,
         }))}
         hasStripeAccount={!!tenant.stripeAccountId}
+        extras={extras}
+        fees={fees}
       />
     </Suspense>
   );

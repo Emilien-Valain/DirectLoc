@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { Icon, type IconName } from "@/components/admin/icons";
@@ -120,7 +120,8 @@ export default function Sidebar({
       >
         <div
           className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0"
-          style={{ background: "var(--admin-sidebar-accent)" }}
+          // Terracotta foncé : le D blanc passe 4,5:1 (3,2:1 sur la teinte claire).
+          style={{ background: "var(--admin-accent-text)" }}
         >
           <span className="text-white font-extrabold text-[15px] tracking-tight">
             D
@@ -212,6 +213,7 @@ export default function Sidebar({
               href={item.href}
               onClick={() => setMobileOpen(false)}
               title={isCollapsed ? item.label : undefined}
+              aria-current={active ? "page" : undefined}
               className={`w-full flex items-center gap-[11px] cursor-pointer transition-colors ${
                 isCollapsed
                   ? "py-[11px] justify-center"
@@ -233,6 +235,7 @@ export default function Sidebar({
                   {item.label}
                 </span>
               )}
+              <NavPending />
             </Link>
           );
         })}
@@ -348,5 +351,18 @@ export default function Sidebar({
         </button>
       </div>
     </>
+  );
+}
+
+// Pas de loading.tsx dans l'admin (il ferait répondre 200 aux pages notFound()) :
+// le lien cliqué signale lui-même que la page arrive, utile sur une connexion lente.
+function NavPending() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden
+      className={`w-1.5 h-1.5 rounded-full flex-shrink-0 transition-opacity ${pending ? "opacity-100 animate-pulse" : "opacity-0"}`}
+      style={{ background: "var(--admin-sidebar-accent)" }}
+    />
   );
 }

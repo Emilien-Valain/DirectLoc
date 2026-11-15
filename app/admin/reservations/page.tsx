@@ -4,7 +4,7 @@ import { requireSession } from "@/lib/session";
 import { getBookingsByTenant, completeFinishedStays } from "@/lib/queries/bookings";
 import { getRoomsByTenant } from "@/lib/queries/rooms";
 import { STATUS_LABELS } from "@/lib/calendar";
-import type { BookingStatus, BookingFilters } from "@/lib/queries/bookings";
+import { viewOfStatus, type BookingStatus, type BookingView } from "@/lib/queries/bookings";
 import {
   Card,
   ChannelTag,
@@ -17,63 +17,107 @@ import {
 } from "@/components/admin/ui";
 
 function fmtDate(d: Date) {
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+  // Dates de séjour en UTC minuit (ADR-0005)
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 // Table cell on xl+, plain grid item in the mobile card.
 const CELL = "xl:table-cell xl:px-4 xl:py-[13px]";
 
+export const metadata = { title: "Réservations" };
+
 export default async function ReservationsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; roomId?: string }>;
+  searchParams: Promise<{ vue?: string; status?: string; roomId?: string; q?: string; page?: string }>;
 }) {
   const { tenantId } = await requireSession();
   await completeFinishedStays(tenantId);
   const params = await searchParams;
 
-  const filters: BookingFilters = {
-    status: params.status as BookingStatus | undefined,
-    roomId: params.roomId,
-  };
+  const status = (Object.keys(STATUS_LABELS) as BookingStatus[]).includes(params.status as BookingStatus)
+    ? (params.status as BookingStatus)
+    : undefined;
+  // Un statut « terminée/annulée » vit dans « Anciennes » : le filtre suffit à ouvrir la bonne vue.
+  const view: BookingView = viewOfStatus(status) ?? (params.vue === "anciennes" ? "anciennes" : "a-venir");
+  const q = params.q?.trim().slice(0, 100) || undefined;
+  const page = Number.parseInt(params.page ?? "1", 10) || 1;
 
-  const [reservations, chambres] = await Promise.all([
-    getBookingsByTenant(tenantId, filters),
+  const [{ rows: reservations, total, pages }, chambres] = await Promise.all([
+    getBookingsByTenant(tenantId, { view, status, roomId: params.roomId, q, page }),
     getRoomsByTenant(tenantId),
   ]);
 
-  const statusFilters: (BookingStatus | "all")[] = [
-    "all",
-    "confirmed",
-    "pending",
-    "completed",
-    "cancelled",
-  ];
+  // Liens de filtre : on garde le reste, on revient en page 1.
+  const href = (over: Partial<Record<"vue" | "status" | "roomId" | "q" | "page", string | undefined>>) => {
+    const next = { vue: view === "anciennes" ? "anciennes" : undefined, status, roomId: params.roomId, q, ...over };
+    const qs = new URLSearchParams();
+    for (const [k, val] of Object.entries(next)) if (val) qs.set(k, val);
+    const str = qs.toString();
+    return `/admin/reservations${str ? `?${str}` : ""}`;
+  };
+
+  const statusFilters: (BookingStatus | "all")[] =
+    view === "anciennes" ? ["all", "completed", "cancelled"] : ["all", "confirmed", "pending"];
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Réservations"
-        subtitle={`${reservations.length} réservation${reservations.length > 1 ? "s" : ""}`}
+        subtitle={`${total} ${view === "anciennes" ? "ancienne" : "à venir"}${view === "anciennes" && total > 1 ? "s" : ""}${q ? ` pour « ${q} »` : ""}`}
         action={
           <PrimaryButton href="/admin/reservations/new">Nouvelle</PrimaryButton>
         }
       />
 
+      {/* Vue + recherche */}
+      <div className="flex gap-3 flex-wrap items-center justify-between">
+        <nav aria-label="Période" className="flex gap-1.5">
+          {(["a-venir", "anciennes"] as const).map((vue) => (
+            <GhostButton
+              key={vue}
+              href={href({ vue: vue === "anciennes" ? vue : undefined, status: undefined })}
+              active={view === vue}
+              ariaCurrent={view === vue ? "page" : undefined}
+            >
+              {vue === "anciennes" ? "Anciennes" : "À venir"}
+            </GhostButton>
+          ))}
+        </nav>
+        <form role="search" action="/admin/reservations" className="flex gap-2 items-center w-full sm:w-auto">
+          {view === "anciennes" && <input type="hidden" name="vue" value="anciennes" />}
+          {status && <input type="hidden" name="status" value={status} />}
+          {params.roomId && <input type="hidden" name="roomId" value={params.roomId} />}
+          <label className="sr-only" htmlFor="booking-search">
+            Rechercher un client
+          </label>
+          <input
+            id="booking-search"
+            type="search"
+            name="q"
+            defaultValue={q}
+            maxLength={100}
+            placeholder="Nom, email ou téléphone"
+            className="admin-field flex-1 sm:w-[260px]"
+          />
+          <button type="submit" className="admin-btn admin-btn--ghost">
+            Rechercher
+          </button>
+        </form>
+      </div>
+
       {/* Filters */}
       <div className="flex gap-3 flex-wrap items-center">
         <div className="flex gap-1.5 overflow-x-auto md:flex-wrap -mx-5 px-5 sm:-mx-8 sm:px-8 md:mx-0 md:px-0 pb-1 md:pb-0 admin-scroll-cue">
           {statusFilters.map((s) => {
-            const href =
-              s === "all"
-                ? params.roomId
-                  ? `/admin/reservations?roomId=${params.roomId}`
-                  : "/admin/reservations"
-                : `/admin/reservations?status=${s}${params.roomId ? `&roomId=${params.roomId}` : ""}`;
-            const active =
-              s === "all" ? !params.status : params.status === s;
+            const active = s === "all" ? !status : status === s;
             return (
-              <GhostButton key={s} href={href} active={active}>
+              <GhostButton
+                key={s}
+                href={href({ status: s === "all" ? undefined : s })}
+                active={active}
+                ariaCurrent={active ? "true" : undefined}
+              >
                 {s === "all" ? "Toutes" : STATUS_LABELS[s as BookingStatus]}
               </GhostButton>
             );
@@ -85,7 +129,8 @@ export default async function ReservationsPage({
       {chambres.length > 0 && (
         <div className="flex gap-1.5 overflow-x-auto md:flex-wrap -mx-5 px-5 sm:-mx-8 sm:px-8 md:mx-0 md:px-0 pb-1 md:pb-0 admin-scroll-cue">
           <Link
-            href={`/admin/reservations${params.status ? `?status=${params.status}` : ""}`}
+            href={href({ roomId: undefined })}
+            aria-current={!params.roomId ? "true" : undefined}
             className="text-[12px] font-semibold rounded-md px-2.5 py-[5px] transition-colors whitespace-nowrap flex-shrink-0"
             style={{
               background: !params.roomId
@@ -104,7 +149,8 @@ export default async function ReservationsPage({
             return (
               <Link
                 key={c.id}
-                href={`/admin/reservations?roomId=${c.id}${params.status ? `&status=${params.status}` : ""}`}
+                href={href({ roomId: c.id })}
+                aria-current={active ? "true" : undefined}
                 className="text-[12px] font-semibold rounded-md px-2.5 py-[5px] transition-colors whitespace-nowrap flex-shrink-0"
                 style={{
                   background: active ? "var(--admin-primary-light)" : "transparent",
@@ -124,7 +170,15 @@ export default async function ReservationsPage({
       {/* Table */}
       {reservations.length === 0 ? (
         <Card>
-          {filters.status || filters.roomId ? (
+          {q ? (
+            <EmptyState
+              title={`Aucune réservation pour « ${q} »`}
+              action={<GhostButton href={href({ q: undefined })}>Effacer la recherche</GhostButton>}
+            >
+              Vérifiez l&apos;orthographe, ou cherchez par email ou téléphone.
+              {view === "a-venir" && " Un séjour passé ou annulé se trouve dans « Anciennes »."}
+            </EmptyState>
+          ) : status || params.roomId ? (
             <EmptyState
               title="Aucune réservation ne correspond à ce filtre"
               action={
@@ -132,6 +186,10 @@ export default async function ReservationsPage({
               }
             >
               Essayez un autre statut ou une autre chambre.
+            </EmptyState>
+          ) : view === "anciennes" ? (
+            <EmptyState title="Aucune ancienne réservation" compact>
+              Les séjours terminés et les réservations annulées apparaîtront ici.
             </EmptyState>
           ) : (
             <EmptyState
@@ -241,6 +299,24 @@ export default async function ReservationsPage({
             </table>
           </div>
         </Card>
+      )}
+
+      {pages > 1 && (
+        <nav aria-label="Pages" className="flex items-center justify-between gap-3">
+          {page > 1 ? (
+            <GhostButton href={href({ page: page > 2 ? String(page - 1) : undefined })}>← Plus récentes</GhostButton>
+          ) : (
+            <span />
+          )}
+          <span className="text-[12.5px] tabular-nums" style={{ color: "var(--admin-text-muted)" }}>
+            Page {page} sur {pages}
+          </span>
+          {page < pages ? (
+            <GhostButton href={href({ page: String(page + 1) })}>Plus anciennes →</GhostButton>
+          ) : (
+            <span />
+          )}
+        </nav>
       )}
     </div>
   );
