@@ -10,7 +10,8 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
   return {
     rules: {
       userAgent: "*",
-      allow: "/",
+      // Photos servies par /api/uploads : à laisser lisibles (Google Images, aperçus, JSON-LD).
+      allow: ["/", "/api/uploads/"],
       disallow: ["/admin/", "/api/", "/login"],
     },
     sitemap: `${baseUrl}/sitemap.xml`,

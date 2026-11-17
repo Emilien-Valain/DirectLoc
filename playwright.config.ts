@@ -1,3 +1,4 @@
+import { generateKeyPairSync } from "node:crypto";
 import { defineConfig, devices } from "@playwright/test";
 import { config } from "dotenv";
 
@@ -84,6 +85,14 @@ export default defineConfig({
       // IndexNow : clé de test, envois captés par e2e/admin/indexnow.spec.ts.
       INDEXNOW_KEY: "test-indexnow-key-0123456789",
       INDEXNOW_ENDPOINT: "http://localhost:3997/indexnow",
+      // Search Console : faux Google sur le port 3996 (e2e/admin/search-console.spec.ts), clé RSA jetable.
+      GOOGLE_OAUTH_URL: "http://localhost:3996/token",
+      GOOGLE_API_BASE: "http://localhost:3996",
+      GOOGLE_SERVICE_ACCOUNT_JSON: JSON.stringify({
+        client_email: "sa@test.iam.gserviceaccount.com",
+        private_key: generateKeyPairSync("rsa", { modulusLength: 2048 }).privateKey.export({ type: "pkcs8", format: "pem" }),
+      }),
+      GOOGLE_SEARCH_CONSOLE_OWNERS: "proprietaire@directloc.test",
     },
   },
 });

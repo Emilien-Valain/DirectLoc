@@ -86,6 +86,10 @@ export type TenantConfig = {
   confirmationMessage?: string;
   postStayMessage?: string;
   reviewUrl?: string;
+  /** Jeton de vérification Google Search Console (balise meta), posé par lib/google-search-console.ts. */
+  googleSiteVerification?: string;
+  /** Date d'inscription dans Search Console : le cron ne retraite plus ce site. */
+  searchConsoleAddedAt?: string;
   /** Absente = taxe de séjour désactivée (ADR-0011). */
   touristTax?: TouristTax;
 };

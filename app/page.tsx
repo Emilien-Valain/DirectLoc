@@ -4,7 +4,8 @@ import { requireTenant } from "@/lib/tenant-context";
 import { getRoomsPublic } from "@/lib/queries/public";
 import { getMinPricePerNight } from "@/lib/pricing";
 import type { TenantConfig } from "@/lib/tenant-context";
-import { metaDescription, tenantMetadata } from "@/lib/seo";
+import { lodgingJsonLd, metaDescription, tenantBaseUrl, tenantMetadata } from "@/lib/seo";
+import JsonLd from "@/components/public/JsonLd";
 
 export async function generateMetadata() {
   const tenant = await requireTenant();
@@ -31,6 +32,7 @@ export default async function HomePage() {
 
   return (
     <PublicLayout>
+      <JsonLd data={lodgingJsonLd(tenant, await tenantBaseUrl(tenant))} />
       <HomeHero tenant={tenant} config={config} rooms={featuredRooms} totalRooms={allRooms.length} />
       <HomeStory config={config} />
       <HomeStats config={config} />

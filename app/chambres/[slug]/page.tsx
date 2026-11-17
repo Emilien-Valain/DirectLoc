@@ -9,7 +9,8 @@ import { getRoomBySlugPublic, getRoomsPublic } from "@/lib/queries/public";
 import { getMinPricePerNight } from "@/lib/pricing";
 import { getFeesByTenant } from "@/lib/queries/fees";
 import { feeAppliesTo } from "@/lib/extras";
-import { metaDescription, tenantMetadata } from "@/lib/seo";
+import { metaDescription, roomJsonLd, tenantBaseUrl, tenantMetadata } from "@/lib/seo";
+import JsonLd from "@/components/public/JsonLd";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -69,6 +70,7 @@ export default async function ChambreDetailPage({
 
   return (
     <PublicLayout>
+      <JsonLd data={roomJsonLd(tenant, await tenantBaseUrl(tenant), room)} />
       <div className="s-page">
         <Breadcrumb
           items={[

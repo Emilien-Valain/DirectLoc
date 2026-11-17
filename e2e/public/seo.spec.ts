@@ -41,6 +41,30 @@ test.describe("SEO — métadonnées des pages publiques", () => {
     expect((await request.get("/chambres/chambre-rival-test")).status()).toBe(404);
   });
 
+  test("robots.txt laisse les photos lisibles malgré Disallow: /api/", async ({ request }) => {
+    const body = await (await request.get("/robots.txt")).text();
+    expect(body).toContain("Allow: /api/uploads/");
+    expect(body).toContain("Disallow: /api/");
+  });
+
+  test("JSON-LD : LodgingBusiness sur l'accueil, HotelRoom rattachée sur la chambre", async ({ page }) => {
+    await page.goto("/");
+    const lodging = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent())!);
+    expect(lodging["@type"]).toBe("LodgingBusiness");
+    expect(lodging.name).toBe("Hôtel Test");
+
+    await page.goto("/chambres/chambre-api-test");
+    const room = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent())!);
+    expect(room["@type"]).toBe("HotelRoom");
+    expect(room.occupancy.maxValue).toBe(2);
+    expect(room.containedInPlace["@id"]).toBe(lodging["@id"]);
+  });
+
+  test("site démo en noindex", async ({ page }) => {
+    await page.goto("http://demo-tenant.localhost:3001/");
+    expect(await page.locator('meta[name="robots"]').getAttribute("content")).toContain("noindex");
+  });
+
   test("tunnel de réservation en noindex", async ({ page }) => {
     await page.goto("/chambres");
     const href = await page.locator('a[href^="/reserver/"]').first().getAttribute("href");
@@ -88,5 +112,9 @@ test.describe("SEO — description longue et injection", () => {
     expect(desc).toContain(XSS); // texte brut dans l'attribut, pas une balise
     expect(await page.locator("head script", { hasText: "alert(1)" }).count()).toBe(0);
     expect(dialog).toBe(false);
+    // JSON-LD : le nom reste du JSON valide, sans balise </script> brute.
+    const raw = (await page.locator('script[type="application/ld+json"]').textContent())!;
+    expect(raw).not.toContain("</script>");
+    expect(JSON.parse(raw).name).toBe(`Seo ${XSS}`);
   });
 });
