@@ -294,7 +294,9 @@ test.describe("Public — Parcours de réservation", () => {
       await fillRefusalDates(page);
       await expect(page.getByText("Disponible", { exact: true })).toBeVisible({ timeout: 8000 });
       let posts = 0;
-      page.on("requestfinished", (r) => { if (r.method() === "POST") posts++; });
+      // `response`, pas `requestfinished` : depuis Next 16.4 le client interrompt le flux
+      // de la réponse d'une server action (ERR_ABORTED) une fois le résultat lu.
+      page.on("response", (r) => { if (r.request().method() === "POST") posts++; });
       // 6 envois à email invalide : refusés par la saisie, ils n'entament pas le budget.
       for (let i = 1; i <= 6; i++) {
         await tamperedSubmit(page, "pas-un-email", "1");
