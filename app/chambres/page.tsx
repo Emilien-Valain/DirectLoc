@@ -5,6 +5,18 @@ import Link from "next/link";
 import { requireTenant } from "@/lib/tenant-context";
 import { getRoomsPublic } from "@/lib/queries/public";
 import { getMinPricePerNight } from "@/lib/pricing";
+import { tenantMetadata } from "@/lib/seo";
+
+export async function generateMetadata() {
+  const tenant = await requireTenant();
+  const rooms = await getRoomsPublic(tenant.id);
+  return tenantMetadata(tenant, {
+    title: `Nos chambres — ${tenant.name}`,
+    description: `${rooms.length > 1 ? `Les ${rooms.length} chambres` : "La chambre"} de ${tenant.name} : photos, capacité, tarifs et disponibilités. Réservation en direct, sans intermédiaire.`,
+    path: "/chambres",
+    image: sortedPhotos(rooms[0]?.photos)[0]?.url,
+  });
+}
 
 export default async function ChambresPage() {
   const tenant = await requireTenant();

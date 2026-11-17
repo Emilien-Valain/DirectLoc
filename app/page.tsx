@@ -4,6 +4,18 @@ import { requireTenant } from "@/lib/tenant-context";
 import { getRoomsPublic } from "@/lib/queries/public";
 import { getMinPricePerNight } from "@/lib/pricing";
 import type { TenantConfig } from "@/lib/tenant-context";
+import { metaDescription, tenantMetadata } from "@/lib/seo";
+
+export async function generateMetadata() {
+  const tenant = await requireTenant();
+  const config = (tenant.config ?? {}) as TenantConfig;
+  return tenantMetadata(tenant, {
+    title: `${tenant.name} — réservation en direct`,
+    description: metaDescription(config.heroSubtitle ?? config.storyText ?? `Réservez votre séjour chez ${tenant.name} directement auprès de l'hôte.`),
+    path: "/",
+    image: config.heroPhoto?.url,
+  });
+}
 
 export default async function HomePage() {
   const tenant = await requireTenant();

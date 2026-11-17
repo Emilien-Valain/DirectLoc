@@ -9,6 +9,9 @@ import { bookings, payments, rooms } from "@/db/schema";
 import type { TenantConfig } from "@/lib/tenant-context";
 import { getBookingLines } from "@/lib/queries/extras";
 
+// Tunnel de réservation : rien à indexer.
+export const metadata = { robots: { index: false, follow: false } };
+
 export default async function ConfirmationPage({
   searchParams,
 }: {

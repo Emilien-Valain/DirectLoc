@@ -9,6 +9,9 @@ import { getFeesByTenant } from "@/lib/queries/fees";
 import { feeAppliesTo } from "@/lib/extras";
 import { isDemoTenant } from "@/lib/demo";
 
+// Tunnel de réservation : rien à indexer.
+export const metadata = { robots: { index: false, follow: false } };
+
 export default async function ReserverPage({
   params,
 }: {

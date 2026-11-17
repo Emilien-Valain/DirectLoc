@@ -9,6 +9,20 @@ import { getRoomBySlugPublic, getRoomsPublic } from "@/lib/queries/public";
 import { getMinPricePerNight } from "@/lib/pricing";
 import { getFeesByTenant } from "@/lib/queries/fees";
 import { feeAppliesTo } from "@/lib/extras";
+import { metaDescription, tenantMetadata } from "@/lib/seo";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const tenant = await requireTenant();
+  const room = await getRoomBySlugPublic(tenant.id, slug);
+  if (!room) return {};
+  return tenantMetadata(tenant, {
+    title: `${room.name} — ${tenant.name}`,
+    description: metaDescription(room.description ?? `${room.name}, jusqu'à ${room.capacity} personne${room.capacity > 1 ? "s" : ""}, chez ${tenant.name}. Réservation en direct.`),
+    path: `/chambres/${room.slug}`,
+    image: sortedPhotos(room.photos)[0]?.url,
+  });
+}
 
 export default async function ChambreDetailPage({
   params,

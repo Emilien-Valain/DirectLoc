@@ -31,6 +31,21 @@ test.describe("Site vitrine — routage", () => {
     await expect(page.getByText("calendrier de démonstration")).toHaveCount(0);
   });
 
+  test("robots.txt et sitemap.xml répondent sur le domaine vitrine", async ({ request }) => {
+    const robots = await request.get(`${VITRINE}/robots.txt`);
+    expect(robots.status()).toBe(200);
+    const robotsBody = await robots.text();
+    expect(robotsBody).toContain("Disallow: /admin/");
+    expect(robotsBody).toContain(`Sitemap: ${VITRINE}/sitemap.xml`);
+
+    const sitemap = await request.get(`${VITRINE}/sitemap.xml`);
+    expect(sitemap.status()).toBe(200);
+    const sitemapBody = await sitemap.text();
+    expect(sitemapBody).toContain(`<loc>${VITRINE}</loc>`);
+    // Aucune chambre d'un tenant ne fuit dans le sitemap vitrine.
+    expect(sitemapBody).not.toContain("/chambres/");
+  });
+
   test("/admin et /api sur le domaine vitrine → 404, jamais 500", async ({ request }) => {
     expect((await request.get(`${VITRINE}/admin`, { maxRedirects: 0 })).status()).toBe(404);
     expect((await request.get(`${VITRINE}/api/rooms/available`)).status()).toBe(404);

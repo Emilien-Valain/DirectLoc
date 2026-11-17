@@ -10,7 +10,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const headersList = await headers();
   const tenantId = headersList.get("x-tenant-id");
 
-  if (!tenantId) return [];
+  if (!tenantId) {
+    // Site vitrine : seule la page d'accueil est indexable.
+    const host = (headersList.get("host") ?? "").split(":")[0];
+    const marketing = process.env.MARKETING_HOST;
+    if (!marketing || (host !== marketing && host !== `www.${marketing}`)) return [];
+    const proto = headersList.get("x-forwarded-proto") ?? "https";
+    return [{ url: `${proto}://${headersList.get("host")}`, changeFrequency: "monthly", priority: 1 }];
+  }
 
   const tenant = await db.query.tenants.findFirst({
     where: eq(tenants.id, tenantId),
