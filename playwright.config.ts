@@ -81,6 +81,9 @@ export default defineConfig({
       // Les flux iCal de test sont servis en local : on lève le garde anti-SSRF de la sync.
       ICAL_ALLOW_PRIVATE: "1",
       CRON_SECRET: process.env.CRON_SECRET,
+      // IndexNow : clé de test, envois captés par e2e/admin/indexnow.spec.ts.
+      INDEXNOW_KEY: "test-indexnow-key-0123456789",
+      INDEXNOW_ENDPOINT: "http://localhost:3997/indexnow",
     },
   },
 });

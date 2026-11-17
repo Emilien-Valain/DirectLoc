@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
+import { notifyIndexNow } from "@/lib/indexnow";
 import { tenants } from "@/db/schema";
 import { safeParseFormData, type FormResult } from "@/lib/validation";
 import { mergeTenantConfig } from "@/lib/tenant-config";
@@ -41,4 +42,5 @@ export async function updateGeneral(formData: FormData): Promise<FormResult> {
   revalidatePath("/admin/parametres");
   revalidatePath("/");
   revalidatePath("/chambres");
+  notifyIndexNow(tenantId, ["/", "/chambres"]);
 }

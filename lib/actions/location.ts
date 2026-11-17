@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
+import { notifyIndexNow } from "@/lib/indexnow";
 import { tenants } from "@/db/schema";
 import { locationSchema, safeParseFormData, type FormResult } from "@/lib/validation";
 import { mergeTenantConfig } from "@/lib/tenant-config";
@@ -28,4 +29,5 @@ export async function updateLocation(formData: FormData): Promise<FormResult> {
 
   revalidatePath("/admin/parametres");
   revalidatePath("/");
+  notifyIndexNow(tenantId, ["/"]);
 }

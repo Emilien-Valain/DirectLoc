@@ -155,8 +155,8 @@ export async function proxy(request: NextRequest) {
   // Les chemins /vitrine ne sont jamais accessibles directement depuis un domaine client.
   if (isMarketingHost(host)) {
     // Le webhook Stripe et le health check sont enregistrés sur le domaine plateforme.
-    // robots.txt / sitemap.xml : routes metadata de app/, pas de réécriture vers /vitrine.
-    if (pathname.startsWith("/api/webhooks/") || pathname === "/api/health" || pathname === "/robots.txt" || pathname === "/sitemap.xml") {
+    // robots.txt / sitemap.xml / indexnow.txt : routes de app/, pas de réécriture vers /vitrine.
+    if (pathname.startsWith("/api/webhooks/") || pathname === "/api/health" || pathname === "/robots.txt" || pathname === "/sitemap.xml" || pathname === "/indexnow.txt") {
       return NextResponse.next();
     }
     if (pathname.startsWith("/admin") || pathname.startsWith("/api/")) {

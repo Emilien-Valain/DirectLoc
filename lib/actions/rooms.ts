@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
+import { notifyIndexNow } from "@/lib/indexnow";
 import { rooms, properties, tenants } from "@/db/schema";
 import { roomSchema, roomUpdateSchema, safeParseFormData, type FormResult } from "@/lib/validation";
 
@@ -64,17 +65,19 @@ export async function createRoom(formData: FormData): Promise<FormResult> {
   }
 
   const id = crypto.randomUUID();
+  const slug = await uniqueRoomSlug(tenantId, id, name);
   await db.insert(rooms).values({
     id,
     tenantId,
     propertyId: property.id,
     name,
-    slug: await uniqueRoomSlug(tenantId, id, name),
+    slug,
     description,
     pricePerNight,
     capacity,
   });
 
+  notifyIndexNow(tenantId, ["/", "/chambres", `/chambres/${slug}`]);
   revalidatePath("/admin/chambres");
   redirect("/admin/chambres");
 }
@@ -91,11 +94,18 @@ export async function updateRoom(id: string, formData: FormData): Promise<FormRe
   const capacity = data.capacite;
   const active = data.actif === "on";
 
+  const old = await db.query.rooms.findFirst({
+    where: and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)),
+    columns: { slug: true },
+  });
+  const slug = await uniqueRoomSlug(tenantId, id, name);
   await db
     .update(rooms)
-    .set({ name, slug: await uniqueRoomSlug(tenantId, id, name), description, pricePerNight, capacity, active })
+    .set({ name, slug, description, pricePerNight, capacity, active })
     .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)));
 
+  // Ancienne URL incluse : un renommage ou une désactivation la rend 404, à désindexer.
+  if (old) notifyIndexNow(tenantId, ["/", "/chambres", `/chambres/${slug}`, `/chambres/${old.slug}`]);
   revalidatePath("/admin/chambres");
   redirect("/admin/chambres");
 }
@@ -104,9 +114,11 @@ export async function deleteRoom(id: string): Promise<{ error?: string }> {
   const tenantId = await requireTenantId();
 
   try {
-    await db
+    const [deleted] = await db
       .delete(rooms)
-      .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)));
+      .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)))
+      .returning({ slug: rooms.slug });
+    if (deleted) notifyIndexNow(tenantId, ["/", "/chambres", `/chambres/${deleted.slug}`]);
   } catch (e) {
     // 23503 = clé étrangère : la chambre a encore des réservations, blocages ou calendriers liés.
     const code = (e as { code?: string; cause?: { code?: string } }).code ?? (e as { cause?: { code?: string } }).cause?.code;
