@@ -164,8 +164,12 @@ export async function proxy(request: NextRequest) {
     // /essayer → admin démo connecté ; /site-demo → site de réservation de l'hôtel démo.
     if (pathname === "/essayer" || pathname === "/site-demo") {
       const demo = demoOrigin(request, hostHeader);
+      // Les liens de la vitrine sont nus : le ?ref= partenaire est repris de la page d'origine.
+      let ref: string | null = null;
+      try { ref = new URL(request.headers.get("referer") ?? "").searchParams.get("ref"); } catch {}
+      const query = pathname === "/essayer" && ref ? `?ref=${encodeURIComponent(ref)}` : "";
       return demo
-        ? NextResponse.redirect(`${demo}${pathname === "/essayer" ? "/essayer" : "/"}`, 302)
+        ? NextResponse.redirect(`${demo}${pathname === "/essayer" ? `/essayer${query}` : "/"}`, 302)
         : new NextResponse("Not Found", { status: 404 });
     }
     return NextResponse.rewrite(new URL(`/vitrine${pathname === "/" ? "" : pathname}`, request.url));

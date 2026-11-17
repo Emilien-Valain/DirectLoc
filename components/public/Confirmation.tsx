@@ -50,8 +50,9 @@ export default function Confirmation({
     (destination ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}` : null);
   const hasArrival = isPaid && (config.address || mapsUrl || config.phone || config.email);
 
+  // ph-no-capture : exclu du replay PostHog (données de réservation).
   return (
-    <section className="s-page s-confirm">
+    <section className="s-page s-confirm ph-no-capture">
       <div className="s-confirm-card">
         <p className={`s-status ${isPaid ? "is-good" : "is-warn"}`}>
           {isPaid ? "Réservation confirmée" : "Paiement en cours de vérification"}

@@ -525,13 +525,14 @@ export async function sendPasswordResetEmail(data: PasswordResetEmailData) {
 
 // ─── Site vitrine : demande de rappel d'un hébergeur prospect ───────────────
 
-export async function sendCallbackRequest(data: { name: string; phone: string; place: string }) {
+export async function sendCallbackRequest(data: { name: string; phone: string; place: string; ref?: string }) {
   const to = process.env.OPERATOR_EMAIL ?? fromAddress;
   const html = `<p>Demande de rappel depuis directloc.app :</p>
 <ul>
   <li>Nom : <strong>${escapeHtml(data.name)}</strong></li>
   <li>Téléphone : <strong>${escapeHtml(data.phone)}</strong></li>
   ${data.place ? `<li>Hébergement / commune : ${escapeHtml(data.place)}</li>` : ""}
+  ${data.ref ? `<li>Partenaire (ref) : <strong>${escapeHtml(data.ref)}</strong></li>` : ""}
 </ul>`;
   await sendEmail({ to, subject: `Rappel demandé — ${data.name}`, html, hotelName: "DirectLoc", tenantId: null });
 }

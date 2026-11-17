@@ -9,7 +9,8 @@ export function CallbackForm({ id, title }: { id: string; title: React.ReactNode
   const err = state?.fieldErrors ?? {};
 
   return (
-    <form action={action} className="alm-coupon" aria-labelledby={`${id}-t`} noValidate>
+    // Le code partenaire (?ref=) est lu à l'envoi : la page reste statique.
+    <form action={(fd) => { fd.set("ref", new URLSearchParams(location.search).get("ref") ?? ""); action(fd); }} className="alm-coupon" aria-labelledby={`${id}-t`} noValidate>
       <svg className="alm-scissors" viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" />
         <path d="M8.1 8.1 20 20M8.1 15.9 20 4" />

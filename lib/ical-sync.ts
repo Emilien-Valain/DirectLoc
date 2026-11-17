@@ -1,4 +1,5 @@
 import { and, eq, notInArray } from "drizzle-orm";
+import { captureServer } from "@/lib/analytics";
 import { db } from "@/lib/db";
 import { icalSources, icalBlocks } from "@/db/schema";
 import { lookup } from "node:dns/promises";
@@ -146,6 +147,17 @@ async function syncSource(source: {
     .where(eq(icalSources.id, source.id));
 }
 
+/** Catégorie d'échec pour PostHog : jamais l'URL ni le message brut. */
+function icalErrorCategory(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "";
+  if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) return "timeout";
+  if (/^HTTP \d+/.test(msg)) return "http_error";
+  if (/VCALENDAR/.test(msg)) return "not_ical";
+  if (/interne refusé|redirection/i.test(msg)) return "blocked_url";
+  if (err instanceof TypeError) return "network";
+  return "other";
+}
+
 /**
  * Lance la synchronisation des sources iCal actives d'un tenant, ou de tous
  * les tenants sans `tenantId` (cron).
@@ -165,6 +177,7 @@ export async function syncIcalSources(tenantId?: string) {
       results.synced++;
     } catch (err) {
       results.errors++;
+      captureServer("ical_sync_failed", { tenant_id: source.tenantId, error_category: icalErrorCategory(err) });
       console.error(`[iCal sync] Échec source ${source.id} (${source.name}):`, err);
     }
   }

@@ -17,6 +17,7 @@ import { getStripe } from "@/lib/stripe";
 import { isDemoTenant } from "@/lib/demo";
 import { CHECKOUT_TTL_MINUTES } from "@/lib/checkout-window";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { amountBucket, browserDistinctId, captureServer } from "@/lib/analytics";
 import { bookingPublicSchema, safeParseFormData } from "@/lib/validation";
 import type Stripe from "stripe";
 
@@ -159,6 +160,8 @@ export async function createBookingPublic(
   // Stripe Connect en direct charge : la session est créée SUR le compte du tenant,
   // qui encaisse 100 % et paie lui-même les frais Stripe (jamais la plateforme).
   const stripeAccountId = tenant?.stripeAccountId;
+  // Relayé par Stripe jusqu'au webhook pour rattacher booking_paid au même visiteur.
+  const distinctId = await browserDistinctId();
 
   const sessionParams: Stripe.Checkout.SessionCreateParams = {
     mode: "payment",
@@ -195,6 +198,7 @@ export async function createBookingPublic(
     metadata: {
       bookingId,
       tenantId,
+      ...(distinctId && { posthogDistinctId: distinctId }),
     },
     success_url: `${origin}/reserver/confirmation?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${origin}/reserver/${roomId}?cancelled=true`,
@@ -231,5 +235,10 @@ export async function createBookingPublic(
     status: "pending",
   });
 
+  captureServer(
+    "booking_submitted",
+    { surface: "tenant_site", tenant_id: tenantId, nights, amount_bucket: amountBucket(total) },
+    distinctId,
+  );
   redirect(session.url!);
 }

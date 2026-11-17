@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Archivo, Big_Shoulders, Source_Serif_4 } from "next/font/google";
 import "./vitrine.css";
+import Analytics from "@/components/Analytics";
 
 // Monde « Almanach » du site vitrine : jamais chargé par l'admin ni par les sites clients.
 const display = Big_Shoulders({ variable: "--alm-display", subsets: ["latin"], weight: ["700", "900"], adjustFontFallback: false });
@@ -14,5 +15,10 @@ export const metadata: Metadata = {
 };
 
 export default function VitrineLayout({ children }: { children: React.ReactNode }) {
-  return <div className={`alm ${display.variable} ${serif.variable} ${ui.variable}`}>{children}</div>;
+  return (
+    <div className={`alm ${display.variable} ${serif.variable} ${ui.variable}`}>
+      {children}
+      <Analytics apiKey={process.env.POSTHOG_KEY} surface="vitrine" tenantId={null} />
+    </div>
+  );
 }

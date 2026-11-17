@@ -4,6 +4,7 @@ import { and, eq, gt, inArray, lt, ne } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
+import { captureServer } from "@/lib/analytics";
 import { db } from "@/lib/db";
 import { bookings, icalBlocks, rooms } from "@/db/schema";
 import {
@@ -66,7 +67,11 @@ export async function confirmBooking(id: string) {
 }
 
 export async function cancelBooking(id: string) {
-  const tenantId = await requireTenantId();
+  const { session, tenantId } = await requireSession();
+  const [before] = await db
+    .select({ status: bookings.status })
+    .from(bookings)
+    .where(and(eq(bookings.id, id), eq(bookings.tenantId, tenantId)));
   const transitioned = await updateStatus(id, tenantId, "cancelled", [
     "pending",
     "confirmed",
@@ -75,6 +80,11 @@ export async function cancelBooking(id: string) {
   // N'envoyer l'email d'annulation que si l'annulation a réellement eu lieu
   // (évite un second email si le booking était déjà annulé ou terminé).
   if (!transitioned) return;
+  captureServer(
+    "booking_cancelled",
+    { surface: "admin", tenant_id: tenantId, from_status: before?.status },
+    session.user.id,
+  );
 
   // Envoyer l'email d'annulation au client (best-effort) ; l'hôte est prévenu
   // s'il n'est pas parti, pour qu'il contacte le client lui-même.

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { sendCallbackRequest } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { safeParseFormData } from "@/lib/validation";
+import { browserDistinctId, captureServer, partnerCode } from "@/lib/analytics";
 
 export type CallbackState = { ok?: boolean; error?: string; fieldErrors?: Record<string, string> } | undefined;
 
@@ -17,6 +18,7 @@ const callbackSchema = z.object({
     .regex(/^\+?[\d\s.\-()]{10,20}$/, "Numéro de téléphone invalide (ex. 06 12 34 56 78)"),
   place: z.string().trim().max(120, "120 caractères maximum").optional().default(""),
   website: z.string().max(0).optional(), // champ piège anti-robots, laissé vide par un humain
+  ref: z.string().optional().transform(partnerCode), // code partenaire (?ref=), ignoré s'il est malformé
 });
 
 export async function requestCallback(_prev: CallbackState, formData: FormData): Promise<CallbackState> {
@@ -38,5 +40,6 @@ export async function requestCallback(_prev: CallbackState, formData: FormData):
     console.error("[callback] envoi impossible", e);
     return { error: "La demande n'a pas pu partir. Réessayez dans un instant." };
   }
+  captureServer("callback_requested", { surface: "vitrine", tenant_id: null, partner_code: parsed.data.ref }, await browserDistinctId());
   return { ok: true };
 }

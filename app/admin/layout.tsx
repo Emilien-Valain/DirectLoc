@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { userTenants } from "@/db/schema";
 import Sidebar from "@/components/admin/Sidebar";
 import { isDemoTenant } from "@/lib/demo";
+import Analytics from "@/components/Analytics";
 
 // Un onglet par page qui dit où l'on est (« Réservations · DirectLoc »), plus jamais « DirectLoc » partout.
 export const metadata = {
@@ -57,6 +58,7 @@ export default async function AdminLayout({
       >
         Aller au contenu
       </a>
+      <Analytics apiKey={process.env.POSTHOG_KEY} surface="admin" tenantId={tenantId} userId={session.user.id} />
       <Sidebar
         userEmail={session.user.email}
         userName={session.user.name ?? undefined}

@@ -2,3 +2,5 @@
 set -e
 . .husky/stop-dev-server.sh
 npx playwright test
+# Suite PostHog : serveur séparé avec clé de test (le bandeau gênerait la suite principale).
+npx playwright test -c playwright.analytics.config.ts

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { captureServer } from "@/lib/analytics";
 import type { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
           stripePaymentId: session.payment_intent as string,
         })
         .where(eq(payments.stripeSessionId, session.id));
+      captureServer("booking_paid", { surface: "tenant_site", tenant_id: tenantId }, session.metadata?.posthogDistinctId);
 
       // Envoyer les emails (best-effort, ne pas bloquer le webhook)
       try {

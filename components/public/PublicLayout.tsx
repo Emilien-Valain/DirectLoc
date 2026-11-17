@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireTenant } from "@/lib/tenant-context";
 import type { Tenant, TenantConfig } from "@/lib/tenant-context";
 import SiteMenu from "@/components/public/SiteMenu";
+import Analytics from "@/components/Analytics";
 import { isDemoTenant } from "@/lib/demo";
 import "@/components/public/site.css";
 import "@/components/public/templates/plaque.css";
@@ -141,6 +142,7 @@ function SiteShell({
           </a>
         </p>
       </footer>
+      <Analytics apiKey={process.env.POSTHOG_KEY} surface="tenant_site" tenantId={tenant.id} />
     </div>
   );
 }
