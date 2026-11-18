@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "@/lib/auth-client";
 import {
@@ -12,7 +12,6 @@ import {
 } from "../_shell";
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const resetSuccess = searchParams.get("reset") === "success";
 
@@ -47,7 +46,10 @@ function LoginForm() {
       return;
     }
 
-    router.push("/admin");
+    // Navigation pleine page : le cache du routeur client garde les préchargements faits
+    // sans session (redirections vers /login) et renverrait en boucle sur /login (PWA sans bouton recharger).
+    const target = searchParams.get("redirect");
+    window.location.assign(target?.startsWith("/admin") ? target : "/admin");
   }
 
   return (

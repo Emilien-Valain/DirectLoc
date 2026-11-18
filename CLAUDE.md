@@ -26,7 +26,7 @@ Pour toute nouvelle fonctionnalité ou modification d'une fonctionnalité exista
 
 1. **Écrire ou mettre à jour les tests Playwright** dans `/e2e/` avant de considérer la tâche terminée.
 2. **Mettre à jour le fichier de spécifications** dans l'Obsidian Vault : `/home/richard/Documents/Obsidian Vault/SyncGit/Projet Booking Manager/Tests de non-régression.md`. Ce fichier est la source de vérité humaine — maintiens-le synchronisé avec les tests réels.
-3. Les tests sont dans `/e2e/`, organisés par domaine : `auth/`, `admin/`, `public/`, `payment/`.
+3. Les tests sont dans `/e2e/`, organisés par domaine : `auth/`, `admin/`, `public/`, `payment/`, `mobile/` (admin en application installée sur téléphone : projet Playwright `mobile`, Pixel 7, jamais de `page.reload()`).
 4. Utilise `test.skip(...)` pour les tests dont le code applicatif n'est pas encore écrit. Ne laisse jamais un test sans stub.
 
 ## Règle : les tests doivent essayer de casser l'app

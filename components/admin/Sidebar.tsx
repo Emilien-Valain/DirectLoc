@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { Icon, type IconName } from "@/components/admin/icons";
 
@@ -37,7 +37,6 @@ export default function Sidebar({
   accessibleTenants: AccessibleTenant[];
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   // Lu côté serveur depuis le cookie (layout) : même rendu serveur et client, pas d'erreur d'hydratation.
   const [collapsed, setCollapsed] = useState(initialCollapsed);
   const [hotelMenuOpen, setHotelMenuOpen] = useState(false);
@@ -84,7 +83,8 @@ export default function Sidebar({
 
   async function handleSignOut() {
     await signOut();
-    router.push("/login");
+    // Pleine page + replace : vide le cache du routeur, le bouton Retour ne rouvre pas l'admin.
+    window.location.replace("/login");
   }
 
   const isCollapsed = collapsed;

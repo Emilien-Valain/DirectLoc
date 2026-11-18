@@ -44,6 +44,12 @@ export default defineConfig({
       testMatch: ["**/auth/**/*.spec.ts"],
       use: { ...devices["Desktop Chrome"] },
     },
+    // Admin en application installée sur Android (PWA) — téléphone, sans session pré-existante
+    {
+      name: "mobile",
+      testMatch: ["**/mobile/**/*.spec.ts"],
+      use: { ...devices["Pixel 7"] },
+    },
     // Tests publics (API, pages publiques) — sans session
     {
       name: "public",

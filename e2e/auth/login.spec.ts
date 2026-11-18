@@ -154,6 +154,46 @@ test.describe("Auth — Connexion admin", () => {
     await expect(page).toHaveURL(/\/login/);
   });
 
+  // Bug appart-alma (2026-11-18, PWA Android) : déconnexion → Retour → clic → /login ;
+  // la reconnexion en navigation client gardait les préchargements « sans session » et
+  // chaque clic renvoyait sur /login en boucle.
+  test("déconnexion → Retour → reconnexion : la navigation admin ne boucle pas sur /login", async ({ page }) => {
+    test.setTimeout(60000);
+    await page.goto("/login");
+    await page.fill('[name="email"]', ADMIN_EMAIL);
+    await page.fill('[name="password"]', ADMIN_PASSWORD);
+    await page.click('[type="submit"]');
+    await expect(page).toHaveURL(/\/admin$/);
+
+    await page.getByRole("button", { name: "Déconnexion" }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.goBack();
+    // Retour ne doit jamais réafficher l'admin sans session.
+    await expect(page).toHaveURL(/\/login/);
+
+    await page.goto("/admin/chambres");
+    await expect(page).toHaveURL(/\/login\?redirect=%2Fadmin%2Fchambres/);
+    await page.fill('[name="email"]', ADMIN_EMAIL);
+    await page.fill('[name="password"]', ADMIN_PASSWORD);
+    await page.click('[type="submit"]');
+    // La page demandée avant la connexion est rouverte.
+    await expect(page).toHaveURL(/\/admin\/chambres$/);
+
+    const nav = page.locator("[data-admin-sidebar]:visible");
+    await nav.getByRole("link", { name: "Calendrier" }).click();
+    await expect(page).toHaveURL(/\/admin\/calendrier/);
+    await nav.getByRole("link", { name: "Chambres" }).click();
+    await expect(page).toHaveURL(/\/admin\/chambres$/);
+  });
+
+  test("?redirect hors /admin (open redirect) → /admin", async ({ page }) => {
+    await page.goto("/login?redirect=" + encodeURIComponent("//evil.example/admin"));
+    await page.fill('[name="email"]', ADMIN_EMAIL);
+    await page.fill('[name="password"]', ADMIN_PASSWORD);
+    await page.click('[type="submit"]');
+    await expect(page).toHaveURL(/^http:\/\/[^/]+\/admin$/);
+  });
+
   test("inscription publique refusée : aucun compte créé, même sans cookie (audit 2026-10c/1)", async ({ request }) => {
     const email = `intrus-${Date.now()}@test.maresa`;
     const res = await request.post("http://localhost:3001/api/auth/sign-up/email", {
