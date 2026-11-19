@@ -197,7 +197,7 @@ test.describe("Public — Parcours de réservation", () => {
   }
 
   async function fillGuest(page: import("@playwright/test").Page, email: string) {
-    await fillGuestContact(page, { firstName: "Client", lastName: "Refusé", email, phone: "0601020304" });
+    await fillGuestContact(page, { firstName: "Client", lastName: "Refusé", email, phone: "0601020304", country: "BE" });
   }
 
   async function bookingCount(email: string) {
@@ -233,6 +233,7 @@ test.describe("Public — Parcours de réservation", () => {
       await expect(page.locator('[name="guestEmail"]')).toHaveValue(email);
       await expect(page.locator('[name="guestLastName"]')).toHaveValue("Refusé");
       await expect(page.locator('[name="guestAddress"]')).toHaveValue("12 rue des Lilas, 84000 Avignon");
+      await expect(page.locator('[name="guestCountry"]')).toHaveValue("BE");
       // La dispo est revérifiée après le refus : plus de bouton « payer » actif.
       await expect(page.getByText("Non disponible pour ces dates")).toBeVisible({ timeout: 8000 });
       await expect(page.getByTestId("booking-submit")).toBeDisabled();

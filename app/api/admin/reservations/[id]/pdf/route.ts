@@ -1,3 +1,4 @@
+import { countryName } from "@/lib/countries";
 import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
@@ -230,6 +231,7 @@ export async function GET(
     const a = booking.guestAddress.replace(/\s+/g, " ");
     drawRow("Adresse", a.length > 64 ? `${a.slice(0, 61)}...` : a);
   }
+  if (booking.guestCountry) drawRow("Pays", countryName(booking.guestCountry));
 
   // ── Paiement ──
   drawSection("Paiement");

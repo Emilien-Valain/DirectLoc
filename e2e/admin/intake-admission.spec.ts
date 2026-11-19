@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expectAdminGuestName, fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { insertManualBlock, deleteManualBlock } from "../helpers/manual-blocks";
@@ -32,7 +33,7 @@ async function submitManualBooking(
 ) {
   await page.goto("/admin/reservations/new");
   await page.locator('select[name="roomId"]').selectOption(ctx.apiRoomId);
-  await page.fill('[name="guestName"]', opts.name);
+  await fillAdminGuestName(page, opts.name);
   await page.fill('[name="guestEmail"]', opts.email);
   await page.fill('[name="guestCount"]', opts.guests ?? "1");
   await page.locator('[name="checkIn"]').fill(opts.checkIn);
@@ -71,7 +72,7 @@ test.describe("Admin — Admission des réservations (admitBooking)", () => {
 
       // Conflit expliqué dans le formulaire, saisie conservée, override proposé seulement maintenant
       await expect(page.getByText("Ces dates chevauchent")).toBeVisible();
-      await expect(page.locator('[name="guestName"]')).toHaveValue(`Sans Force ${RUN_ID}`);
+      await expectAdminGuestName(page, `Sans Force ${RUN_ID}`);
       await expect(page.locator('[name="roomId"]')).toHaveValue(ctx.apiRoomId);
       await expect(page.locator('input[name="force"]')).toBeVisible();
 
@@ -151,7 +152,7 @@ test.describe("Admin — Admission des réservations (admitBooking)", () => {
         guests: "3",
       });
       await expect(page.getByText("Cette chambre accueille 2 personnes maximum").first()).toBeVisible();
-      await expect(page.locator('[name="guestName"]')).toHaveValue(`Trop Nombreux ${RUN_ID}`);
+      await expectAdminGuestName(page, `Trop Nombreux ${RUN_ID}`);
       expect(await countBookingsByEmail(ctx.tenantId, email)).toBe(0);
 
       await submitManualBooking(page, {
@@ -185,7 +186,7 @@ test.describe("Admin — Admission des réservations (admitBooking)", () => {
       for (const [p, n] of [[page, "A"], [other, "B"]] as const) {
         await p.goto("/admin/reservations/new");
         await p.locator('select[name="roomId"]').selectOption(ctx.apiRoomId);
-        await p.fill('[name="guestName"]', `Course ${n} ${RUN_ID}`);
+        await fillAdminGuestName(p, `Course ${n} ${RUN_ID}`);
         await p.fill('[name="guestEmail"]', email);
         await p.locator('[name="checkIn"]').fill(fd("2027-09-06"));
         await p.locator('[name="checkOut"]').fill(fd("2027-09-09"));

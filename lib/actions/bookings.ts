@@ -1,5 +1,6 @@
 "use server";
 
+import { fullName } from "@/lib/guest-name";
 import { and, eq, gt, inArray, lt, ne } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -232,7 +233,8 @@ export async function createBookingManual(
   const parsed = safeParseFormData(bookingManualSchema, formData);
   if ("error" in parsed) return { ...parsed, values };
   const { data } = parsed;
-  const { roomId, guestName, guestEmail, guestCount, childCount } = data;
+  const { roomId, guestEmail, guestCount, childCount, guestFirstName, guestLastName } = data;
+  const guestName = fullName(guestFirstName, guestLastName);
   const guestPhone = data.guestPhone || null;
   const checkIn = new Date(data.checkIn + "T00:00:00.000Z");
   const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
@@ -269,6 +271,8 @@ export async function createBookingManual(
             checkOut,
             totalPrice: total.toFixed(2),
             guestName,
+            guestFirstName,
+            guestLastName,
             guestEmail,
             guestPhone,
             guestCount,
@@ -389,7 +393,8 @@ export async function updateBookingManual(
   const parsed = safeParseFormData(bookingManualSchema, formData);
   if ("error" in parsed) return { ...parsed, values };
   const { data } = parsed;
-  const { roomId, guestName, guestEmail, guestCount, childCount } = data;
+  const { roomId, guestEmail, guestCount, childCount, guestFirstName, guestLastName } = data;
+  const guestName = fullName(guestFirstName, guestLastName);
   const checkIn = new Date(data.checkIn + "T00:00:00.000Z");
   const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
   // Hébergement : prix convenu saisi > ancien hébergement gardé > nouveau calcul ; les Extras s'y ajoutent.
@@ -425,6 +430,8 @@ export async function updateBookingManual(
             checkOut,
             totalPrice: total.toFixed(2),
             guestName,
+            guestFirstName,
+            guestLastName,
             guestEmail,
             guestPhone: data.guestPhone || null,
             guestCount,

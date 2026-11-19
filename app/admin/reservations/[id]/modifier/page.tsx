@@ -1,3 +1,4 @@
+import { splitName } from "@/lib/guest-name";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
@@ -63,7 +64,10 @@ export default async function EditReservationPage({
             roomId: booking.roomId,
             checkIn: iso(booking.checkIn),
             checkOut: iso(booking.checkOut),
-            guestName: booking.guestName,
+            // Ligne écrite sans prénom/nom (import, SQL) : on repart du nom affiché.
+            ...(booking.guestLastName
+              ? { guestFirstName: booking.guestFirstName, guestLastName: booking.guestLastName }
+              : { guestFirstName: splitName(booking.guestName).first, guestLastName: splitName(booking.guestName).last }),
             guestEmail: booking.guestEmail,
             guestPhone: booking.guestPhone ?? "",
             guestCount: String(booking.guestCount),

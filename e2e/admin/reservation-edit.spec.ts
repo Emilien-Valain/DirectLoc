@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expectAdminGuestName, fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
@@ -119,7 +120,7 @@ test.describe("Admin — Modifier une réservation", () => {
     const id = await insertBooking({ name, checkIn: day(500), checkOut: day(502) });
     await openEdit(page, id);
 
-    await expect(page.locator('[name="guestName"]')).toHaveValue(name);
+    await expectAdminGuestName(page, name);
     await expect(page.locator('[name="roomId"]')).toHaveValue(ctx.apiRoomId);
     // Prévenir le client : coché par défaut
     await expect(page.locator('[name="notifyGuest"]')).toBeChecked();
@@ -315,7 +316,7 @@ test.describe("Admin — Modifier une réservation", () => {
     const id = await insertBooking({ name: `Sain ${RUN_ID}`, checkIn: day(620), checkOut: day(621) });
     await openEdit(page, id);
     const evil = `<script>alert(1)</script> ${RUN_ID}`;
-    await page.locator('[name="guestName"]').fill(evil);
+    await fillAdminGuestName(page, evil);
     await page.locator('[name="notifyGuest"]').uncheck();
     await page.getByRole("button", { name: "Enregistrer les modifications" }).click();
     await expect(page).toHaveURL(/modifiee=silence$/);
@@ -472,7 +473,7 @@ test.describe("Admin — Annuler, forcer : ce que la décision implique", () => 
 
   async function submitNew(page: Page, checkIn: string, checkOut: string, name: string) {
     await page.goto(`/admin/reservations/new?roomId=${ctx.apiRoomId}&checkIn=${checkIn}&checkOut=${checkOut}`);
-    await page.fill('[name="guestName"]', name);
+    await fillAdminGuestName(page, name);
     await page.fill('[name="guestEmail"]', `${RUN_ID}@${DOMAIN}`);
     await page.click('[type="submit"]');
     const panel = page.locator("[data-force-panel]");

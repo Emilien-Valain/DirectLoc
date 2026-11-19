@@ -3,8 +3,8 @@ import { bookingManualSchema, bookingPublicSchema } from "../../lib/validation";
 import { parisToday } from "../../lib/date-windows";
 
 /**
- * Site public : prénom, nom, téléphone et adresse obligatoires ; la saisie manuelle
- * (admin) garde un nom unique et un téléphone facultatif.
+ * Site public : prénom, nom, téléphone, adresse et pays obligatoires ; la saisie
+ * manuelle (admin) : nom obligatoire, prénom et téléphone facultatifs.
  */
 
 const tomorrow = new Date(Date.parse(parisToday() + "T00:00:00Z") + 86_400_000).toISOString().slice(0, 10);
@@ -18,6 +18,7 @@ const ok = {
   guestEmail: "m@example.com",
   guestPhone: "+33 6 01 02 03 04",
   guestAddress: "12 rue des Lilas, 84000 Avignon",
+  guestCountry: "FR",
   guestCount: "1",
 };
 const messages = (input: Record<string, unknown>) => {
@@ -57,15 +58,24 @@ test.describe("Public — coordonnées du client", () => {
     expect(messages({ ...ok, guestAddress: "abcd" })).toContain("Adresse obligatoire (rue, code postal, ville)");
   });
 
-  test("saisie manuelle inchangée : nom unique, téléphone et adresse facultatifs", () => {
-    const r = bookingManualSchema.safeParse({
-      roomId: ok.roomId,
-      checkIn: tomorrow,
-      checkOut: after,
-      guestName: "Marie Curie",
-      guestEmail: "m@example.com",
-      guestCount: "1",
-    });
+  test("pays : code de la liste accepté (casse tolérée), vide ou inconnu refusé", () => {
+    expect(bookingPublicSchema.safeParse({ ...ok, guestCountry: "be" }).data?.guestCountry).toBe("BE");
+    expect(messages({ ...ok, guestCountry: "" })).toContain("Choisissez un pays dans la liste");
+    expect(messages({ ...ok, guestCountry: "ZZ" })).toContain("Choisissez un pays dans la liste");
+    expect(messages({ ...ok, guestCountry: "<script>" })).toContain("Choisissez un pays dans la liste");
+    const { guestCountry: _c, ...missing } = ok;
+    expect(messages(missing).length).toBeGreaterThan(0);
+  });
+
+  const manual = (input: Record<string, unknown>) =>
+    bookingManualSchema.safeParse({ roomId: ok.roomId, checkIn: tomorrow, checkOut: after, guestEmail: "m@example.com", guestCount: "1", ...input });
+
+  test("saisie manuelle : nom obligatoire, prénom, téléphone et adresse facultatifs", () => {
+    const r = manual({ guestLastName: " Curie " });
     expect(r.success).toBe(true);
+    expect(r.data).toMatchObject({ guestFirstName: "", guestLastName: "Curie" });
+    expect(manual({ guestFirstName: "Marie", guestLastName: "Curie" }).data?.guestFirstName).toBe("Marie");
+    expect(manual({ guestFirstName: "Marie", guestLastName: "  " }).error?.issues.map((i) => i.message)).toContain("Nom obligatoire");
+    expect(manual({ guestFirstName: "a".repeat(101), guestLastName: "Curie" }).error?.issues.map((i) => i.message)).toContain("Prénom : 100 caractères max");
   });
 });

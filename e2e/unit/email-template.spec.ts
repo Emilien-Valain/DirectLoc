@@ -11,6 +11,7 @@ const d = (s: string) => new Date(`${s}T00:00:00.000Z`);
 
 const vars = emailVariables({
   guestName: "Marie Curie",
+  guestFirstName: "Marie",
   roomName: "Suite Lavande",
   checkIn: d("2027-07-01"),
   checkOut: d("2027-07-04"),
@@ -34,6 +35,12 @@ test.describe("Emails — variables des messages", () => {
 
   test("variable inconnue laissée telle quelle, accolades isolées intactes", () => {
     expect(fillTemplate("{inconnue} { client } {}", vars)).toBe("{inconnue} { client } {}");
+  });
+
+  test("{prenom} : le prénom ; sans prénom (saisie admin) → le nom complet", () => {
+    expect(fillTemplate("Bonjour {prenom}", vars)).toBe("Bonjour Marie");
+    const v = emailVariables({ guestName: "Dupont", guestFirstName: "", roomName: "B", checkIn: d("2027-01-01"), checkOut: d("2027-01-02"), nights: 1, hotelName: "H" });
+    expect(fillTemplate("Bonjour {Prénom}", v)).toBe("Bonjour Dupont");
   });
 
   test("lits non renseignés → vide (pas « null »)", () => {

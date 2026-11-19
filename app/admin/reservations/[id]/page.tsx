@@ -1,3 +1,4 @@
+import { countryName } from "@/lib/countries";
 import { formatEuros } from "@/lib/utils";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -290,6 +291,7 @@ export default async function ReservationDetailPage({
             />
           )}
           {reservation.guestAddress && <Row label="Adresse" value={reservation.guestAddress} />}
+          {reservation.guestCountry && <Row label="Pays" value={countryName(reservation.guestCountry)} />}
         </Section>
 
         <Section label="Paiement">

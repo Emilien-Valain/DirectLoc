@@ -1,3 +1,4 @@
+import { splitName } from "@/lib/guest-name";
 import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bookings, payments, rooms, tenants } from "@/db/schema";
@@ -217,6 +218,7 @@ export async function loadEmailContext(bookingId: string, tenantId: string) {
     booking,
     emailData: {
       guestName: booking.guestName,
+      guestFirstName: booking.guestLastName ? booking.guestFirstName : splitName(booking.guestName).first,
       guestEmail: booking.guestEmail,
       roomName: room?.name ?? "Chambre",
       guestCount: booking.guestCount,

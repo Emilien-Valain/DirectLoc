@@ -6,7 +6,7 @@ import { fillGuestContact } from "../helpers/guest";
 
 /**
  * Spécification : Tests de non-régression > Public > « Pour vous joindre » :
- * prénom, nom, email, téléphone et adresse obligatoires, contrôlés par le serveur.
+ * prénom, nom, email, téléphone, adresse et pays obligatoires, contrôlés par le serveur.
  */
 
 const ctx = JSON.parse(
@@ -32,6 +32,26 @@ test.describe("Public — coordonnées obligatoires", () => {
     await expect(page.getByText("(facultatif)")).toHaveCount(0);
     await expect(page.locator("#guestFirstName")).toHaveAttribute("autocomplete", "given-name");
     await expect(page.locator("#guestAddress")).toHaveAttribute("autocomplete", "street-address");
+  });
+
+  test("pays de résidence : obligatoire, France présélectionnée en tête de liste", async ({ page }) => {
+    const country = page.getByLabel("Pays de résidence");
+    await expect(country).toHaveAttribute("required", "");
+    await expect(country).toHaveValue("FR");
+    await expect(country.locator("option").first()).toHaveText("France");
+    await country.selectOption({ label: "Allemagne" });
+    await expect(country).toHaveValue("DE");
+  });
+
+  test("serveur : pays trafiqué (hors liste) → refusé, rien d'enregistré", async ({ page }) => {
+    await fillGuestContact(page, { firstName: "Marie", lastName: "Pays", email: "pays@example.com" });
+    await page.locator("#guestCountry").evaluate((s: HTMLSelectElement) => {
+      s.add(new Option("Nulle part", "<script>alert(1)</script>"));
+      s.value = "<script>alert(1)</script>";
+    });
+    await page.getByTestId("booking-submit").click();
+    await expect(page.getByTestId("booking-error")).toContainText("Choisissez un pays dans la liste");
+    await expect(page.locator("#guestCountry")).toHaveAttribute("aria-invalid", "true");
   });
 
   test("navigateur : téléphone manquant bloque l'envoi (aucun POST)", async ({ page }) => {

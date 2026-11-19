@@ -138,6 +138,7 @@ async function sendEmail({ to, subject, html, hotelName, replyTo, tenantId }: Se
 
 /** Ce que les messages personnalisés peuvent citer en plus du séjour ({voyageurs}, {lits}…). */
 type MessageContext = {
+  guestFirstName?: string;
   guestCount?: number;
   roomCapacity?: number;
   roomBeds?: number | null;

@@ -1,3 +1,4 @@
+import { splitName } from "@/lib/guest-name";
 import { and, eq, ne } from "drizzle-orm";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
@@ -218,6 +219,8 @@ export async function resetDemoTenant() {
         status,
         source,
         guestName,
+        guestFirstName: splitName(guestName).first,
+        guestLastName: splitName(guestName).last,
         guestEmail: `client${n + 1}@example.com`,
         guestPhone: source === "manual" ? "+33 6 12 34 56 78" : null,
         guestCount: Math.min(2, ROOMS[i].capacity),

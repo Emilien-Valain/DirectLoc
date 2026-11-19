@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { deleteBookingsByEmail } from "../helpers/intake";
@@ -33,7 +34,7 @@ test("sous-domaine : enregistrer une réservation manuelle ne renvoie pas vers C
 
   await page.goto(`${BASE}/admin/reservations/new`);
   await page.locator('select[name="roomId"]').selectOption({ index: 1 });
-  await page.fill('[name="guestName"]', "Sous-domaine Redirect");
+  await fillAdminGuestName(page, "Sous-domaine Redirect");
   await page.fill('[name="guestEmail"]', EMAIL);
   await submitManualBookingForm(page, true);
 

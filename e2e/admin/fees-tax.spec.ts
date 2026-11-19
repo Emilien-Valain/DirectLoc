@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
@@ -110,7 +111,7 @@ const feeRow = (page: Page, label: string) => page.locator(`[data-testid="fee-ro
 async function fillManual(page: Page, opts: { name: string; checkIn: string; checkOut: string; guests?: string; roomId?: string }) {
   await page.goto("/admin/reservations/new");
   await page.locator('select[name="roomId"]').selectOption(opts.roomId ?? familyRoomId);
-  await page.fill('[name="guestName"]', `${opts.name} ${RUN_ID}`);
+  await fillAdminGuestName(page, `${opts.name} ${RUN_ID}`);
   await page.fill('[name="guestEmail"]', `${RUN_ID}@${DOMAIN}`);
   await page.fill('[name="guestCount"]', opts.guests ?? "1");
   await page.locator('[name="checkIn"]').fill(opts.checkIn);

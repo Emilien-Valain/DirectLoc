@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { parisToday } from "@/lib/date-windows";
 import { EXTRA_UNITS, FEE_UNITS } from "@/lib/extras";
+import { isCountryCode } from "@/lib/countries";
 
 // ── Primitives réutilisables ──────────────────────────────────────────────────
 
@@ -131,6 +132,7 @@ export const bookingPublicSchema = z
       .trim()
       .min(5, "Adresse obligatoire (rue, code postal, ville)")
       .max(300, "Adresse trop longue (300 caractères max)"),
+    guestCountry: z.string().trim().toUpperCase().refine(isCountryCode, "Choisissez un pays dans la liste"),
     guestCount: positiveInt,
     childCount,
   })
@@ -149,7 +151,9 @@ export const bookingPublicSchema = z
 export const bookingManualSchema = z
   .object({
     roomId: roomIdString,
-    guestName: safeName,
+    // Prénom facultatif côté admin (client connu par son seul nom, réservation d'une plateforme).
+    guestFirstName: z.string().trim().max(100, "Prénom : 100 caractères max").optional().default(""),
+    guestLastName: personName("Nom"),
     guestEmail: email,
     guestPhone: phone,
     guestCount: positiveInt,

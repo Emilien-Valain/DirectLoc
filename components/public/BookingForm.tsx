@@ -1,5 +1,6 @@
 "use client";
 
+import { COUNTRIES, DEFAULT_COUNTRY } from "@/lib/countries";
 import { useActionState, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createBookingPublic, type PublicBookingState } from "@/lib/actions/bookings-public";
@@ -482,6 +483,23 @@ export default function BookingForm({
               defaultValue={v.guestAddress}
               aria-invalid={!!state?.fieldErrors?.guestAddress || undefined}
             />
+          </div>
+          <div className="s-field">
+            <label htmlFor="guestCountry">Pays de résidence</label>
+            <select
+              id="guestCountry"
+              name="guestCountry"
+              required
+              autoComplete="country"
+              defaultValue={v.guestCountry || DEFAULT_COUNTRY}
+              aria-invalid={!!state?.fieldErrors?.guestCountry || undefined}
+            >
+              {COUNTRIES.map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
         </fieldset>
 

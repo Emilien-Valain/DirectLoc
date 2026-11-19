@@ -6,7 +6,8 @@
  */
 
 export const EMAIL_VARIABLES = [
-  ["client", "nom du client"],
+  ["client", "prénom et nom du client"],
+  ["prenom", "prénom du client (sinon son nom)"],
   ["chambre", "nom de la chambre"],
   ["arrivee", "date d'arrivée"],
   ["depart", "date de départ"],
@@ -21,6 +22,8 @@ export type EmailVariable = (typeof EMAIL_VARIABLES)[number][0];
 
 export type EmailTemplateContext = {
   guestName: string;
+  /** Vide pour une saisie admin sans prénom : {prenom} retombe alors sur le nom complet. */
+  guestFirstName?: string;
   roomName: string;
   checkIn: Date;
   checkOut: Date;
@@ -37,6 +40,7 @@ const longDate = (d: Date) =>
 export function emailVariables(c: EmailTemplateContext): Record<EmailVariable, string> {
   return {
     client: c.guestName,
+    prenom: c.guestFirstName?.trim() || c.guestName,
     chambre: c.roomName,
     arrivee: longDate(c.checkIn),
     depart: longDate(c.checkOut),

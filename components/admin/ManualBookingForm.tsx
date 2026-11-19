@@ -272,9 +272,15 @@ export default function ManualBookingForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-3.5">
-        <Field label="Nom client *" error={fe.guestName}>
-          <AdminInput name="guestName" type="text" required defaultValue={v.guestName} />
+        <Field label="Prénom" error={fe.guestFirstName}>
+          <AdminInput name="guestFirstName" type="text" maxLength={100} autoComplete="off" defaultValue={v.guestFirstName} />
         </Field>
+        <Field label="Nom *" error={fe.guestLastName}>
+          <AdminInput name="guestLastName" type="text" required maxLength={100} autoComplete="off" defaultValue={v.guestLastName} />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3.5">
         <Field label="Voyageurs *" error={fe.guestCount}>
           <AdminInput
             name="guestCount"

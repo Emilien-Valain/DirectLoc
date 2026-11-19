@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { expectAdminGuestName, fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
@@ -34,7 +35,7 @@ const ctx = JSON.parse(
 const USED_EMAILS = [
   "test@example.com", "jean@example.com", "marie@example.com", "pierre@example.com",
   "zero@example.com", "passe@example.com", "xss@example.com", "pdf@example.com", "pdfdl@example.com",
-  "prix@example.com",
+  "prix@example.com", "solo@example.com", "nom-requis@example.com",
 ];
 
 async function cleanupBookings() {
@@ -59,7 +60,7 @@ async function createReservation(
   if (optionCount <= 1) throw new Error("Aucune chambre disponible en DB de test");
 
   await select.selectOption({ index: 1 });
-  await page.fill('[name="guestName"]', opts.name);
+  await fillAdminGuestName(page, opts.name);
   await page.fill('[name="guestEmail"]', opts.email ?? "test@example.com");
   await page.fill('[name="guestCount"]', opts.guests ?? "1");
   if (opts.checkIn) await page.locator('[name="checkIn"]').fill(opts.checkIn);
@@ -206,7 +207,7 @@ test.describe("Admin — Gestion des réservations", () => {
     await expect(page.getByText(/3 nuits, tarifs et règles appliqués/)).toBeVisible();
     await expect(page.getByText(/Total calculé/)).toContainText("€");
 
-    await page.fill('[name="guestName"]', guestName);
+    await fillAdminGuestName(page, guestName);
     await page.fill('[name="guestEmail"]', "prix@example.com");
     await page.fill('[name="agreedPrice"]', "199");
     await submitManualBookingForm(page, true);
@@ -225,13 +226,31 @@ test.describe("Admin — Gestion des réservations", () => {
   test("saisie manuelle : prix convenu invalide → erreur sur le champ, saisie conservée", async ({ page }) => {
     await page.goto("/admin/reservations/new");
     await page.locator('select[name="roomId"]').selectOption({ index: 1 });
-    await page.fill('[name="guestName"]', `Prix Faux ${RUN_ID}`);
+    await fillAdminGuestName(page, `Prix Faux ${RUN_ID}`);
     await page.fill('[name="guestEmail"]', "prix@example.com");
     await page.fill('[name="agreedPrice"]', "deux cents");
     await page.click('[type="submit"]');
     await expect(page.locator('[name="agreedPrice"]')).toHaveAttribute("aria-invalid", "true");
     await expect(page.getByText(/Prix convenu : un montant en euros/).first()).toBeVisible();
-    await expect(page.locator('[name="guestName"]')).toHaveValue(`Prix Faux ${RUN_ID}`);
+    await expectAdminGuestName(page, `Prix Faux ${RUN_ID}`);
+  });
+
+  test("saisie manuelle : prénom et nom séparés, prénom facultatif, nom obligatoire", async ({ page }) => {
+    await page.goto("/admin/reservations/new");
+    await page.locator('select[name="roomId"]').selectOption({ index: 1 });
+    await page.fill('[name="guestFirstName"]', "Sans Nom");
+    await page.fill('[name="guestEmail"]', "nom-requis@example.com");
+    await page.locator("form").first().evaluate((f: HTMLFormElement) => (f.noValidate = true));
+    await page.click('[type="submit"]');
+    await expect(page.locator('[name="guestLastName"]')).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText("Nom obligatoire").first()).toBeVisible();
+    await expect(page.locator('[name="guestFirstName"]')).toHaveValue("Sans Nom");
+
+    // Nom seul (client d'une plateforme) : accepté, affiché tel quel.
+    const solo = `Solo${RUN_ID}`;
+    await createReservation(page, { name: solo, email: "solo@example.com", checkIn: addDays(40), checkOut: addDays(41) });
+    await page.getByRole("link", { name: solo }).first().click();
+    await expect(page.getByRole("heading", { name: solo })).toBeVisible();
   });
 
   // ─── Filtres ─────────────────────────────────────────────────────────────────
@@ -354,7 +373,7 @@ test.describe("Admin — Gestion des réservations", () => {
     await expect(select.locator("option").nth(1)).toBeAttached();
 
     await select.selectOption({ index: 1 });
-    await page.fill('[name="guestName"]', `Test Zéro Nuit ${RUN_ID}`);
+    await fillAdminGuestName(page, `Test Zéro Nuit ${RUN_ID}`);
     await page.fill('[name="guestEmail"]', "zero@example.com");
     await page.fill('[name="guestCount"]', "1");
     const sameDate = addDays(20);
@@ -368,7 +387,7 @@ test.describe("Admin — Gestion des réservations", () => {
     // Bandeau + message sur le champ « Départ » (aria-invalid).
     await expect(page.getByText("La date de départ doit être après la date d'arrivée").first()).toBeVisible();
     await expect(page.locator('[name="checkOut"]')).toHaveAttribute("aria-invalid", "true");
-    await expect(page.locator('[name="guestName"]')).toHaveValue(`Test Zéro Nuit ${RUN_ID}`);
+    await expectAdminGuestName(page, `Test Zéro Nuit ${RUN_ID}`);
   });
 
   test("réservation avec dates dans le passé — pas de crash", async ({ page }) => {
@@ -377,7 +396,7 @@ test.describe("Admin — Gestion des réservations", () => {
     await expect(select.locator("option").nth(1)).toBeAttached();
 
     await select.selectOption({ index: 1 });
-    await page.fill('[name="guestName"]', `Test Passé ${RUN_ID}`);
+    await fillAdminGuestName(page, `Test Passé ${RUN_ID}`);
     await page.fill('[name="guestEmail"]', "passe@example.com");
     await page.fill('[name="guestCount"]', "1");
     await page.locator('[name="checkIn"]').fill("2020-01-10");
@@ -462,7 +481,7 @@ test.describe("Admin — Gestion des réservations", () => {
     }
 
     await select.selectOption({ index: 1 });
-    await page.fill('[name="guestName"]', xssPayload);
+    await fillAdminGuestName(page, xssPayload);
     await page.fill('[name="guestEmail"]', "xss@example.com");
     await page.fill('[name="guestCount"]', "1");
     await page.locator('[name="checkIn"]').fill(addDays(30));

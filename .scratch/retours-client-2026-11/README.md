@@ -1,6 +1,6 @@
 # Retours client du 2026-11-19 — décisions mises de côté
 
-Status: needs-triage
+Status: ready-for-agent
 
 Liste des modifications demandées. Fait et poussé : bouton Modifier sur les 3 onglets de Règles ; règles tarifaires multi-chambres et « une valeur par chambre » ; rappel avant l'arrivée réglable ; message d'email par chambre + variables ; option « par lit » à quantité choisie ; nombre de voyageurs dans la recherche ; prénom/nom/téléphone/adresse obligatoires ; icône d'onglet ; lien « Voir mon site ».
 
@@ -33,3 +33,11 @@ Pas fait : colonnes séparées (utile pour une variable `{prenom}` « Bonjour Ma
 ## 6. Adresse postale structurée
 Fait : un champ « Adresse postale » obligatoire (texte libre, 300 car.).
 Pas fait : rue / code postal / ville / pays séparés (utile pour factures ou fiche de police).
+
+## Décisions (2026-11-19)
+1. Aperçu intégré : **non**, on garde le lien « Voir mon site ».
+2. Modifier en bloc : **groupe de règles** — les règles créées ensemble restent liées ; modifier le groupe change période/jours de toutes, un prix par chambre.
+3. Propriétés des logements : **champs fixes (étage, code porte, wifi…) + champs libres ajoutables**, utilisables comme variables d'email. UI/UX très claire et simple.
+4. Options quantifiables : **oui, toutes**, avec un maximum par option fixé par l'hôte (ADR-0010 à amender).
+5. Prénom / nom : **séparés** en base et dans la saisie admin ; variable `{prenom}` ; anciens noms découpés au premier espace.
+6. Adresse : **texte libre + menu Pays**.

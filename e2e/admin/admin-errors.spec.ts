@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fillAdminGuestName } from "../helpers/guest";
 import { confirmDialog, SAVED_BOOKING_URL } from "../helpers/confirm";
 
 /**
@@ -92,7 +93,7 @@ test.describe("Admin — Suppression d'une chambre réservée", () => {
       const select = page.locator('select[name="roomId"]');
       const value = await select.locator("option", { hasText: name }).getAttribute("value");
       await select.selectOption(value!);
-      await page.fill('[name="guestName"]', `Client ${RUN}`);
+      await fillAdminGuestName(page, `Client ${RUN}`);
       await page.fill('[name="guestEmail"]', EMAIL);
       const d = (n: number) => new Date(Date.now() + n * 86400000).toISOString().split("T")[0];
       await page.locator('[name="checkIn"]').fill(d(500));

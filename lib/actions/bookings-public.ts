@@ -1,5 +1,6 @@
 "use server";
 
+import { fullName } from "@/lib/guest-name";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -67,8 +68,10 @@ export async function createBookingPublic(
     return { error: "Trop de tentatives, réessayez dans quelques minutes.", values };
   }
   const { data } = parsed;
-  const { roomId, guestEmail, guestCount, childCount, guestPhone, guestAddress } = data;
-  const guestName = `${data.guestFirstName} ${data.guestLastName}`;
+  const { roomId, guestEmail, guestCount, childCount, guestPhone, guestAddress, guestCountry } = data;
+  const guestFirstName = data.guestFirstName;
+  const guestLastName = data.guestLastName;
+  const guestName = fullName(guestFirstName, guestLastName);
   // Cases à cocher multiples : formEntries ne garde que la dernière valeur.
   const extraIds = formData.getAll("extraIds").filter((v): v is string => typeof v === "string");
   const extraQuantities = extraQuantitiesFrom(formData.entries());
@@ -97,9 +100,12 @@ export async function createBookingPublic(
             totalPrice: total.toFixed(2),
             status: "pending",
             guestName,
+            guestFirstName,
+            guestLastName,
             guestEmail,
             guestPhone,
             guestAddress,
+            guestCountry,
             guestCount,
             childCount,
             source: "direct",

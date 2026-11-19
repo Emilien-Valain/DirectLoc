@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { deleteBookingsByEmail } from "../helpers/intake";
@@ -17,7 +18,7 @@ const PHONE = { width: 390, height: 844 };
 const EMAIL = "mobile-layout@example.com";
 const RUN_ID = Date.now().toString(36).slice(-5);
 // 120 caractères : le nom doit passer à la ligne, jamais déborder de la carte.
-const LONG_NAME = `Mobile ${RUN_ID} ` + "Delacroix-Montgolfier ".repeat(5);
+const LONG_NAME = `Mobile ${RUN_ID} ` + "Delacroix-Montgolfier ".repeat(4);
 
 const ctx = JSON.parse(
   fs.readFileSync(path.join(process.cwd(), "e2e", ".auth", "test-context.json"), "utf-8"),
@@ -120,7 +121,7 @@ test.describe("Admin — Mise en page mobile", () => {
     const select = page.locator('select[name="roomId"]');
     await expect(select.locator("option").nth(1)).toBeAttached();
     await select.selectOption({ index: 1 });
-    await page.fill('[name="guestName"]', LONG_NAME);
+    await fillAdminGuestName(page, LONG_NAME);
     await page.fill('[name="guestEmail"]', EMAIL);
     await page.fill('[name="guestCount"]', "2");
     await page.locator('[name="checkIn"]').fill(addDays(400));

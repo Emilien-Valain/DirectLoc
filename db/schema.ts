@@ -180,11 +180,17 @@ export const bookings = pgTable(
     checkOut: timestamp("check_out").notNull(),
     totalPrice: decimal("total_price", { precision: 10, scale: 2 }).notNull(),
     status: bookingStatusEnum("status").notNull().default("pending"),
+    // Nom affiché = prénom + nom, recomposé à chaque écriture (listes, emails, recherche).
     guestName: text("guest_name").notNull(),
+    // Prénom facultatif (saisie admin) ; réservations antérieures découpées au premier espace.
+    guestFirstName: text("guest_first_name").notNull().default(""),
+    guestLastName: text("guest_last_name").notNull().default(""),
     guestEmail: text("guest_email").notNull(),
     guestPhone: text("guest_phone"),
     // Adresse postale (obligatoire sur le site public, absente des saisies manuelles anciennes).
     guestAddress: text("guest_address"),
+    // Pays de résidence, code ISO 3166-1 alpha-2 (fiche de police des voyageurs étrangers).
+    guestCountry: text("guest_country"),
     guestCount: integer("guest_count").notNull().default(1),
     // Dont mineurs (−18 ans), exonérés de taxe de séjour (ADR-0011) ; ≤ guestCount.
     childCount: integer("child_count").notNull().default(0),
