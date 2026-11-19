@@ -97,13 +97,14 @@
 
 .s-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .s-field label { font-weight: 700; font-size: 0.95rem; }
-.s-field input {
+.s-field input, .s-field select {
   min-height: 52px; width: 100%; padding: 0 14px;
   font: inherit; color: var(--s-field-ink); background: var(--s-field);
   border: 2px solid var(--s-field-line, var(--s-line)); border-radius: var(--s-field-radius, 8px);
   caret-color: var(--s-accent);
 }
-.s-field input:focus-visible { outline: none; border-color: var(--s-focus); box-shadow: 0 0 0 3px color-mix(in oklch, var(--s-focus) 25%, transparent); }
+.s-field select { padding-right: 36px; }
+.s-field input:focus-visible, .s-field select:focus-visible { outline: none; border-color: var(--s-focus); box-shadow: 0 0 0 3px color-mix(in oklch, var(--s-focus) 25%, transparent); }
 .s-field input:user-invalid { border-color: var(--s-bad); }
 /* Champ date JJ/MM/AAAA + bouton calendrier (DateField.tsx) */
 .s-date { position: relative; }
@@ -317,6 +318,18 @@
 .s-extra-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
 .s-extra-label { font-weight: 700; }
 .s-extra-price { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Option « par lit » cochée : combien de lits (draps pour 1 lit sur 4…) */
+.s-extra-qty { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 0 12px 32px; animation: s-extra-qty-in 0.18s ease-out; }
+.s-extra-qty label { font-size: 0.9rem; font-weight: 700; }
+.s-extra-qty select {
+  min-height: 44px; min-width: 84px; padding: 0 12px;
+  font: inherit; font-variant-numeric: tabular-nums; color: var(--s-field-ink); background: var(--s-field);
+  border: 2px solid var(--s-field-line, var(--s-line)); border-radius: var(--s-field-radius, 8px);
+}
+.s-extra-qty select:focus-visible { outline: none; border-color: var(--s-focus); box-shadow: 0 0 0 3px color-mix(in oklch, var(--s-focus) 25%, transparent); }
+.s-extras li:last-child .s-extra-qty { padding-bottom: 0; }
+@keyframes s-extra-qty-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .s-extra-qty { animation: none; } }
 .s-extra:has(input:checked) .s-extra-price { color: var(--s-accent-ink, var(--s-accent)); }
 .s-status-row { display: flex; flex-wrap: wrap; gap: 8px; min-height: 38px; }
 .s-status-row:empty { min-height: 0; }

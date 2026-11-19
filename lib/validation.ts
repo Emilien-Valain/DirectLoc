@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { parisToday } from "@/lib/date-windows";
-import { EXTRA_UNITS } from "@/lib/extras";
+import { EXTRA_UNITS, FEE_UNITS } from "@/lib/extras";
 
 // ── Primitives réutilisables ──────────────────────────────────────────────────
 
@@ -195,7 +195,9 @@ export const extraSchema = z.object({
 });
 
 // Fee (ADR-0011) : même forme qu'un Extra, sans description ; chambres en cases à cocher (lues à part).
-export const feeSchema = extraSchema.omit({ description: true });
+export const feeSchema = extraSchema
+  .omit({ description: true })
+  .extend({ unit: z.enum(FEE_UNITS, { message: "Choisissez une unité" }) });
 
 /** Montant décimal positif ou nul saisi à la française (virgule ou point). */
 const frDecimal = (label: string, max: number) =>

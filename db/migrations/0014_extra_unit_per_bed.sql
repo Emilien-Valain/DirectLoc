@@ -1,0 +1,1 @@
+ALTER TYPE "public"."extra_unit" ADD VALUE 'per_bed';

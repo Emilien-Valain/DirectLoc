@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { balanceDue, extraQuantity, grandTotal, priceExtraLine } from "../../lib/extras";
+import { balanceDue, bedLimit, clampQuantity, extraQuantitiesFrom, extraQuantity, grandTotal, priceExtraLine } from "../../lib/extras";
 
 /**
  * Spécification : Tests de non-régression > Extras > Calcul (ADR-0010)
@@ -49,5 +49,31 @@ test.describe("Extras — calcul", () => {
     expect(balanceDue(460, 0, null)).toBe(0);
     expect(balanceDue(380, 400, null)).toBe(0);
     expect(balanceDue(400.1, 400, null)).toBe(0.1);
+  });
+});
+
+test.describe("Extras — par lit (quantité choisie)", () => {
+  test("quantité = lits choisis, indépendante des nuits et des voyageurs", () => {
+    expect(extraQuantity("per_bed", 7, 4, 2)).toBe(2);
+    expect(priceExtraLine({ sourceId: null, label: "Draps", unit: "per_bed", unitPrice: 8.5 }, 3, 2, 3).total).toBe(25.5);
+  });
+
+  test("bornes : [1, lits] ; absent ou illisible → tous les lits", () => {
+    expect(clampQuantity(undefined, 4)).toBe(4);
+    expect(clampQuantity(NaN, 4)).toBe(4);
+    expect(clampQuantity(0, 4)).toBe(1);
+    expect(clampQuantity(-3, 4)).toBe(1);
+    expect(clampQuantity(99, 4)).toBe(4);
+    expect(clampQuantity(2.7, 4)).toBe(2);
+  });
+
+  test("lits non renseignés → capacité ; jamais moins de 1", () => {
+    expect(bedLimit({ beds: null, capacity: 6 })).toBe(6);
+    expect(bedLimit({ beds: 2, capacity: 6 })).toBe(2);
+    expect(bedLimit({ beds: 0, capacity: 6 })).toBe(1);
+  });
+
+  test("champs extraQty_<id> lus, vides ignorés", () => {
+    expect(extraQuantitiesFrom([["extraQty_a", "2"], ["extraQty_b", ""], ["extraIds", "a"]])).toEqual({ a: 2 });
   });
 });

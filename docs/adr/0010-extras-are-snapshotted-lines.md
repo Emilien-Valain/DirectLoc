@@ -19,3 +19,7 @@ Extras added after an online payment raise the total; the difference is the [[ba
 ## Out of scope
 
 Mandatory charges (cleaning fee, tourist tax) are not Extras — the tourist tax has its own legal rules (adults only, per night, municipal scale). To be modelled in a separate session.
+
+## Amendment (2026-11-19): « per bed » is a chosen quantity
+
+Hosts charge bed linen per bed, and guests often want fewer sets than the room has beds (4 beds, one pair of sheets). We add a fifth unit, `per_bed`, whose quantity is **chosen** by the guest (or the admin) rather than derived — bounded server-side to `[1, rooms.beds]` (`rooms.capacity` when beds are unset), defaulting to every bed. The chosen quantity is snapshotted on the line like the price; editing a booking keeps it unless changed, and re-clamps it if the room changed. Other units stay derived; Fees cannot be `per_bed` (a mandatory charge has no one to choose its quantity).

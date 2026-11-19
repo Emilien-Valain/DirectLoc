@@ -7,7 +7,14 @@ import RoomPhoto from "@/components/public/RoomPhoto";
 import { parisToday } from "@/lib/date-windows";
 import DateField from "@/components/public/DateField";
 import { formatEuros } from "@/lib/utils";
-import { EXTRA_UNIT_LABELS, grandTotal, priceExtraLine, type ExtraLine } from "@/lib/extras";
+import {
+  EXTRA_UNIT_LABELS,
+  bedLimit,
+  grandTotal,
+  hasChosenQuantity,
+  priceExtraLine,
+  type ExtraLine,
+} from "@/lib/extras";
 import type { CatalogExtra } from "@/lib/queries/extras";
 import type { CatalogFee } from "@/lib/queries/fees";
 import { touristTaxLine, type TouristTax } from "@/lib/tourist-tax";
@@ -17,6 +24,8 @@ type Room = {
   name: string;
   pricePerNight: string;
   capacity: number;
+  /** Lits de la chambre (null = non renseigné → capacité) : borne des options « par lit ». */
+  beds?: number | null;
   photos?: unknown;
 };
 
@@ -126,6 +135,9 @@ export default function BookingForm({
   const [violations, setViolations] = useState<RuleViolation[]>([]);
   // Contrôlé (pas defaultChecked) : survit au remontage du formulaire après une erreur serveur.
   const [chosenExtras, setChosenExtras] = useState<string[]>([]);
+  // Options « par lit » : nombre de lits voulu (par défaut tous).
+  const maxBeds = bedLimit({ beds: room.beds ?? null, capacity: room.capacity });
+  const [bedCounts, setBedCounts] = useState<Record<string, number>>({});
   const [rules, setRules] = useState<EffectiveRules | null>(null);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -212,7 +224,12 @@ export default function BookingForm({
     ? Math.round((new Date(checkOut + "T00:00:00Z").getTime() - new Date(checkIn + "T00:00:00Z").getTime()) / 86_400_000)
     : 1;
   const priceOf = (x: CatalogExtra) =>
-    priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: x.price }, stayNights, guestCount);
+    priceExtraLine(
+      { sourceId: x.id, label: x.label, unit: x.unit, unitPrice: x.price },
+      stayNights,
+      guestCount,
+      hasChosenQuantity(x.unit) ? Math.min(bedCounts[x.id] ?? maxBeds, maxBeds) : undefined,
+    );
   const extraLines = extras.filter((x) => chosenExtras.includes(x.id)).map(priceOf);
   const hasValidPricing =
     availability === "available" && violations.length === 0 && totalPrice > 0;
@@ -377,6 +394,23 @@ export default function BookingForm({
                         {line.total === 0 ? "Offert" : fmtCurrency(line.total)}
                       </span>
                     </label>
+                    {checked && hasChosenQuantity(x.unit) && maxBeds > 1 && (
+                      <div className="s-extra-qty">
+                        <label htmlFor={`extraQty-${x.id}`}>Pour combien de lits ?</label>
+                        <select
+                          id={`extraQty-${x.id}`}
+                          name={`extraQty_${x.id}`}
+                          value={line.quantity}
+                          onChange={(e) => setBedCounts((c) => ({ ...c, [x.id]: Number(e.target.value) }))}
+                        >
+                          {Array.from({ length: maxBeds }, (_, i) => i + 1).map((n) => (
+                            <option key={n} value={n}>
+                              {n} lit{n > 1 ? "s" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </li>
                 );
               })}

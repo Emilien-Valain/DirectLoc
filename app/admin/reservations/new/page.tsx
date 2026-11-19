@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/session";
 import { getRoomsByTenant } from "@/lib/queries/rooms";
 import Link from "next/link";
 import ManualBookingForm from "@/components/admin/ManualBookingForm";
+import { bedLimit } from "@/lib/extras";
 import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant, getTouristTax } from "@/lib/queries/fees";
 
@@ -63,7 +64,7 @@ export default async function NewReservationPage({
       <ManualBookingForm
         rooms={chambres
           .filter((c) => c.active)
-          .map((c) => ({ id: c.id, name: c.name, pricePerNight: String(c.pricePerNight) }))}
+          .map((c) => ({ id: c.id, name: c.name, pricePerNight: String(c.pricePerNight), maxBeds: bedLimit(c) }))}
         extras={catalog}
         fees={feeCatalog}
         taxEnabled={!!touristTax}

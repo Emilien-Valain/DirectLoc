@@ -24,7 +24,7 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
   return (
     <SettingsSection
       title="Options"
-      desc="Petit-déjeuner, linge, serviettes… proposés à vos clients au moment de réserver. Le prix est calculé selon l'unité : par séjour, par nuit ou par personne. Modifier une option ne change pas les réservations déjà faites."
+      desc="Petit-déjeuner, linge, serviettes… proposés à vos clients au moment de réserver. Le prix est calculé selon l'unité : par séjour, par nuit, par personne, ou par lit — le client choisit alors pour combien de lits (des draps pour 1 lit sur 4), dans la limite des lits de la chambre. Modifier une option ne change pas les réservations déjà faites."
       action={
         <button
           type="button"

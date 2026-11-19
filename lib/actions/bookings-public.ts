@@ -19,6 +19,7 @@ import { CHECKOUT_TTL_MINUTES } from "@/lib/checkout-window";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { amountBucket, browserDistinctId, captureServer } from "@/lib/analytics";
 import { bookingPublicSchema, safeParseFormData } from "@/lib/validation";
+import { extraQuantitiesFrom } from "@/lib/extras";
 import type Stripe from "stripe";
 
 /** Montant minimum d'un paiement Stripe en euros. */
@@ -70,6 +71,7 @@ export async function createBookingPublic(
   const guestPhone = data.guestPhone || null;
   // Cases à cocher multiples : formEntries ne garde que la dernière valeur.
   const extraIds = formData.getAll("extraIds").filter((v): v is string => typeof v === "string");
+  const extraQuantities = extraQuantitiesFrom(formData.entries());
 
   const checkIn = new Date(data.checkIn + "T00:00:00.000Z");
   const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
@@ -80,7 +82,7 @@ export async function createBookingPublic(
   try {
     admitted = await admitBooking(
       // Fees : tous ceux de la chambre, d'office (feeIds absent). Taxe selon le réglage du tenant.
-      { roomId, tenantId, checkIn, checkOut, guestCount, childCount, extraIds },
+      { roomId, tenantId, checkIn, checkOut, guestCount, childCount, extraIds, extraQuantities },
       { enforceRules: true },
       async (tx, { room, breakdown, lines, total }) => {
         // Stripe refuse tout paiement sous 0,50 € : ne rien réserver plutôt qu'un pending orphelin.

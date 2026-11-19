@@ -514,3 +514,88 @@ test.describe("Admin — Extras dans le PDF et les emails", () => {
     }
   });
 });
+
+// ─── Options « par lit » : quantité choisie, bornée aux lits ─────────────────────
+
+test.describe("Admin — Option par lit (draps)", () => {
+  test.beforeAll(async () => {
+    await pool.query("UPDATE rooms SET beds = 3 WHERE id = $1", [ctx.apiRoomId]);
+  });
+  test.afterAll(async () => {
+    await pool.query("UPDATE rooms SET beds = NULL WHERE id = $1", [ctx.apiRoomId]);
+  });
+
+  test("catalogue : unité « par lit » proposée pour une option, pas pour un frais", async ({ page }) => {
+    await openOptions(page);
+    await addExtra(page, `Draps lit ${TAG}`, "8", "per_bed");
+    await expect(row(page, `Draps lit ${TAG}`)).toContainText("8 € par lit");
+    const fees = page.locator("section").filter({ has: page.getByRole("heading", { name: "Frais", exact: true }) });
+    await fees.getByRole("button", { name: "Ajouter", exact: true }).click();
+    await expect(page.getByTestId("fee-form").locator('[name="unit"] option[value="per_bed"]')).toHaveCount(0);
+  });
+
+  test("frais « par lit » forgé : refusé côté serveur", async ({ page }) => {
+    await page.goto("/admin/parametres?tab=etablissement");
+    const fees = page.locator("section").filter({ has: page.getByRole("heading", { name: "Frais", exact: true }) });
+    await fees.getByRole("button", { name: "Ajouter", exact: true }).click();
+    const form = page.getByTestId("fee-form");
+    await form.locator('[name="label"]').fill(`Frais lit ${TAG}`);
+    await form.locator('[name="price"]').fill("5");
+    await form.locator('[name="unit"]').evaluate((s: HTMLSelectElement) => {
+      const o = document.createElement("option");
+      o.value = "per_bed";
+      s.appendChild(o);
+      s.value = "per_bed";
+    });
+    await form.getByRole("button", { name: "Ajouter le frais" }).click();
+    await expect(page.getByText("Choisissez une unité").first()).toBeVisible();
+    expect((await pool.query("SELECT 1 FROM fees WHERE label = $1", [`Frais lit ${TAG}`])).rowCount).toBe(0);
+  });
+
+  test("saisie manuelle : 1 lit sur 3 → quantité 1, devis et total justes", async ({ page }) => {
+    const sourceId = await insertExtra({ label: "Linge de lit", price: "8", unit: "per_bed" });
+    await fillManual(page, { name: "Par lit", checkIn: day(740), checkOut: day(742) });
+    await page.getByLabel(`Linge de lit ${TAG}`).check();
+    const qty = page.locator(`[name="extraQty_${sourceId}"]`);
+    // Par défaut tous les lits : 2 × 100 € + 3 × 8 € = 224 €
+    await expect(qty).toHaveValue("3");
+    await expect(quote(page)).toContainText(/224\s€/);
+    await qty.selectOption("1");
+    await expect(quote(page)).toContainText(/208\s€/);
+    await page.click('[type="submit"]');
+    await expect(page).toHaveURL(SAVED_BOOKING_URL);
+    const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
+    expect(await totalOf(id)).toBe("208.00");
+    expect(await lines(id)).toEqual([
+      { source_id: sourceId, label: `Linge de lit ${TAG}`, unit_price: "8.00", quantity: 1, total: "8.00" },
+    ]);
+
+    // Modification : la quantité enregistrée est reprise, puis changée.
+    await page.goto(`/admin/reservations/${id}/modifier`);
+    const lineId = (await pool.query("SELECT id FROM booking_lines WHERE booking_id = $1", [id])).rows[0].id;
+    await expect(page.locator(`[name="extraQty_${lineId}"]`)).toHaveValue("1");
+    await page.locator(`[name="extraQty_${lineId}"]`).selectOption("2");
+    await saveEdit(page, id);
+    expect(await totalOf(id)).toBe("216.00");
+    expect((await lines(id))[0].quantity).toBe(2);
+  });
+
+  test("quantité forgée (99, 0, abc) : ramenée entre 1 et le nombre de lits", async ({ page }) => {
+    const sourceId = await insertExtra({ label: "Draps forgés", price: "8", unit: "per_bed" });
+    for (const [forged, expected] of [["99", 3], ["0", 1], ["abc", 3]] as const) {
+      await fillManual(page, { name: `Forgé ${forged}`, checkIn: day(746), checkOut: day(747) });
+      await page.getByLabel(`Draps forgés ${TAG}`).check();
+      await page.locator(`[name="extraQty_${sourceId}"]`).evaluate((s: HTMLSelectElement, v) => {
+        const o = document.createElement("option");
+        o.value = v;
+        s.appendChild(o);
+        s.value = v;
+      }, forged);
+      await page.click('[type="submit"]');
+      await expect(page).toHaveURL(SAVED_BOOKING_URL);
+      const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
+      expect((await lines(id))[0].quantity).toBe(expected);
+      await pool.query("DELETE FROM bookings WHERE id = $1", [id]);
+    }
+  });
+});

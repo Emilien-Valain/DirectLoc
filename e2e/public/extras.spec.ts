@@ -177,3 +177,49 @@ test.describe("Public — Réservation avec Extras", () => {
     }
   });
 });
+
+test.describe("Public — Option par lit (draps)", () => {
+  test.beforeAll(async () => {
+    await pool.query("UPDATE rooms SET beds = 3 WHERE id = $1", [ctx.apiRoomId]);
+  });
+  test.afterAll(async () => {
+    await pool.query("UPDATE rooms SET beds = NULL WHERE id = $1", [ctx.apiRoomId]);
+  });
+
+  test("cocher l'option : choix du nombre de lits (3 par défaut), prix et total suivent", async ({ page }) => {
+    const id = await insertExtra("Draps", "8", "per_bed");
+    await openForm(page, 812, 814);
+    await expect(total(page)).toHaveText(/200\s€/);
+    const box = page.getByTestId("booking-extras").locator("label").filter({ hasText: `Draps ${TAG}` });
+    await expect(box).toContainText("8 € par lit");
+    await expect(page.locator(`#extraQty-${id}`)).toHaveCount(0);
+    await box.locator("input").check();
+
+    const qty = page.getByLabel("Pour combien de lits ?");
+    await expect(qty).toHaveValue("3");
+    await expect(qty.locator("option")).toHaveCount(3);
+    await expect(total(page)).toHaveText(/224\s€/);
+    await qty.selectOption("1");
+    await expect(box.getByTestId("booking-extra-price")).toHaveText(/8\s€/);
+    await expect(total(page)).toHaveText(/208\s€/);
+
+    await box.locator("input").uncheck();
+    await expect(qty).toHaveCount(0);
+    await expect(total(page)).toHaveText(/200\s€/);
+  });
+
+  test("lits non renseignés : borné à la capacité (2) ; 1 seul lit : pas de choix", async ({ page }) => {
+    await pool.query("UPDATE rooms SET beds = NULL WHERE id = $1", [ctx.apiRoomId]);
+    await insertExtra("Draps cap", "8", "per_bed");
+    await openForm(page, 816, 817);
+    await page.getByTestId("booking-extras").locator("label").filter({ hasText: `Draps cap ${TAG}` }).locator("input").check();
+    await expect(page.getByLabel("Pour combien de lits ?").locator("option")).toHaveCount(2);
+
+    await pool.query("UPDATE rooms SET beds = 1 WHERE id = $1", [ctx.apiRoomId]);
+    await openForm(page, 816, 817);
+    await page.getByTestId("booking-extras").locator("label").filter({ hasText: `Draps cap ${TAG}` }).locator("input").check();
+    await expect(page.getByLabel("Pour combien de lits ?")).toHaveCount(0);
+    await expect(total(page)).toHaveText(/108\s€/);
+    await pool.query("UPDATE rooms SET beds = 3 WHERE id = $1", [ctx.apiRoomId]);
+  });
+});

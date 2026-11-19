@@ -99,6 +99,13 @@
       "when": 1795111370247,
       "tag": "0013_room_beds_email_message",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1795111795027,
+      "tag": "0014_extra_unit_per_bed",
+      "breakpoints": true
     }
   ]
 }

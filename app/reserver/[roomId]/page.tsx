@@ -49,6 +49,7 @@ export default async function ReserverPage({
             name: room.name,
             pricePerNight: room.pricePerNight,
             capacity: room.capacity,
+            beds: room.beds,
             photos: room.photos,
           }}
           extras={extras}

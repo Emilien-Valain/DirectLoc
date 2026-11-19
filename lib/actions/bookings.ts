@@ -16,7 +16,7 @@ import {
   RoomUnavailableError,
   saveLines,
 } from "@/lib/booking-intake";
-import { grandTotal, type StayLine } from "@/lib/extras";
+import { extraQuantitiesFrom, grandTotal, type StayLine } from "@/lib/extras";
 import { getBookingLines } from "@/lib/queries/extras";
 import { bookingManualSchema, frDateToIso, isStayTooLong, isUuid, safeParseFormData } from "@/lib/validation";
 import { sendBookingCancellation, sendBookingModification } from "@/lib/email";
@@ -135,6 +135,7 @@ export async function quoteManualBooking(input: {
   guestCount: string;
   childCount: string;
   extraIds: string[];
+  extraQuantities?: Record<string, number>;
   feeIds: string[];
   waiveTax: boolean;
   agreedPrice: string;
@@ -176,6 +177,7 @@ export async function quoteManualBooking(input: {
       guestCount: guests,
       childCount: children,
       extraIds: input.extraIds,
+      extraQuantities: input.extraQuantities,
       feeIds: input.feeIds,
       waiveTax: input.waiveTax,
       accommodation,
@@ -250,6 +252,7 @@ export async function createBookingManual(
         guestCount,
         childCount,
         extraIds: formIds(formData, "extraIds"),
+        extraQuantities: extraQuantitiesFrom(formData.entries()),
         feeIds: formIds(formData, "feeIds"),
         waiveTax: data.waiveTax,
         // Prix convenu avec le client (téléphone, fidèle…) = hébergement seul ; les lignes s'y ajoutent.
@@ -403,6 +406,7 @@ export async function updateBookingManual(
         guestCount,
         childCount,
         extraIds: formIds(formData, "extraIds"),
+        extraQuantities: extraQuantitiesFrom(formData.entries()),
         feeIds: formIds(formData, "feeIds"),
         waiveTax: data.waiveTax,
         accommodation: data.agreedPrice

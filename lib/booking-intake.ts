@@ -4,7 +4,15 @@ import { bookingLines, extras, fees, rooms, tenants } from "@/db/schema";
 import { isRoomAvailable } from "@/lib/availability";
 import { validateBookingRules } from "@/lib/booking-rules";
 import { calculatePrice, type PriceBreakdown } from "@/lib/pricing";
-import { grandTotal, priceExtraLine, type ExtraLine, type StayLine } from "@/lib/extras";
+import {
+  bedLimit,
+  clampQuantity,
+  grandTotal,
+  hasChosenQuantity,
+  priceExtraLine,
+  type ExtraLine,
+  type StayLine,
+} from "@/lib/extras";
 import { touristTaxLine } from "@/lib/tourist-tax";
 import type { TenantConfig } from "@/lib/tenant-context";
 import { isUuid } from "@/lib/validation";
@@ -36,6 +44,11 @@ export type AdmitInput = {
    * modifiée (`excludeBookingId`), qui garde alors son prix figé (ADR-0010).
    */
   extraIds?: string[];
+  /**
+   * Quantité choisie des Extras « par lit », par id (même clé que `extraIds`).
+   * Bornée à [1, lits de la chambre] ; absente = tous les lits (ou la quantité déjà enregistrée).
+   */
+  extraQuantities?: Record<string, number>;
   /**
    * Fees retenus, même convention que `extraIds`. Absent = tous les Fees actifs de la
    * chambre (public) ; l'hôte, lui, envoie ses cases cochées (ADR-0011).
@@ -116,15 +129,18 @@ const MAX_EXTRAS = 50;
  * Lignes d'Extras d'un séjour. Une ligne déjà sur la réservation (`bookingId`)
  * garde libellé et prix figés, quantité recalculée — même si l'Extra a été
  * désactivé ou supprimé depuis. Tout autre id doit être un Extra actif du tenant.
+ * « Par lit » : quantité choisie (`quantities`), bornée à `maxBeds`.
  */
 export async function resolveExtraLines(
   conn: Tx | typeof db,
-  { tenantId, extraIds, nights, guests, bookingId }: {
+  { tenantId, extraIds, nights, guests, bookingId, quantities = {}, maxBeds }: {
     tenantId: string;
     extraIds: string[];
     nights: number;
     guests: number;
     bookingId?: string;
+    quantities?: Record<string, number>;
+    maxBeds: number;
   },
 ): Promise<ExtraLine[]> {
   const ids = [...new Set(extraIds)];
@@ -149,12 +165,25 @@ export async function resolveExtraLines(
     : [];
   if (catalog.length !== fromCatalog.length) throw new ExtraUnavailableError();
 
+  // Ligne gardée : la quantité demandée, sinon celle déjà enregistrée ; bornée aux lits (la chambre a pu changer).
+  const keptQty = (l: (typeof existing)[number]) =>
+    hasChosenQuantity(l.unit)
+      ? clampQuantity(quantities[l.id] ?? (l.sourceId ? quantities[l.sourceId] : undefined) ?? l.quantity, maxBeds)
+      : undefined;
+  const newQty = (x: (typeof catalog)[number]) =>
+    hasChosenQuantity(x.unit) ? clampQuantity(quantities[x.id], maxBeds) : undefined;
+
   return [
     ...kept.map((l) =>
-      priceExtraLine({ sourceId: l.sourceId, label: l.label, unit: l.unit, unitPrice: parseFloat(l.unitPrice) }, nights, guests),
+      priceExtraLine(
+        { sourceId: l.sourceId, label: l.label, unit: l.unit, unitPrice: parseFloat(l.unitPrice) },
+        nights,
+        guests,
+        keptQty(l),
+      ),
     ),
     ...catalog.map((x) =>
-      priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: parseFloat(x.price) }, nights, guests),
+      priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: parseFloat(x.price) }, nights, guests, newQty(x)),
     ),
   ];
 }
@@ -219,9 +248,19 @@ export async function priceStay(
   // Séquentiel : `conn` peut être une transaction (une seule connexion, pas de requêtes parallèles).
   const breakdown = await calculatePrice(roomId, tenantId, checkIn, checkOut, conn);
   const [tenant] = await conn.select({ config: tenants.config }).from(tenants).where(eq(tenants.id, tenantId)).limit(1);
+  const [room] = await conn
+    .select({ beds: rooms.beds, capacity: rooms.capacity })
+    .from(rooms)
+    .where(and(eq(rooms.id, roomId), eq(rooms.tenantId, tenantId)))
+    .limit(1);
   const nights = breakdown.nights.length;
   const stay = { tenantId, nights, guests: guestCount, bookingId };
-  const extraLines = await resolveExtraLines(conn, { ...stay, extraIds });
+  const extraLines = await resolveExtraLines(conn, {
+    ...stay,
+    extraIds,
+    quantities: input.extraQuantities,
+    maxBeds: room ? bedLimit(room) : 1,
+  });
   const feeLines = await resolveFeeLines(conn, { ...stay, roomId, feeIds: input.feeIds });
   const accommodation = input.accommodation ?? breakdown.totalPrice;
   // Prix imposé : réparti également sur les nuits pour la base de la taxe en %.

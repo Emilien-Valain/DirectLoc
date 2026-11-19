@@ -213,6 +213,8 @@ export const extraUnitEnum = pgEnum("extra_unit", [
   "per_night",
   "per_guest",
   "per_guest_night",
+  // Quantité = lits choisis par le client (≤ lits de la chambre), pas dérivée du séjour.
+  "per_bed",
 ]);
 
 export const extras = pgTable(

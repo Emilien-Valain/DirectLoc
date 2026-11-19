@@ -3,18 +3,47 @@
  * et le montant facturé sortent de la même fonction.
  */
 
-export const EXTRA_UNITS = ["per_stay", "per_night", "per_guest", "per_guest_night"] as const;
+export const EXTRA_UNITS = ["per_stay", "per_night", "per_guest", "per_guest_night", "per_bed"] as const;
 export type ExtraUnit = (typeof EXTRA_UNITS)[number];
+
+/** Unités d'un Fee : pas « par lit », dont la quantité est choisie par le client. */
+export const FEE_UNITS = ["per_stay", "per_night", "per_guest", "per_guest_night"] as const;
 
 export const EXTRA_UNIT_LABELS: Record<ExtraUnit, string> = {
   per_stay: "par séjour",
   per_night: "par nuit",
   per_guest: "par personne",
   per_guest_night: "par personne et par nuit",
+  per_bed: "par lit",
 };
 
-/** Quantité dérivée du séjour, jamais saisie. `guests` compte tous les âges. */
-export function extraQuantity(unit: ExtraUnit, nights: number, guests: number): number {
+/** Unité dont la quantité est choisie (bornée), et non dérivée du séjour. */
+export const hasChosenQuantity = (unit: ExtraUnit) => unit === "per_bed";
+
+/** Lits proposables pour une option « par lit » : lits renseignés, sinon la capacité. */
+export const bedLimit = (room: { beds: number | null; capacity: number }) =>
+  Math.max(1, room.beds ?? room.capacity);
+
+/** Quantité demandée ramenée dans [1, max] ; absente ou illisible → max (tous les lits). */
+export function clampQuantity(requested: number | undefined, max: number): number {
+  if (requested === undefined || !Number.isFinite(requested)) return max;
+  return Math.min(max, Math.max(1, Math.floor(requested)));
+}
+
+/** Champs `extraQty_<id>` d'un formulaire → { id: quantité }. */
+export function extraQuantitiesFrom(entries: Iterable<[string, FormDataEntryValue]>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [k, v] of entries) {
+    if (k.startsWith("extraQty_") && typeof v === "string" && v.trim() !== "") out[k.slice(9)] = Number(v);
+  }
+  return out;
+}
+
+/**
+ * Quantité d'une ligne : dérivée du séjour, sauf « par lit » où c'est le nombre de
+ * lits choisi (`chosen`, déjà borné). `guests` compte tous les âges.
+ */
+export function extraQuantity(unit: ExtraUnit, nights: number, guests: number, chosen = 1): number {
   switch (unit) {
     case "per_stay":
       return 1;
@@ -24,6 +53,8 @@ export function extraQuantity(unit: ExtraUnit, nights: number, guests: number): 
       return guests;
     case "per_guest_night":
       return guests * nights;
+    case "per_bed":
+      return chosen;
   }
 }
 
@@ -47,8 +78,9 @@ export function priceExtraLine(
   extra: { sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number },
   nights: number,
   guests: number,
+  chosen?: number,
 ): ExtraLine {
-  const quantity = extraQuantity(extra.unit, nights, guests);
+  const quantity = extraQuantity(extra.unit, nights, guests, chosen);
   return { ...extra, unitPrice: cents(extra.unitPrice) / 100, quantity, total: (cents(extra.unitPrice) * quantity) / 100 };
 }
 

@@ -17,11 +17,18 @@ import {
   Field,
   StatusBanner,
 } from "@/components/admin/ui";
-import { EXTRA_UNIT_LABELS, feeAppliesTo, type ExtraUnit, type StayLine } from "@/lib/extras";
+import {
+  EXTRA_UNIT_LABELS,
+  extraQuantitiesFrom,
+  feeAppliesTo,
+  hasChosenQuantity,
+  type ExtraUnit,
+  type StayLine,
+} from "@/lib/extras";
 import type { CatalogExtra } from "@/lib/queries/extras";
 import type { CatalogFee } from "@/lib/queries/fees";
 
-type RoomOption = { id: string; name: string; pricePerNight: string };
+type RoomOption = { id: string; name: string; pricePerNight: string; maxBeds?: number };
 
 /** Modification d'un séjour existant : valeurs actuelles, ancien total, montant déjà payé en ligne. */
 export type BookingEdit = {
@@ -39,16 +46,16 @@ export type BookingEdit = {
   taxExempt: boolean;
 };
 
-type FrozenLine = { id: string; sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number };
+type FrozenLine = { id: string; sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number; quantity?: number };
 type Quote = { nights: number; computed: number; accommodation: number; lines: StayLine[]; total: number };
 
 /** Cases à cocher : lignes figées de la réservation puis catalogue pas encore pris. */
 function choices(frozen: FrozenLine[], catalog: { id: string; label: string; unit: ExtraUnit; price: number }[]) {
   return [
-    ...frozen.map((l) => ({ value: l.id, label: l.label, unit: l.unit, price: l.unitPrice, frozen: true })),
+    ...frozen.map((l) => ({ value: l.id, label: l.label, unit: l.unit, price: l.unitPrice, frozen: true, quantity: l.quantity })),
     ...catalog
       .filter((x) => !frozen.some((l) => l.sourceId === x.id))
-      .map((x) => ({ value: x.id, label: x.label, unit: x.unit, price: x.price, frozen: false })),
+      .map((x) => ({ value: x.id, label: x.label, unit: x.unit, price: x.price, frozen: false, quantity: undefined })),
   ];
 }
 
@@ -92,6 +99,8 @@ export default function ManualBookingForm({
   const [roomId, setRoomId] = useState(v.roomId ?? defaultRoomId ?? "");
   const extraChoices = choices(edit?.lines ?? [], extras);
   const [chosenExtras, setChosenExtras] = useState<string[]>(() => edit?.lines.map((l) => l.id) ?? []);
+  // Options « par lit » : lits de la chambre choisie (le serveur borne aussi).
+  const maxBeds = rooms.find((r) => r.id === roomId)?.maxBeds ?? 1;
   // Fees : cochés d'office à la création ; en modification, seuls ceux déjà sur la réservation.
   const feeChoices = choices(edit?.feeLines ?? [], fees.filter((f) => feeAppliesTo(f, roomId)));
   const [chosenFees, setChosenFees] = useState<string[]>(() =>
@@ -113,6 +122,7 @@ export default function ManualBookingForm({
           guestCount: val("guestCount"),
           childCount: val("childCount"),
           extraIds: fd.getAll("extraIds").map(String),
+          extraQuantities: extraQuantitiesFrom(fd.entries()),
           feeIds: fd.getAll("feeIds").map(String),
           waiveTax: fd.get("waiveTax") === "on",
           agreedPrice: val("agreedPrice"),
@@ -339,8 +349,10 @@ export default function ManualBookingForm({
           </legend>
           {extraChoices.map((x) => {
             const checked = chosenExtras.includes(x.value);
+            const perBed = checked && hasChosenQuantity(x.unit) && maxBeds > 1;
             return (
-              <label key={x.value} className="flex items-start gap-2.5 py-1 cursor-pointer" style={{ color: "var(--admin-text)" }}>
+              <div key={x.value}>
+              <label className="flex items-start gap-2.5 py-1 cursor-pointer" style={{ color: "var(--admin-text)" }}>
                 <input
                   type="checkbox"
                   name="extraIds"
@@ -360,6 +372,24 @@ export default function ManualBookingForm({
                   </span>
                 </span>
               </label>
+              {perBed && (
+                <label className="flex items-center gap-2 pl-7 pb-1.5 text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
+                  Nombre de lits
+                  <AdminSelect
+                    key={`${x.value}-${maxBeds}`}
+                    name={`extraQty_${x.value}`}
+                    defaultValue={Math.min(Number(v[`extraQty_${x.value}`]) || x.quantity || maxBeds, maxBeds)}
+                    style={{ width: 90 }}
+                  >
+                    {Array.from({ length: maxBeds }, (_, i) => i + 1).map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </AdminSelect>
+                </label>
+              )}
+              </div>
             );
           })}
         </fieldset>

@@ -5,6 +5,7 @@ import { getRoomsByTenant } from "@/lib/queries/rooms";
 import { loadEditableBooking } from "@/lib/queries/bookings";
 import { grandTotal } from "@/lib/extras";
 import ManualBookingForm from "@/components/admin/ManualBookingForm";
+import { bedLimit } from "@/lib/extras";
 import { getBookingLines, getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant, getTouristTax } from "@/lib/queries/fees";
 
@@ -50,7 +51,7 @@ export default async function EditReservationPage({
       <ManualBookingForm
         rooms={chambres
           .filter((c) => c.active)
-          .map((c) => ({ id: c.id, name: c.name, pricePerNight: String(c.pricePerNight) }))}
+          .map((c) => ({ id: c.id, name: c.name, pricePerNight: String(c.pricePerNight), maxBeds: bedLimit(c) }))}
         extras={catalog}
         fees={feeCatalog}
         taxEnabled={!!touristTax}

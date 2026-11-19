@@ -5,7 +5,7 @@ import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { useFormAction } from "@/components/admin/useFormAction";
 import { createFee, deleteFee, setFeeActive, updateFee } from "@/lib/actions/fees";
 import { AdminInput, AdminSelect, EmptyState, Field, SettingsSection, StatusBanner } from "@/components/admin/ui";
-import { EXTRA_UNITS, EXTRA_UNIT_LABELS } from "@/lib/extras";
+import { FEE_UNITS, EXTRA_UNIT_LABELS } from "@/lib/extras";
 import type { CatalogFee } from "@/lib/queries/fees";
 import { formatEuros } from "@/lib/utils";
 
@@ -140,7 +140,7 @@ function FeeForm({ fee, rooms, onDone }: { fee?: CatalogFee; rooms: Room[]; onDo
         </Field>
         <Field label="Unité" error={form.fieldError("unit")}>
           <AdminSelect name="unit" defaultValue={fee?.unit ?? "per_stay"}>
-            {EXTRA_UNITS.map((u) => (
+            {FEE_UNITS.map((u) => (
               <option key={u} value={u}>
                 {EXTRA_UNIT_LABELS[u]}
               </option>
