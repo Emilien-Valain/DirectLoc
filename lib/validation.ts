@@ -171,6 +171,11 @@ export const roomSchema = z.object({
   description: safeText.optional().or(z.literal("")),
   prix: positiveDecimal,
   capacite: positiveInt.refine((n) => n <= 50, "Capacité max : 50 personnes"),
+  // Vide = non renseigné.
+  lits: z
+    .preprocess((v) => (v === "" ? undefined : v), positiveInt.refine((n) => n <= 50, "Lits : 50 maximum").optional())
+    .transform((v) => v ?? null),
+  messageEmail: safeText.optional().or(z.literal("")),
 });
 
 export const roomUpdateSchema = roomSchema.extend({

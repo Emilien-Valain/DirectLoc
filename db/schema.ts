@@ -145,6 +145,10 @@ export const rooms = pgTable(
       scale: 2,
     }).notNull(),
     capacity: integer("capacity").notNull().default(2),
+    // Nombre de lits ; null = non renseigné (une option « par lit » se borne alors à la capacité).
+    beds: integer("beds"),
+    // Message ajouté aux emails de confirmation et de rappel de cette chambre (variables {client}…).
+    emailMessage: text("email_message"),
     photos: jsonb("photos").notNull().default([]),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow(),

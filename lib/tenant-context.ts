@@ -85,6 +85,9 @@ export type TenantConfig = {
   longitude?: number;
   confirmationMessage?: string;
   postStayMessage?: string;
+  /** Rappel avant l'arrivée : jours avant (absent = 2, 0 = désactivé) et message. */
+  reminderDaysBefore?: number;
+  reminderMessage?: string;
   reviewUrl?: string;
   /** Jeton de vérification Google Search Console (balise meta), posé par lib/google-search-console.ts. */
   googleSiteVerification?: string;

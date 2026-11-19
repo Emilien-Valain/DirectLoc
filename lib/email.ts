@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import type { TenantConfig } from "@/lib/tenant-context";
 import { isDemoTenant } from "@/lib/demo";
+import { emailVariables, fillTemplate, type EmailTemplateContext } from "@/lib/email-template";
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -135,7 +136,16 @@ async function sendEmail({ to, subject, html, hotelName, replyTo, tenantId }: Se
 
 // ─── Données de réservation communes ────────────────────────────────────────
 
-type BookingEmailData = {
+/** Ce que les messages personnalisés peuvent citer en plus du séjour ({voyageurs}, {lits}…). */
+type MessageContext = {
+  guestCount?: number;
+  roomCapacity?: number;
+  roomBeds?: number | null;
+  /** Message propre à la chambre (rooms.email_message). */
+  roomMessage?: string | null;
+};
+
+type BookingEmailData = MessageContext & {
   guestName: string;
   guestEmail: string;
   roomName: string;
@@ -201,14 +211,26 @@ function renderBookingSummaryTable(data: {
 </table>`;
 }
 
+/**
+ * Message saisi par l'hôte, variables remplacées puis échappé, dans l'encadré
+ * aux couleurs de l'établissement. Vide → rien.
+ */
+function renderCustomMessage(
+  text: string | null | undefined,
+  data: Omit<EmailTemplateContext, "hotelName"> & { hotelName: string; config?: TenantConfig },
+): string {
+  if (!text?.trim()) return "";
+  const filled = fillTemplate(text.trim(), emailVariables(data));
+  return `<p style="margin: 24px 0; padding: 20px; background-color: ${data.config?.secondaryColor ?? "#faf8f5"}; border-left: 3px solid ${data.config?.primaryColor ?? "#1c1917"}; font-size: 15px; line-height: 1.6; color: #333;">${nl2br(filled)}</p>`;
+}
+
 // ─── 1. Confirmation de réservation (client) ────────────────────────────────
 
 export async function sendBookingConfirmation(data: BookingEmailData & { confirmationMessage?: string }) {
   const { guestName, guestEmail, hotelName, config, confirmationMessage } = data;
 
-  const customMessage = confirmationMessage?.trim()
-    ? `<p style="margin: 24px 0; padding: 20px; background-color: ${config?.secondaryColor ?? "#faf8f5"}; border-left: 3px solid ${config?.primaryColor ?? "#1c1917"}; font-size: 15px; line-height: 1.6; color: #333;">${nl2br(confirmationMessage)}</p>`
-    : "";
+  const customMessage =
+    renderCustomMessage(confirmationMessage, data) + renderCustomMessage(data.roomMessage, data);
 
   const body = `
 <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">R&eacute;servation confirm&eacute;e</h2>
@@ -381,9 +403,9 @@ export async function sendBookingCancellation(data: CancellationEmailData) {
   });
 }
 
-// ─── 4. Rappel J-2 avant check-in ──────────────────────────────────────────
+// ─── 4. Rappel avant l'arrivée (J-2 par défaut, réglable par l'hôte) ─────────
 
-type ReminderEmailData = {
+type ReminderEmailData = MessageContext & {
   guestName: string;
   guestEmail: string;
   roomName: string;
@@ -395,8 +417,11 @@ type ReminderEmailData = {
   tenantId: string;
 };
 
-export async function sendCheckInReminder(data: ReminderEmailData) {
-  const { guestName, guestEmail, roomName, checkIn, checkOut, nights, hotelName, config } = data;
+/** « demain », « dans 7 jours ». */
+const inDays = (n: number) => (n <= 1 ? "demain" : `dans ${n} jours`);
+
+export async function sendCheckInReminder(data: ReminderEmailData & { daysUntil: number }) {
+  const { guestName, guestEmail, roomName, checkIn, checkOut, nights, hotelName, config, daysUntil } = data;
 
   const addressBlock = config?.address
     ? `<p style="font-size: 15px; color: #333; line-height: 1.6;"><strong>Adresse :</strong> ${escapeHtml(config.address)}</p>`
@@ -405,7 +430,7 @@ export async function sendCheckInReminder(data: ReminderEmailData) {
   const body = `
 <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">Votre s&eacute;jour approche !</h2>
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
-<p style="font-size: 15px; color: #333; line-height: 1.6;">Nous vous rappelons votre r&eacute;servation &agrave; <strong>${escapeHtml(hotelName)}</strong> dans 2 jours.</p>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Nous vous rappelons votre r&eacute;servation &agrave; <strong>${escapeHtml(hotelName)}</strong> ${inDays(daysUntil)}.</p>
 <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
   <tr>
     <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">Chambre</td>
@@ -424,6 +449,8 @@ export async function sendCheckInReminder(data: ReminderEmailData) {
     <td style="padding: 10px 0; text-align: right; font-size: 15px;">${nights} nuit${nights > 1 ? "s" : ""}</td>
   </tr>
 </table>
+${renderCustomMessage(config?.reminderMessage, data)}
+${renderCustomMessage(data.roomMessage, data)}
 ${addressBlock}
 <p style="font-size: 15px; color: #333; line-height: 1.6;">&Agrave; tr&egrave;s bient&ocirc;t !</p>`;
 
@@ -432,7 +459,7 @@ ${addressBlock}
   await sendEmail({
     tenantId: data.tenantId ?? null,
     to: guestEmail,
-    subject: `Rappel : votre séjour dans 2 jours — ${hotelName}`,
+    subject: `Rappel : votre séjour ${inDays(daysUntil)} — ${hotelName}`,
     html,
     hotelName,
     replyTo: config?.email,
@@ -441,9 +468,13 @@ ${addressBlock}
 
 // ─── 5. Remerciement post-séjour ────────────────────────────────────────────
 
-type PostStayEmailData = {
+type PostStayEmailData = MessageContext & {
   guestName: string;
   guestEmail: string;
+  roomName: string;
+  checkIn: Date;
+  checkOut: Date;
+  nights: number;
   hotelName: string;
   config?: TenantConfig;
   tenantId: string;
@@ -452,9 +483,7 @@ type PostStayEmailData = {
 export async function sendPostStayThankYou(data: PostStayEmailData) {
   const { guestName, guestEmail, hotelName, config } = data;
 
-  const customMessage = config?.postStayMessage?.trim()
-    ? `<p style="margin: 24px 0; padding: 20px; background-color: ${config.secondaryColor ?? "#faf8f5"}; border-left: 3px solid ${config.primaryColor ?? "#1c1917"}; font-size: 15px; line-height: 1.6; color: #333;">${nl2br(config.postStayMessage)}</p>`
-    : "";
+  const customMessage = renderCustomMessage(config?.postStayMessage, data);
 
   const reviewBlock = config?.reviewUrl
     ? `<p style="text-align: center; margin: 24px 0;">

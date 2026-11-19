@@ -92,6 +92,13 @@
       "when": 1795110862988,
       "tag": "0012_pricing_rules_drop_room_id",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1795111370247,
+      "tag": "0013_room_beds_email_message",
+      "breakpoints": true
     }
   ]
 }

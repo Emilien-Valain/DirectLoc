@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, isNull, sql, inArray } from "drizzle-orm";
+import { and, eq, isNull, sql, inArray, gt, lte } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bookings } from "@/db/schema";
 import { sendCheckInReminder, sendPostStayThankYou } from "@/lib/email";
 import { cancelOrphanPending, completeFinishedStays, loadEmailContext } from "@/lib/queries/bookings";
+import { MAX_REMINDER_DAYS, reminderDays, reminderDue } from "@/lib/email-template";
+import { todayStart } from "@/lib/date-windows";
 
 /**
  * GET /api/cron/booking-emails
  *
  * Envoie les emails automatiques :
- * - Rappel J-2 avant check-in (bookings confirmed, checkIn dans 2 jours, reminderSentAt IS NULL)
+ * - Rappel avant l'arrivée (bookings confirmed, reminderSentAt IS NULL) : J-2 par défaut,
+ *   délai réglé par l'hôte (config.reminderDaysBefore, 0 = désactivé) — voir reminderDue
  * - Remerciement post-séjour (bookings confirmed/completed, checkOut = hier, thankYouSentAt IS NULL)
  * Et clôt les séjours terminés (confirmed → completed une fois le départ passé),
  * et libère les pending publics qui n'ont jamais atteint Stripe.
@@ -47,21 +50,23 @@ export async function GET(request: NextRequest) {
     results.errors++;
   }
 
-  // ── Rappels J-2 ─────────────────────────────────────────────────────────
+  // ── Rappels avant l'arrivée ─────────────────────────────────────────────
   try {
-    // Trouver les bookings confirmés avec check-in dans 2 jours calendaires
-    const twoDaysFromNow = new Date(now);
-    twoDaysFromNow.setDate(twoDaysFromNow.getDate() + 2);
-    const targetDate = twoDaysFromNow.toISOString().split("T")[0]; // YYYY-MM-DD
+    // Candidats : arrivée dans 1 à MAX_REMINDER_DAYS jours ; le délai propre à
+    // chaque établissement est appliqué ensuite (reminderDue).
+    const today = todayStart(now);
+    const horizon = new Date(today);
+    horizon.setUTCDate(horizon.getUTCDate() + MAX_REMINDER_DAYS);
 
     const reminderBookings = await db
-      .select({ id: bookings.id, tenantId: bookings.tenantId })
+      .select({ id: bookings.id, tenantId: bookings.tenantId, checkIn: bookings.checkIn, createdAt: bookings.createdAt })
       .from(bookings)
       .where(
         and(
           eq(bookings.status, "confirmed"),
           isNull(bookings.reminderSentAt),
-          sql`DATE(${bookings.checkIn}) = ${targetDate}`,
+          gt(bookings.checkIn, today),
+          lte(bookings.checkIn, horizon),
         ),
       );
 
@@ -69,7 +74,10 @@ export async function GET(request: NextRequest) {
       try {
         const ctx = await loadEmailContext(booking.id, booking.tenantId);
         if (!ctx) continue;
-        await sendCheckInReminder(ctx.emailData);
+        const days = reminderDays(ctx.emailData.config);
+        if (!reminderDue(booking, today, days)) continue;
+        const daysUntil = Math.round((booking.checkIn.getTime() - today.getTime()) / 86_400_000);
+        await sendCheckInReminder({ ...ctx.emailData, daysUntil });
 
         await db
           .update(bookings)

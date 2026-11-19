@@ -151,6 +151,8 @@ export default function SettingsPageClient({
           <EmailSettingsSection
             confirmationMessage={config.confirmationMessage}
             postStayMessage={config.postStayMessage}
+            reminderDaysBefore={config.reminderDaysBefore}
+            reminderMessage={config.reminderMessage}
             reviewUrl={config.reviewUrl}
           />
         )}

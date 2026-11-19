@@ -193,7 +193,7 @@ export async function loadEmailContext(bookingId: string, tenantId: string) {
   if (!booking) return null;
 
   const [room] = await db
-    .select({ name: rooms.name })
+    .select({ name: rooms.name, capacity: rooms.capacity, beds: rooms.beds, emailMessage: rooms.emailMessage })
     .from(rooms)
     .where(eq(rooms.id, booking.roomId))
     .limit(1);
@@ -219,6 +219,10 @@ export async function loadEmailContext(bookingId: string, tenantId: string) {
       guestName: booking.guestName,
       guestEmail: booking.guestEmail,
       roomName: room?.name ?? "Chambre",
+      guestCount: booking.guestCount,
+      roomCapacity: room?.capacity,
+      roomBeds: room?.beds ?? null,
+      roomMessage: room?.emailMessage ?? null,
       checkIn,
       checkOut,
       nights,

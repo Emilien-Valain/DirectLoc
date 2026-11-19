@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { AdminInput, AdminTextarea, Field, StatusBanner } from "@/components/admin/ui";
 import { useFormAction } from "@/components/admin/useFormAction";
+import EmailVariablesHelp from "@/components/admin/EmailVariablesHelp";
 import type { FormResult } from "@/lib/validation";
 
 type DefaultValues = {
@@ -10,6 +11,8 @@ type DefaultValues = {
   description?: string | null;
   pricePerNight?: string;
   capacity?: number;
+  beds?: number | null;
+  emailMessage?: string | null;
   active?: boolean;
 };
 
@@ -71,6 +74,32 @@ export default function RoomForm({
           />
         </Field>
       </div>
+
+      <div className="grid grid-cols-2 gap-3.5">
+        <Field label="Nombre de lits" hint="Sert aux options facturées par lit (draps…)." error={form.fieldError("lits")}>
+          <AdminInput
+            name="lits"
+            type="number"
+            min="1"
+            max="50"
+            defaultValue={defaultValues?.beds ?? ""}
+          />
+        </Field>
+      </div>
+
+      <Field
+        label="Message dans les emails"
+        hint="Ajouté aux emails de confirmation et de rappel des réservations de cette chambre : code d'accès, étage, consignes…"
+        error={form.fieldError("messageEmail")}
+      >
+        <AdminTextarea
+          name="messageEmail"
+          rows={3}
+          defaultValue={defaultValues?.emailMessage ?? ""}
+          placeholder="ex : Votre chambre {chambre} est au 2e étage, {lits} lits faits à votre arrivée."
+        />
+      </Field>
+      <EmailVariablesHelp />
 
       {defaultValues !== undefined && (
         <label className="flex items-center gap-2 mb-4">

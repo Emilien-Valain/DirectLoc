@@ -9,16 +9,22 @@ import {
   SettingsSection,
   StatusBanner,
 } from "@/components/admin/ui";
+import { DEFAULT_REMINDER_DAYS, MAX_REMINDER_DAYS } from "@/lib/email-template";
+import EmailVariablesHelp from "@/components/admin/EmailVariablesHelp";
 
 type EmailSettingsSectionProps = {
   confirmationMessage?: string;
   postStayMessage?: string;
+  reminderDaysBefore?: number;
+  reminderMessage?: string;
   reviewUrl?: string;
 };
 
 export default function EmailSettingsSection({
   confirmationMessage,
   postStayMessage,
+  reminderDaysBefore,
+  reminderMessage,
   reviewUrl,
 }: EmailSettingsSectionProps) {
   const form = useFormAction(updateEmailSettings);
@@ -26,7 +32,7 @@ export default function EmailSettingsSection({
   return (
     <SettingsSection
       title="Emails"
-      desc="Personnalisez les messages envoyés aux clients par email."
+      desc="Personnalisez les messages envoyés aux clients par email. Un message propre à une chambre (code d'accès, étage…) se règle dans la fiche de la chambre."
     >
       {form.saved && (
         <StatusBanner variant="success">
@@ -35,25 +41,59 @@ export default function EmailSettingsSection({
       )}
       {form.error && <StatusBanner variant="error">{form.error}</StatusBanner>}
 
-      <form
-        onSubmit={form.onSubmit}
-      >
+      <form onSubmit={form.onSubmit}>
+        <EmailVariablesHelp />
+
         <Field
           label="Message de confirmation de réservation"
           hint="Apparaît dans l'email de confirmation envoyé au client après paiement."
+          error={form.fieldError("confirmationMessage")}
         >
           <AdminTextarea
             id="email-confirmation"
             name="confirmationMessage"
             rows={3}
             defaultValue={confirmationMessage ?? ""}
-            placeholder="ex : Nous avons hâte de vous accueillir ! N'hésitez pas à nous contacter pour toute demande spéciale."
+            placeholder="ex : Nous avons hâte de vous accueillir, {client} ! N'hésitez pas à nous contacter pour toute demande spéciale."
           />
         </Field>
+
+        <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-3">
+          <Field
+            label="Rappel avant l'arrivée"
+            hint="Jours avant l'arrivée ; 0 = pas de rappel."
+            error={form.fieldError("reminderDaysBefore")}
+          >
+            <AdminInput
+              id="email-reminder-days"
+              name="reminderDaysBefore"
+              type="number"
+              min={0}
+              max={MAX_REMINDER_DAYS}
+              step={1}
+              inputMode="numeric"
+              defaultValue={reminderDaysBefore ?? DEFAULT_REMINDER_DAYS}
+            />
+          </Field>
+          <Field
+            label="Message du rappel"
+            hint="Ajouté à l'email de rappel, sous le récapitulatif du séjour."
+            error={form.fieldError("reminderMessage")}
+          >
+            <AdminTextarea
+              id="email-reminder"
+              name="reminderMessage"
+              rows={3}
+              defaultValue={reminderMessage ?? ""}
+              placeholder="ex : Arrivée à partir de 16 h le {arrivee}. Pensez à nous prévenir de votre heure d'arrivée."
+            />
+          </Field>
+        </div>
 
         <Field
           label="Message post-séjour"
           hint="Envoyé automatiquement le lendemain du départ."
+          error={form.fieldError("postStayMessage")}
         >
           <AdminTextarea
             id="email-poststay"

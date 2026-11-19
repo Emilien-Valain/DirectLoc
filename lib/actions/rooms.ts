@@ -47,6 +47,8 @@ export async function createRoom(formData: FormData): Promise<FormResult> {
   const description = data.description || null;
   const pricePerNight = data.prix.replace(",", ".");
   const capacity = data.capacite;
+  const beds = data.lits;
+  const emailMessage = data.messageEmail?.trim() || null;
 
   // 1 tenant = 1 property dans ce modèle — on auto-crée si absente
   let property = await db.query.properties.findFirst({
@@ -75,6 +77,8 @@ export async function createRoom(formData: FormData): Promise<FormResult> {
     description,
     pricePerNight,
     capacity,
+    beds,
+    emailMessage,
   });
 
   notifyIndexNow(tenantId, ["/", "/chambres", `/chambres/${slug}`]);
@@ -92,6 +96,8 @@ export async function updateRoom(id: string, formData: FormData): Promise<FormRe
   const description = data.description || null;
   const pricePerNight = data.prix.replace(",", ".");
   const capacity = data.capacite;
+  const beds = data.lits;
+  const emailMessage = data.messageEmail?.trim() || null;
   const active = data.actif === "on";
 
   const old = await db.query.rooms.findFirst({
@@ -101,7 +107,7 @@ export async function updateRoom(id: string, formData: FormData): Promise<FormRe
   const slug = await uniqueRoomSlug(tenantId, id, name);
   await db
     .update(rooms)
-    .set({ name, slug, description, pricePerNight, capacity, active })
+    .set({ name, slug, description, pricePerNight, capacity, beds, emailMessage, active })
     .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)));
 
   // Ancienne URL incluse : un renommage ou une désactivation la rend 404, à désindexer.
