@@ -67,11 +67,14 @@ export function HomeHero({
   config,
   rooms,
   totalRooms,
+  maxGuests = 1,
 }: {
   tenant: Tenant;
   config: TenantConfig;
   rooms: PublicRoom[];
   totalRooms: number;
+  /** Capacité de la plus grande chambre : borne du champ « Voyageurs ». */
+  maxGuests?: number;
 }) {
   const place = config.heroEyebrow ?? placeLine(config);
   const photo = config.heroPhoto?.url;
@@ -92,7 +95,7 @@ export function HomeHero({
         </div>
       )}
 
-      <Search />
+      <Search maxGuests={maxGuests} />
 
       {rooms.length > 0 && (
         <div className="s-hero-rooms" id="chambres">

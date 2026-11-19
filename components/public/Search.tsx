@@ -24,10 +24,11 @@ function addDay(dateStr: string): string {
 }
 
 /** Recherche de dates de l'accueil : renvoie les chambres libres, avec lien direct vers la réservation. */
-export default function Search() {
+export default function Search({ maxGuests = 1 }: { maxGuests?: number }) {
   const today = parisToday();
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
+  const [guests, setGuests] = useState(1);
   const [status, setStatus] = useState<Status>("idle");
   const [rooms, setRooms] = useState<Room[]>([]);
 
@@ -45,7 +46,7 @@ export default function Search() {
     }
     setStatus("searching");
     try {
-      const params = new URLSearchParams({ from: checkIn, to: checkOut });
+      const params = new URLSearchParams({ from: checkIn, to: checkOut, guests: String(guests) });
       const res = await fetch(`/api/rooms/available?${params}`, {
         cache: "no-store",
       });
@@ -96,6 +97,23 @@ export default function Search() {
                 setStatus("idle");
               }}
             />
+            <div className="s-field s-field-guests">
+              <label htmlFor="search-guests">Voyageurs</label>
+              <select
+                id="search-guests"
+                value={guests}
+                onChange={(e) => {
+                  setGuests(Number(e.target.value));
+                  setStatus("idle");
+                }}
+              >
+                {Array.from({ length: Math.max(1, maxGuests) }, (_, i) => i + 1).map((n) => (
+                  <option key={n} value={n}>
+                    {n} pers.
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               type="submit"
               className="s-btn"
@@ -124,7 +142,9 @@ export default function Search() {
         )}
         {status === "done" && rooms.length === 0 && (
           <p className="s-note is-bad">
-            Complet pour ces dates. Essayez d&apos;autres dates.
+            {guests > 1
+              ? `Aucune chambre libre pour ${guests} personnes à ces dates. Essayez d'autres dates.`
+              : "Complet pour ces dates. Essayez d'autres dates."}
           </p>
         )}
         {status === "done" && rooms.length > 0 && (
@@ -134,6 +154,7 @@ export default function Search() {
                 ? "1 chambre libre"
                 : `${rooms.length} chambres libres`}{" "}
               pour {nights} nuit{nights > 1 ? "s" : ""}
+              {guests > 1 && `, ${guests} personnes`}
             </p>
             <ul className="s-search-rooms">
               {rooms.map((r) => {
@@ -141,7 +162,7 @@ export default function Search() {
                 return (
                   <li key={r.id}>
                     <Link
-                      href={`/reserver/${r.id}?checkIn=${checkIn}&checkOut=${checkOut}`}
+                      href={`/reserver/${r.id}?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}`}
                       className="s-search-room"
                     >
                       <span>{r.name}</span>

@@ -33,7 +33,13 @@ export default async function HomePage() {
   return (
     <PublicLayout>
       <JsonLd data={lodgingJsonLd(tenant, await tenantBaseUrl(tenant))} />
-      <HomeHero tenant={tenant} config={config} rooms={featuredRooms} totalRooms={allRooms.length} />
+      <HomeHero
+        tenant={tenant}
+        config={config}
+        rooms={featuredRooms}
+        totalRooms={allRooms.length}
+        maxGuests={Math.max(1, ...allRooms.map((r) => r.capacity))}
+      />
       <HomeStory config={config} />
       <HomeStats config={config} />
       <HomeGallery config={config} />

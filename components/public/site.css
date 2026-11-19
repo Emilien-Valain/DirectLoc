@@ -177,8 +177,8 @@
 .s-search-fields { display: grid; gap: 14px; align-items: end; }
 /* Selon la place réelle du bloc (colonne étroite en Affiche) : « jj/mm/aaaa » ne doit jamais être tronqué. */
 .s-sign-face { container-type: inline-size; }
-@container (min-width: 380px) { .s-search-fields { grid-template-columns: 1fr 1fr; } .s-search-fields .s-btn { grid-column: 1 / -1; } }
-@container (min-width: 700px) { .s-search-fields { grid-template-columns: 1fr 1fr auto; } .s-search-fields .s-btn { grid-column: auto; } }
+@container (min-width: 380px) { .s-search-fields { grid-template-columns: 1fr 1fr; } }
+@container (min-width: 700px) { .s-search-fields { grid-template-columns: 1fr 1fr minmax(104px, 0.6fr) auto; } }
 .s-search-result { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .s-search-result:empty { display: none; }
 .s-search-rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }

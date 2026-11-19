@@ -116,7 +116,11 @@ export default function BookingForm({
   const [checkIn, setCheckIn] = useState(searchParams.get("checkIn") ?? "");
   const [checkOut, setCheckOut] = useState(searchParams.get("checkOut") ?? "");
   // Saisie brute : le champ peut être vidé puis retapé ; borné seulement à la sortie du champ.
-  const [guestInput, setGuestInput] = useState("1");
+  // Pré-rempli depuis la recherche de l'accueil (?guests=), borné à la capacité.
+  const [guestInput, setGuestInput] = useState(() => {
+    const g = parseInt(searchParams.get("guests") ?? "", 10);
+    return String(Number.isNaN(g) ? 1 : Math.min(Math.max(1, g), room.capacity));
+  });
   const parsedGuests = parseInt(guestInput, 10);
   const guestCount = Number.isNaN(parsedGuests) ? 1 : Math.min(Math.max(1, parsedGuests), room.capacity);
   const [childInput, setChildInput] = useState(v.childCount ?? "0");

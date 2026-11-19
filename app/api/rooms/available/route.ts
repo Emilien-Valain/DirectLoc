@@ -4,9 +4,10 @@ import { getMinPricePerNight } from "@/lib/pricing";
 import { isStayTooLong, isUuid, STAY_TOO_LONG_MESSAGE } from "@/lib/validation";
 
 /**
- * GET /api/rooms/available?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * GET /api/rooms/available?from=YYYY-MM-DD&to=YYYY-MM-DD[&guests=N]
  *
- * Retourne les chambres actives du tenant disponibles pour la période donnée.
+ * Retourne les chambres actives du tenant disponibles pour la période donnée
+ * (et, avec `guests`, assez grandes pour ce nombre de personnes).
  * tenantId injecté par le proxy via x-tenant-id (résolu depuis l'hôte).
  */
 export async function GET(request: NextRequest) {
@@ -50,12 +51,27 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: STAY_TOO_LONG_MESSAGE }, { status: 400 });
   }
 
-  const availableRooms = await getAvailableRooms(tenantId, checkIn, checkOut);
+  const rawGuests = searchParams.get("guests");
+  const guests = rawGuests === null ? 1 : Number(rawGuests);
+  if (!Number.isInteger(guests) || guests < 1 || guests > 50) {
+    return NextResponse.json({ error: "Nombre de voyageurs invalide (1 à 50)" }, { status: 400 });
+  }
+
+  const availableRooms = (await getAvailableRooms(tenantId, checkIn, checkOut)).filter(
+    (room) => room.capacity >= guests,
+  );
 
   // Ajouter le prix minimum par chambre (pour "à partir de X€/nuit")
   const roomsWithMinPrice = await Promise.all(
+    // Champs publics seulement : le message d'email (codes d'accès…) ne doit jamais sortir.
     availableRooms.map(async (room) => ({
-      ...room,
+      id: room.id,
+      name: room.name,
+      slug: room.slug,
+      description: room.description,
+      pricePerNight: room.pricePerNight,
+      capacity: room.capacity,
+      photos: room.photos,
       minPricePerNight: await getMinPricePerNight(room.id, tenantId),
     })),
   );
