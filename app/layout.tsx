@@ -52,6 +52,9 @@ const hanken = Hanken_Grotesk({ variable: "--font-hanken", subsets: ["latin"], p
 export const metadata: Metadata = {
   title: "DirectLoc",
   description: "Plateforme de reservation directe pour hotels",
+  // Icône par défaut (public/favicon.ico) déclarée ici plutôt qu'en app/favicon.ico :
+  // une page d'hôtel peut ainsi la remplacer par la sienne (lib/seo.ts, tenantIcons).
+  icons: { icon: [{ url: "/favicon.ico", sizes: "any" }] },
 };
 
 export const viewport: Viewport = {

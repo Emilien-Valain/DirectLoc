@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { tenantIcons } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { and, eq } from "drizzle-orm";
@@ -10,7 +12,10 @@ import type { TenantConfig } from "@/lib/tenant-context";
 import { getBookingLines } from "@/lib/queries/extras";
 
 // Tunnel de réservation : rien à indexer.
-export const metadata = { robots: { index: false, follow: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const icons = tenantIcons(((await requireTenant()).config ?? {}) as TenantConfig);
+  return { robots: { index: false, follow: false }, ...(icons ? { icons } : {}) };
+}
 
 export default async function ConfirmationPage({
   searchParams,

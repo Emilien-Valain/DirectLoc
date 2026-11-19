@@ -79,6 +79,8 @@ export type TenantConfig = {
   phone?: string;
   email?: string;
   logoUrl?: string;
+  /** Icône d'onglet du site (PNG carré 512 px, généré à l'envoi). */
+  favicon?: { filename: string; url: string } | null;
   template?: TemplateName;
   googleMapsUrl?: string;
   latitude?: number;

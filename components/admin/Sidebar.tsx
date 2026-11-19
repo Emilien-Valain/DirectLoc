@@ -239,6 +239,26 @@ export default function Sidebar({
             </Link>
           );
         })}
+        {/* Le site public sur le même domaine que l'admin : un clic pour voir le résultat. */}
+        <a
+          href="/"
+          target="_blank"
+          rel="noopener"
+          data-testid="view-site-link"
+          title={isCollapsed ? "Voir mon site (nouvel onglet)" : undefined}
+          className={`w-full flex items-center gap-[11px] mt-2 border-t border-white/[0.07] text-white/55 hover:text-white/85 transition-colors ${
+            isCollapsed ? "py-[11px] justify-center" : "px-[14px] py-[10px]"
+          }`}
+          style={{ borderLeft: "3px solid transparent" }}
+        >
+          <Icon.Eye size={18} />
+          {!isCollapsed && (
+            <span className="flex-1 text-left text-[13.5px] font-medium">
+              Voir mon site <span className="sr-only">(nouvel onglet)</span>
+              <span aria-hidden="true"> ↗</span>
+            </span>
+          )}
+        </a>
       </nav>
 
       {/* User */}

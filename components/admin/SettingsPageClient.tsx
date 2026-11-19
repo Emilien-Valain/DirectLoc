@@ -18,6 +18,7 @@ import LocationSection from "@/components/admin/LocationSection";
 import IcalSourcesSection from "@/components/admin/IcalSourcesSection";
 import StripeConnectSection from "@/components/admin/StripeConnectSection";
 import ContentSection from "@/components/admin/ContentSection";
+import FaviconSection from "@/components/admin/FaviconSection";
 import ExtrasSection from "@/components/admin/ExtrasSection";
 import type { CatalogExtra } from "@/lib/queries/extras";
 import FeesSection from "@/components/admin/FeesSection";
@@ -143,7 +144,25 @@ export default function SettingsPageClient({
         )}
         {tab === "site" && (
           <>
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener"
+              data-testid="site-tab-view-link"
+              className="inline-flex items-center gap-2 mb-5 text-[13px] font-semibold"
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid var(--admin-border)",
+                background: "var(--admin-surface)",
+                color: "var(--admin-primary)",
+              }}
+            >
+              Voir mon site <span className="sr-only">(nouvel onglet)</span>
+              <span aria-hidden="true">↗</span>
+            </a>
             <ThemeTab config={config} />
+            <FaviconSection initial={config.favicon} siteName={tenant.name} demo={demo} />
             <ContentSection config={config} demo={demo} />
           </>
         )}

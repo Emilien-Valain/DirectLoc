@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { tenantIcons } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import PublicLayout from "@/components/public/PublicLayout";
 import BookingForm from "@/components/public/BookingForm";
@@ -10,7 +12,10 @@ import { feeAppliesTo } from "@/lib/extras";
 import { isDemoTenant } from "@/lib/demo";
 
 // Tunnel de réservation : rien à indexer.
-export const metadata = { robots: { index: false, follow: false } };
+export async function generateMetadata(): Promise<Metadata> {
+  const icons = tenantIcons(((await requireTenant()).config ?? {}) as TenantConfig);
+  return { robots: { index: false, follow: false }, ...(icons ? { icons } : {}) };
+}
 
 export default async function ReserverPage({
   params,

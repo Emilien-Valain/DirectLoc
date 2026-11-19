@@ -12,6 +12,16 @@ export function metaDescription(text: string | null | undefined): string | undef
   return `${clean.slice(0, 157).replace(/\s+\S*$/, "")}…`;
 }
 
+/**
+ * Icône d'onglet de l'hôtel. Définie au niveau de la page, elle remplace celle
+ * de DirectLoc (app/favicon.ico) ; absente → icône par défaut.
+ */
+export function tenantIcons(config: TenantConfig): Metadata["icons"] | undefined {
+  const url = config.favicon?.url;
+  if (!url) return undefined;
+  return { icon: [{ url, type: "image/png", sizes: "512x512" }], apple: [{ url }], shortcut: [{ url }] };
+}
+
 /** Domaine déclaré en base = URL canonique ; sinon (dev, tests) l'hôte de la requête. */
 export async function tenantBaseUrl(tenant: Tenant): Promise<string> {
   if (tenant.domain) return `https://${tenant.domain}`;
@@ -28,10 +38,13 @@ export async function tenantMetadata(
   { title, description, path, image }: { title: string; description?: string; path: string; image?: string },
 ): Promise<Metadata> {
   const base = await tenantBaseUrl(tenant);
-  const verification = ((tenant.config ?? {}) as TenantConfig).googleSiteVerification;
+  const config = (tenant.config ?? {}) as TenantConfig;
+  const verification = config.googleSiteVerification;
+  const icons = tenantIcons(config);
 
   return {
     metadataBase: new URL(base),
+    ...(icons ? { icons } : {}),
     ...(verification ? { verification: { google: verification } } : {}),
     // Hôtel démo : contenu fictif remis à zéro chaque nuit, à ne pas indexer.
     ...((await isDemoTenant(tenant.id)) ? { robots: { index: false, follow: false } } : {}),
