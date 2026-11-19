@@ -14,6 +14,7 @@ import {
 import { updateGeneral } from "@/lib/actions/general";
 import { updateTheme } from "@/lib/actions/theme";
 import EmailSettingsSection from "@/components/admin/EmailSettingsSection";
+import RoomEmailsSection from "@/components/admin/RoomEmailsSection";
 import LocationSection from "@/components/admin/LocationSection";
 import IcalSourcesSection from "@/components/admin/IcalSourcesSection";
 import StripeConnectSection from "@/components/admin/StripeConnectSection";
@@ -58,7 +59,7 @@ function resolveTab(raw: string | null, fromStripe: boolean): TabId {
   return fromStripe ? "calendriers" : "etablissement";
 }
 
-type Room = { id: string; name: string };
+type Room = { id: string; name: string; emailMessage?: string | null; info?: unknown };
 
 type IcalSource = {
   id: string;
@@ -175,6 +176,7 @@ export default function SettingsPageClient({
             reviewUrl={config.reviewUrl}
           />
         )}
+        {tab === "emails" && <RoomEmailsSection rooms={rooms} />}
         {tab === "calendriers" && (
           <>
             <IcalSourcesSection

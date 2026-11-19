@@ -105,30 +105,39 @@ test.describe("Emails — rappel avant l'arrivée et message par chambre", () =>
     await expect(page.getByText("{voyageurs}", { exact: true })).toBeVisible();
   });
 
-  test("fiche chambre : nombre de lits et message enregistrés ; 0 lit refusé", async ({ page }) => {
+  test("fiche chambre : nombre de lits enregistré ; 0 lit refusé ; aucun réglage d'email dans la fiche", async ({ page }) => {
+    await pool.query("UPDATE rooms SET email_message = 'Code porte : 1234', info = $2::jsonb WHERE id = $1", [
+      roomId,
+      JSON.stringify([{ key: "etage", label: "Étage", value: "2e" }]),
+    ]);
     await page.goto(`/admin/chambres/${roomId}/edit`);
+    // Les emails se règlent dans Paramètres → Emails, jamais depuis la fiche chambre.
+    await expect(page.locator("textarea[name='messageEmail']")).toHaveCount(0);
+    await expect(page.getByText("Infos pratiques")).toHaveCount(0);
+    await expect(page.getByText("Variables : personnaliser selon le client et la chambre")).toHaveCount(0);
+
     await page.locator("input[name='lits']").fill("0");
     await page.locator("input[name='lits']").evaluate((el) => ((el as HTMLInputElement).form!.noValidate = true));
     await page.getByRole("button", { name: "Enregistrer" }).first().click();
     await expect(page.getByText("Doit être supérieur à 0").first()).toBeVisible();
 
     await page.locator("input[name='lits']").fill("3");
-    await page.locator("textarea[name='messageEmail']").fill("Code porte : 1234, {lits} lits");
     await page.getByRole("button", { name: "Enregistrer" }).first().click();
     await expect(page).toHaveURL(/\/admin\/chambres$/);
-
     await page.goto(`/admin/chambres/${roomId}/edit`);
     await expect(page.locator("input[name='lits']")).toHaveValue("3");
-    await expect(page.locator("textarea[name='messageEmail']")).toHaveValue("Code porte : 1234, {lits} lits");
 
     // Vider le nombre de lits le remet à « non renseigné ».
     await page.locator("input[name='lits']").fill("");
     await page.getByRole("button", { name: "Enregistrer" }).first().click();
     await expect(page).toHaveURL(/\/admin\/chambres$/);
-    const { rows } = await pool.query("SELECT beds FROM rooms WHERE id = $1", [roomId]);
+    const { rows } = await pool.query("SELECT beds, email_message, info FROM rooms WHERE id = $1", [roomId]);
     expect(rows[0].beds).toBeNull();
+    // Enregistrer la fiche ne touche ni au message ni aux infos réglés dans Emails.
+    expect(rows[0].email_message).toBe("Code porte : 1234");
+    expect(rows[0].info).toEqual([{ key: "etage", label: "Étage", value: "2e" }]);
     // La chambre de test reste inactive (insertHiddenRoom) : on ne la réactive pas.
-    await pool.query("UPDATE rooms SET active = false WHERE id = $1", [roomId]);
+    await pool.query("UPDATE rooms SET active = false, email_message = NULL, info = '[]' WHERE id = $1", [roomId]);
   });
 
   // ─── Envoi par le cron ───────────────────────────────────────────────────────

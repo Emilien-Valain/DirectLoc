@@ -7,8 +7,9 @@ import { mailBody } from "../helpers/mail-body";
 import { deleteRoomsByName, insertHiddenRoom } from "../helpers/intake";
 
 /**
- * Spécification : Tests de non-régression > Chambres — infos pratiques (étage, code,
- * wifi + infos libres) et leurs variables dans les emails.
+ * Spécification : Tests de non-régression > Emails — par chambre : infos pratiques
+ * (étage, code, wifi + infos libres), message et leurs variables dans les emails.
+ * Réglés dans Paramètres → Emails, bloc repliable par chambre.
  */
 
 const ctx = JSON.parse(
@@ -25,8 +26,17 @@ let otherId: string;
 test.use({ extraHTTPHeaders: { "x-forwarded-for": "10.10.0.23" } });
 
 const info = async (id: string) => (await pool.query("SELECT info FROM rooms WHERE id = $1", [id])).rows[0].info;
-const save = (page: Page) => page.getByRole("button", { name: "Enregistrer" }).first().click();
-const customRows = (page: Page) => page.getByTestId("custom-info-row");
+const card = (page: Page) => page.locator(`[data-testid="room-email-card"][data-room-name="${ROOM}"]`);
+const save = async (page: Page) => {
+  await card(page).getByRole("button", { name: `Enregistrer pour ${ROOM}` }).click();
+};
+const customRows = (page: Page) => card(page).getByTestId("custom-info-row");
+
+async function openCard(page: Page) {
+  await page.goto("/admin/parametres?tab=emails");
+  await card(page).locator("summary").click();
+  await expect(card(page).getByRole("group", { name: "Infos pratiques" })).toBeVisible();
+}
 
 test.describe("Chambres — infos pratiques", () => {
   test.beforeAll(async () => {
@@ -46,9 +56,12 @@ test.describe("Chambres — infos pratiques", () => {
     await pool.end();
   });
 
-  test("champs proposés avec leur variable ; info libre ajoutée, enregistrée, relue puis retirée", async ({ page }) => {
-    await page.goto(`/admin/chambres/${roomId}/edit`);
-    const box = page.getByRole("group", { name: "Infos pratiques" });
+  test("un bloc par chambre ; champs proposés avec leur variable ; info libre et message enregistrés, relus puis retirés", async ({ page }) => {
+    await page.goto("/admin/parametres?tab=emails");
+    await expect(page.locator(`[data-testid="room-email-card"][data-room-name="${OTHER}"]`)).toBeVisible();
+    await expect(card(page)).toContainText("Rien de renseigné");
+    await card(page).locator("summary").click();
+    const box = card(page).getByRole("group", { name: "Infos pratiques" });
     for (const v of ["{etage}", "{code_acces}", "{wifi}", "{wifi_mdp}"]) {
       await expect(box.getByTestId("info-variable").filter({ hasText: v })).toBeVisible();
     }
@@ -60,46 +73,66 @@ test.describe("Chambres — infos pratiques", () => {
     // La variable s'affiche pendant la saisie du nom.
     await expect(customRows(page).getByTestId("info-variable")).toHaveText("{code_du_portail}");
     await customRows(page).getByLabel("Valeur").fill("1984");
+    await card(page).getByLabel("Message dans les emails").fill("Étage {etage}, portail {code_du_portail}");
     await save(page);
-    await expect(page).toHaveURL(/\/admin\/chambres$/);
+    await expect(card(page).getByText(`Enregistré pour ${ROOM}.`)).toBeVisible();
+    expect((await pool.query("SELECT email_message FROM rooms WHERE id = $1", [roomId])).rows[0].email_message).toBe(
+      "Étage {etage}, portail {code_du_portail}",
+    );
     expect(await info(roomId)).toEqual([
       { key: "etage", label: "Étage", value: "2e étage" },
       { key: "wifi_mdp", label: "Mot de passe Wi-Fi", value: "soleil2027" },
       { key: "code_du_portail", label: "Code du portail", value: "1984" },
     ]);
 
-    await page.goto(`/admin/chambres/${roomId}/edit`);
+    await openCard(page);
+    await expect(card(page)).toContainText("4 éléments renseignés");
     await expect(box.getByLabel("Étage")).toHaveValue("2e étage");
     await expect(customRows(page).getByLabel("Nom de l'info")).toHaveValue("Code du portail");
     await expect(customRows(page).getByLabel("Valeur")).toHaveValue("1984");
 
     await page.getByRole("button", { name: "Retirer l'info Code du portail" }).click();
     await box.getByLabel("Étage").fill("");
+    await card(page).getByLabel("Message dans les emails").fill("");
     await save(page);
-    await expect(page).toHaveURL(/\/admin\/chambres$/);
+    await expect(card(page).getByText(`Enregistré pour ${ROOM}.`)).toBeVisible();
     expect(await info(roomId)).toEqual([{ key: "wifi_mdp", label: "Mot de passe Wi-Fi", value: "soleil2027" }]);
+    expect((await pool.query("SELECT email_message FROM rooms WHERE id = $1", [roomId])).rows[0].email_message).toBeNull();
   });
 
   test("refus : nom réservé, info en double, valeur manquante → message sur la ligne, rien d'enregistré, saisie gardée", async ({ page }) => {
-    await page.goto(`/admin/chambres/${roomId}/edit`);
-    const add = page.getByRole("button", { name: "+ Ajouter une info" });
+    await openCard(page);
+    const add = card(page).getByRole("button", { name: "+ Ajouter une info" });
     await add.click();
     await customRows(page).nth(0).getByLabel("Nom de l'info").fill("Client");
     await customRows(page).nth(0).getByLabel("Valeur").fill("x");
     await save(page);
-    await expect(page.getByText("{client} est déjà une variable des emails").first()).toBeVisible();
+    await expect(card(page).getByText("{client} est déjà une variable des emails").first()).toBeVisible();
     await expect(customRows(page).nth(0).getByLabel("Nom de l'info")).toHaveAttribute("aria-invalid", "true");
 
     await customRows(page).nth(0).getByLabel("Nom de l'info").fill("étage");
     await save(page);
-    await expect(page.getByText("Une autre info donne déjà la variable {etage}").first()).toBeVisible();
+    await expect(card(page).getByText("Une autre info donne déjà la variable {etage}").first()).toBeVisible();
 
     await customRows(page).nth(0).getByLabel("Nom de l'info").fill("Parking");
     await customRows(page).nth(0).getByLabel("Valeur").fill("");
     await save(page);
-    await expect(page.getByText("Indiquez la valeur, ou retirez cette info").first()).toBeVisible();
+    await expect(card(page).getByText("Indiquez la valeur, ou retirez cette info").first()).toBeVisible();
     await expect(customRows(page).nth(0).getByLabel("Nom de l'info")).toHaveValue("Parking");
     expect(await info(roomId)).toEqual([]);
+  });
+
+  test("XSS dans le message et une info : enregistrés tels quels, affichés échappés, aucun dialog", async ({ page }) => {
+    let dialog = false;
+    page.on("dialog", () => (dialog = true));
+    await openCard(page);
+    await card(page).getByRole("group", { name: "Infos pratiques" }).getByLabel("Étage").fill("<img src=x onerror=alert(1)>");
+    await card(page).getByLabel("Message dans les emails").fill("<script>alert(1)</script>");
+    await save(page);
+    await expect(card(page).getByText(`Enregistré pour ${ROOM}.`)).toBeVisible();
+    await openCard(page);
+    await expect(card(page).getByLabel("Message dans les emails")).toHaveValue("<script>alert(1)</script>");
+    expect(dialog).toBe(false);
   });
 
   test("email : variables des infos remplacées et échappées ; info d'une autre chambre vide", async ({ request }) => {

@@ -196,6 +196,10 @@ export const roomSchema = z.object({
   lits: z
     .preprocess((v) => (v === "" ? undefined : v), positiveInt.refine((n) => n <= 50, "Lits : 50 maximum").optional())
     .transform((v) => v ?? null),
+});
+
+/** Paramètres → Emails, bloc d'une chambre (les infos pratiques sont lues par `readRoomInfo`). */
+export const roomEmailSchema = z.object({
   messageEmail: safeText.optional().or(z.literal("")),
 });
 

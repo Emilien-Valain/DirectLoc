@@ -55,7 +55,7 @@ export default function RoomInfoFields({
       </legend>
       <p className="text-[12.5px] mb-3" style={{ color: "var(--admin-text-muted)" }}>
         Remplissez ce qui sert à vos clients. Écrivez ensuite la variable dans un message d&apos;email
-        (ici ou dans Paramètres → Emails) : elle est remplacée par l&apos;info de la chambre réservée.
+        (celui de la chambre ou ceux du haut de la page) : elle est remplacée par l&apos;info de la chambre réservée.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3.5">

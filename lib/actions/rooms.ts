@@ -8,7 +8,7 @@ import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { notifyIndexNow } from "@/lib/indexnow";
 import { rooms, properties, tenants } from "@/db/schema";
-import { roomSchema, roomUpdateSchema, safeParseFormData, type FormResult } from "@/lib/validation";
+import { isUuid, roomEmailSchema, roomSchema, roomUpdateSchema, safeParseFormData, type FormResult } from "@/lib/validation";
 
 async function requireTenantId(): Promise<string> {
   const { tenantId } = await requireSession();
@@ -49,11 +49,6 @@ export async function createRoom(formData: FormData): Promise<FormResult> {
   const pricePerNight = data.prix.replace(",", ".");
   const capacity = data.capacite;
   const beds = data.lits;
-  const emailMessage = data.messageEmail?.trim() || null;
-  const read = readRoomInfo(formData);
-  if ("error" in read) return read;
-  const info = read.info;
-
   // 1 tenant = 1 property dans ce modèle — on auto-crée si absente
   let property = await db.query.properties.findFirst({
     where: eq(properties.tenantId, tenantId),
@@ -82,8 +77,6 @@ export async function createRoom(formData: FormData): Promise<FormResult> {
     pricePerNight,
     capacity,
     beds,
-    emailMessage,
-    info,
   });
 
   notifyIndexNow(tenantId, ["/", "/chambres", `/chambres/${slug}`]);
@@ -102,11 +95,7 @@ export async function updateRoom(id: string, formData: FormData): Promise<FormRe
   const pricePerNight = data.prix.replace(",", ".");
   const capacity = data.capacite;
   const beds = data.lits;
-  const emailMessage = data.messageEmail?.trim() || null;
   const active = data.actif === "on";
-  const read = readRoomInfo(formData);
-  if ("error" in read) return read;
-  const info = read.info;
 
   const old = await db.query.rooms.findFirst({
     where: and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)),
@@ -115,7 +104,7 @@ export async function updateRoom(id: string, formData: FormData): Promise<FormRe
   const slug = await uniqueRoomSlug(tenantId, id, name);
   await db
     .update(rooms)
-    .set({ name, slug, description, pricePerNight, capacity, beds, emailMessage, info, active })
+    .set({ name, slug, description, pricePerNight, capacity, beds, active })
     .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)));
 
   // Ancienne URL incluse : un renommage ou une désactivation la rend 404, à désindexer.
@@ -147,4 +136,25 @@ export async function deleteRoom(id: string): Promise<{ error?: string }> {
 
   revalidatePath("/admin/chambres");
   return {};
+}
+
+/**
+ * Paramètres → Emails, bloc d'une chambre : infos pratiques ({etage}…) et message
+ * ajouté aux emails de ses réservations. Seul endroit où ils se modifient.
+ */
+export async function updateRoomEmail(id: string, formData: FormData): Promise<FormResult> {
+  const tenantId = await requireTenantId();
+  if (!isUuid(id)) return { error: "Chambre introuvable", fieldErrors: {} };
+  const parsed = safeParseFormData(roomEmailSchema, formData);
+  if ("error" in parsed) return parsed;
+  const read = readRoomInfo(formData);
+  if ("error" in read) return read;
+
+  const updated = await db
+    .update(rooms)
+    .set({ emailMessage: parsed.data.messageEmail?.trim() || null, info: read.info })
+    .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)))
+    .returning({ id: rooms.id });
+  if (updated.length === 0) return { error: "Chambre introuvable", fieldErrors: {} };
+  revalidatePath("/admin/parametres");
 }

@@ -32,7 +32,7 @@ export default function EmailSettingsSection({
   return (
     <SettingsSection
       title="Emails"
-      desc="Personnalisez les messages envoyés aux clients par email. Un message propre à une chambre (code d'accès, étage…) se règle dans la fiche de la chambre."
+      desc="Personnalisez les messages envoyés aux clients par email. Les infos et le message propres à chaque chambre (étage, code d'accès, wifi…) se règlent plus bas, dans « Par chambre »."
     >
       {form.saved && (
         <StatusBanner variant="success">

@@ -36,7 +36,7 @@ export default async function ParametresPage() {
   const config = (tenant.config ?? {}) as TenantConfig;
 
   const tenantRooms = await db
-    .select({ id: rooms.id, name: rooms.name })
+    .select({ id: rooms.id, name: rooms.name, emailMessage: rooms.emailMessage, info: rooms.info })
     .from(rooms)
     .where(eq(rooms.tenantId, tenantId))
     .orderBy(asc(rooms.name));
