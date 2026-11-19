@@ -5,9 +5,17 @@ import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { useFormAction } from "@/components/admin/useFormAction";
 import { createExtra, deleteExtra, setExtraActive, updateExtra } from "@/lib/actions/extras";
 import { AdminInput, AdminSelect, EmptyState, Field, SettingsSection, StatusBanner } from "@/components/admin/ui";
-import { EXTRA_UNITS, EXTRA_UNIT_LABELS, MAX_CHOSEN, type ExtraUnit } from "@/lib/extras";
+import { CHOSEN_WORDS, EXTRA_UNITS, EXTRA_UNIT_LABELS, MAX_CHOSEN, type ExtraUnit } from "@/lib/extras";
 import type { CatalogExtra } from "@/lib/queries/extras";
 import { formatEuros } from "@/lib/utils";
+
+/** Ce que le client choisit selon l'unité ; le maximum suit le séjour. */
+const CHOICE_HINT: Record<Exclude<ExtraUnit, "per_stay">, string> = {
+  per_night: "choisit pour combien de nuits, jusqu'à celles du séjour",
+  per_guest: "choisit pour combien de personnes, jusqu'aux voyageurs du séjour",
+  per_guest_night: "choisit pour combien de personnes, jusqu'aux voyageurs du séjour",
+  per_bed: "choisit pour combien de lits, jusqu'à ceux de la chambre",
+};
 
 const smallBtn = {
   padding: "7px 14px",
@@ -24,7 +32,7 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
   return (
     <SettingsSection
       title="Options"
-      desc="Petit-déjeuner, linge, paniers pique-nique… proposés à vos clients au moment de réserver. Le prix est calculé selon l'unité (par séjour, par nuit, par personne, par lit) et, si vous le permettez, multiplié par le nombre que le client choisit (2 paniers, draps pour 1 lit sur 4). Modifier une option ne change pas les réservations déjà faites."
+      desc="Petit-déjeuner, linge, paniers pique-nique… proposés à vos clients au moment de réserver. Le prix suit l'unité : le client choisit pour combien de nuits, de personnes ou de lits (petit-déjeuner pour 2 personnes sur 4, draps pour 1 lit sur 3), dans la limite de son séjour. Par séjour, vous fixez vous-même combien il peut en prendre (2 paniers). Modifier une option ne change pas les réservations déjà faites."
       action={
         <button
           type="button"
@@ -78,9 +86,9 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
                   </p>
                   <p className="text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
                     {x.price === 0 ? "Gratuit" : `${formatEuros(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
-                    {x.unit === "per_bed"
-                      ? " · le client choisit le nombre de lits"
-                      : x.maxQuantity && x.maxQuantity > 1 && ` · jusqu'à ${x.maxQuantity} au choix`}
+                    {x.unit === "per_stay"
+                      ? x.maxQuantity && x.maxQuantity > 1 && ` · jusqu'à ${x.maxQuantity} au choix`
+                      : ` · ${CHOSEN_WORDS[x.unit].many} au choix du client`}
                     {x.description && <> · {x.description}</>}
                   </p>
                 </div>
@@ -153,9 +161,9 @@ function ExtraForm({ extra, onDone }: { extra?: CatalogExtra; onDone: () => void
           </AdminSelect>
         </Field>
       </div>
-      {unit === "per_bed" ? (
-        <p className="text-[12.5px] mb-3.5" style={{ color: "var(--admin-text-muted)" }}>
-          Par lit : le client choisit pour combien de lits, jusqu&apos;au nombre de lits de la chambre.
+      {unit !== "per_stay" ? (
+        <p className="text-[12.5px] mb-3.5" style={{ color: "var(--admin-text-muted)" }} data-testid="extra-choice-hint">
+          Le client {CHOICE_HINT[unit]}, tout le séjour par défaut.
         </p>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

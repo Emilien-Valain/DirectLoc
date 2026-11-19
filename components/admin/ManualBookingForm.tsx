@@ -21,8 +21,10 @@ import {
   EXTRA_UNIT_LABELS,
   extraQuantitiesFrom,
   feeAppliesTo,
+  CHOSEN_WORDS,
+  chosenLabel,
   chosenMax,
-  defaultChosen,
+  resolveChosen,
   type ExtraUnit,
   type StayLine,
 } from "@/lib/extras";
@@ -47,11 +49,11 @@ export type BookingEdit = {
   taxExempt: boolean;
 };
 
-type FrozenLine = { id: string; sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number; chosen?: number };
+type FrozenLine = { id: string; sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number; chosen?: number | null };
 type Quote = { nights: number; computed: number; accommodation: number; lines: StayLine[]; total: number };
 
 /** Cases à cocher : lignes figées de la réservation puis catalogue pas encore pris. */
-type Choice = { value: string; label: string; unit: ExtraUnit; price: number; frozen: boolean; chosen?: number; maxQuantity?: number | null };
+type Choice = { value: string; label: string; unit: ExtraUnit; price: number; frozen: boolean; chosen?: number | null; maxQuantity?: number | null };
 
 /** Cases à cocher : lignes figées de la réservation puis catalogue pas encore pris. */
 function choices(
@@ -59,7 +61,7 @@ function choices(
   catalog: { id: string; label: string; unit: ExtraUnit; price: number; maxQuantity?: number | null }[],
 ): Choice[] {
   return [
-    // Ligne figée : maximum actuel de l'option d'origine, jamais sous le nombre déjà enregistré (comme le serveur).
+    // Ligne figée « par séjour » : maximum actuel de l'option d'origine, jamais sous le nombre déjà pris (comme le serveur).
     ...frozen.map((l) => ({
       value: l.id,
       label: l.label,
@@ -67,7 +69,7 @@ function choices(
       price: l.unitPrice,
       frozen: true,
       chosen: l.chosen,
-      maxQuantity: Math.max(l.chosen ?? 1, catalog.find((x) => x.id === l.sourceId)?.maxQuantity ?? 1),
+      maxQuantity: l.unit === "per_stay" ? Math.max(l.chosen ?? 1, catalog.find((x) => x.id === l.sourceId)?.maxQuantity ?? 1) : null,
     })),
     ...catalog
       .filter((x) => !frozen.some((l) => l.sourceId === x.id))
@@ -115,8 +117,11 @@ export default function ManualBookingForm({
   const [roomId, setRoomId] = useState(v.roomId ?? defaultRoomId ?? "");
   const extraChoices = choices(edit?.lines ?? [], extras);
   const [chosenExtras, setChosenExtras] = useState<string[]>(() => edit?.lines.map((l) => l.id) ?? []);
-  // Options « par lit » : lits de la chambre choisie (le serveur borne aussi).
+  // Nombre au choix des options, borné par le séjour saisi (le serveur borne aussi) :
+  // lits de la chambre choisie, voyageurs saisis, nuits du devis.
   const maxBeds = rooms.find((r) => r.id === roomId)?.maxBeds ?? 1;
+  const [guests, setGuests] = useState(Math.max(1, Number(v.guestCount) || 1));
+  const [counts, setCounts] = useState<Record<string, number>>({});
   // Fees : cochés d'office à la création ; en modification, seuls ceux déjà sur la réservation.
   const feeChoices = choices(edit?.feeLines ?? [], fees.filter((f) => feeAppliesTo(f, roomId)));
   const [chosenFees, setChosenFees] = useState<string[]>(() =>
@@ -130,6 +135,7 @@ export default function ManualBookingForm({
       if (!f) return;
       const fd = new FormData(f);
       const val = (n: string) => String(fd.get(n) ?? "");
+      setGuests(Math.max(1, Math.floor(Number(val("guestCount"))) || 1));
       setQuote(
         await quoteManualBooking({
           roomId: val("roomId"),
@@ -371,8 +377,11 @@ export default function ManualBookingForm({
           </legend>
           {extraChoices.map((x) => {
             const checked = chosenExtras.includes(x.value);
-            const max = chosenMax(x, maxBeds);
+            const stay = { nights: Math.max(1, quote?.nights ?? 1), guests, beds: maxBeds };
+            const max = chosenMax(x, stay);
             const pick = checked && max > 1;
+            // Choix en cours > nombre enregistré > tout le séjour (affiché comme le maximum).
+            const shown = resolveChosen(x.unit, max, counts[x.value], x.chosen) ?? max;
             return (
               <div key={x.value}>
               <label className="flex items-start gap-2.5 py-1 cursor-pointer" style={{ color: "var(--admin-text)" }}>
@@ -397,16 +406,19 @@ export default function ManualBookingForm({
               </label>
               {pick && (
                 <label className="flex items-center gap-2 pl-7 pb-1.5 text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
-                  {x.unit === "per_bed" ? "Nombre de lits" : "Quantité"}
+                  {CHOSEN_WORDS[x.unit].question}
                   <AdminSelect
-                    key={`${x.value}-${max}`}
-                    name={`extraQty_${x.value}`}
-                    defaultValue={Math.min(Number(v[`extraQty_${x.value}`]) || x.chosen || defaultChosen(x.unit, max), max)}
-                    style={{ width: 90 }}
+                    // Envoyé seulement si l'hôte a choisi : sinon le serveur garde le nombre enregistré
+                    // ou tout le séjour (pas d'ancien maximum envoyé avant le recalcul du devis).
+                    name={counts[x.value] !== undefined ? `extraQty_${x.value}` : undefined}
+                    data-testid={`extraQty-${x.value}`}
+                    value={shown}
+                    onChange={(e) => setCounts((c) => ({ ...c, [x.value]: Number(e.target.value) }))}
+                    style={{ width: 130 }}
                   >
                     {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
                       <option key={n} value={n}>
-                        {n}
+                        {chosenLabel(x.unit, n)}
                       </option>
                     ))}
                   </AdminSelect>

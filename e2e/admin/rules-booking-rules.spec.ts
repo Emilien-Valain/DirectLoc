@@ -33,7 +33,7 @@ test.describe("Admin — Règles de séjour", () => {
     await page.getByRole("button", { name: "Créer la règle" }).click();
 
     await expect(page.getByText("Min 2 nuit(s)")).toBeVisible();
-    await expect(page.getByText("Global (toutes les chambres)")).toBeVisible();
+    await expect(page.getByTestId("booking-rule-row")).toContainText("Toutes les chambres");
 
     // Cleanup
     await page.getByRole("button", { name: "Supprimer" }).first().click();

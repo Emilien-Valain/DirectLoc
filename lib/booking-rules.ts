@@ -1,4 +1,5 @@
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { appliesToRoom } from "@/lib/room-scope";
 import { db } from "@/lib/db";
 import type { Tx } from "@/lib/booking-intake";
 import { bookingRules } from "@/db/schema";
@@ -97,7 +98,7 @@ export async function getEffectiveRules(
     .where(
       and(
         eq(bookingRules.tenantId, tenantId),
-        or(eq(bookingRules.roomId, roomId), isNull(bookingRules.roomId)),
+        appliesToRoom(bookingRules.roomIds, roomId),
       ),
     );
 

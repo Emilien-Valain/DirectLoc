@@ -12,8 +12,10 @@ import {
   EXTRA_UNIT_LABELS,
   bedLimit,
   grandTotal,
+  CHOSEN_WORDS,
+  chosenLabel,
   chosenMax,
-  defaultChosen,
+  resolveChosen,
   priceExtraLine,
   type ExtraLine,
 } from "@/lib/extras";
@@ -141,7 +143,7 @@ export default function BookingForm({
   const [violations, setViolations] = useState<RuleViolation[]>([]);
   // Contrôlé (pas defaultChecked) : survit au remontage du formulaire après une erreur serveur.
   const [chosenExtras, setChosenExtras] = useState<string[]>([]);
-  // Nombre choisi par option : lits pour « par lit » (par défaut tous), sinon 1 à son maximum.
+  // Nombre choisi par option (nuits, personnes, lits, ou paniers par séjour) ; absent = tout le séjour.
   const maxBeds = bedLimit({ beds: room.beds ?? null, capacity: room.capacity });
   const [counts, setCounts] = useState<Record<string, number>>({});
   const [rules, setRules] = useState<EffectiveRules | null>(null);
@@ -229,16 +231,19 @@ export default function BookingForm({
   const stayNights = nights > 0 ? nights : datesValid
     ? Math.round((new Date(checkOut + "T00:00:00Z").getTime() - new Date(checkIn + "T00:00:00Z").getTime()) / 86_400_000)
     : 1;
-  const maxOf = (x: CatalogExtra) => chosenMax(x, maxBeds);
-  const chosenOf = (x: CatalogExtra) => Math.min(counts[x.id] ?? defaultChosen(x.unit, maxOf(x)), maxOf(x));
+  const stay = { nights: stayNights, guests: guestCount, beds: maxBeds };
+  const maxOf = (x: CatalogExtra) => chosenMax(x, stay);
+  // null = tout le séjour (affiché comme le maximum) ; même règle que le serveur.
+  const chosenOf = (x: CatalogExtra) => resolveChosen(x.unit, maxOf(x), counts[x.id]);
+  const shownOf = (x: CatalogExtra) => chosenOf(x) ?? maxOf(x);
   const priceOf = (x: CatalogExtra) =>
-    priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: x.price }, stayNights, guestCount, chosenOf(x));
+    priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: x.price }, stay, chosenOf(x));
   const extraLines = extras.filter((x) => chosenExtras.includes(x.id)).map(priceOf);
   const hasValidPricing =
     availability === "available" && violations.length === 0 && totalPrice > 0;
   // Fees et taxe : même calcul que le serveur (lib/extras, lib/tourist-tax).
   const chargeLines: ExtraLine[] = fees.map((f) =>
-    priceExtraLine({ sourceId: f.id, label: f.label, unit: f.unit, unitPrice: f.price }, stayNights, guestCount),
+    priceExtraLine({ sourceId: f.id, label: f.label, unit: f.unit, unitPrice: f.price }, { ...stay, beds: 1 }),
   );
   const tax = touristTaxLine(
     touristTax,
@@ -399,18 +404,17 @@ export default function BookingForm({
                     </label>
                     {checked && maxOf(x) > 1 && (
                       <div className="s-extra-qty">
-                        <label htmlFor={`extraQty-${x.id}`}>
-                          {x.unit === "per_bed" ? "Pour combien de lits ?" : "Combien ?"}
-                        </label>
+                        <label htmlFor={`extraQty-${x.id}`}>{CHOSEN_WORDS[x.unit].question}</label>
                         <select
                           id={`extraQty-${x.id}`}
-                          name={`extraQty_${x.id}`}
-                          value={chosenOf(x)}
+                          // Envoyé seulement si le client a choisi ; sinon tout le séjour.
+                          name={counts[x.id] !== undefined ? `extraQty_${x.id}` : undefined}
+                          value={shownOf(x)}
                           onChange={(e) => setCounts((c) => ({ ...c, [x.id]: Number(e.target.value) }))}
                         >
                           {Array.from({ length: maxOf(x) }, (_, i) => i + 1).map((n) => (
                             <option key={n} value={n}>
-                              {x.unit === "per_bed" ? `${n} lit${n > 1 ? "s" : ""}` : n}
+                              {chosenLabel(x.unit, n)}
                             </option>
                           ))}
                         </select>

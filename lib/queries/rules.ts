@@ -1,6 +1,6 @@
 import { and, asc, eq, or, gt, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { manualBlocks, bookingRules, pricingRules, rooms } from "@/db/schema";
+import { manualBlocks, bookingRules, pricingRules } from "@/db/schema";
 
 // ── Manual Blocks ───────────────────────────────────────────────────────────
 
@@ -9,8 +9,7 @@ export async function getManualBlocksByTenant(tenantId: string) {
     .select({
       id: manualBlocks.id,
       tenantId: manualBlocks.tenantId,
-      roomId: manualBlocks.roomId,
-      roomName: rooms.name,
+      roomIds: manualBlocks.roomIds,
       startDate: manualBlocks.startDate,
       endDate: manualBlocks.endDate,
       recurring: manualBlocks.recurring,
@@ -20,7 +19,6 @@ export async function getManualBlocksByTenant(tenantId: string) {
       createdAt: manualBlocks.createdAt,
     })
     .from(manualBlocks)
-    .leftJoin(rooms, eq(manualBlocks.roomId, rooms.id))
     .where(eq(manualBlocks.tenantId, tenantId))
     .orderBy(asc(manualBlocks.startDate));
 }
@@ -53,8 +51,7 @@ export async function getBookingRulesByTenant(tenantId: string) {
     .select({
       id: bookingRules.id,
       tenantId: bookingRules.tenantId,
-      roomId: bookingRules.roomId,
-      roomName: rooms.name,
+      roomIds: bookingRules.roomIds,
       validFrom: bookingRules.validFrom,
       validTo: bookingRules.validTo,
       minStay: bookingRules.minStay,
@@ -65,7 +62,6 @@ export async function getBookingRulesByTenant(tenantId: string) {
       createdAt: bookingRules.createdAt,
     })
     .from(bookingRules)
-    .leftJoin(rooms, eq(bookingRules.roomId, rooms.id))
     .where(eq(bookingRules.tenantId, tenantId))
     .orderBy(asc(bookingRules.createdAt));
 }
@@ -77,7 +73,7 @@ export async function getBookingRulesByRoom(roomId: string, tenantId: string) {
     .where(
       and(
         eq(bookingRules.tenantId, tenantId),
-        eq(bookingRules.roomId, roomId),
+        sql`${roomId}::uuid = ANY(${bookingRules.roomIds})`,
       ),
     )
     .orderBy(asc(bookingRules.createdAt));

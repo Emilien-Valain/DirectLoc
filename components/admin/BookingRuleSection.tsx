@@ -6,7 +6,6 @@ import { useFormAction } from "@/components/admin/useFormAction";
 import { createBookingRule, deleteBookingRule, updateBookingRule } from "@/lib/actions/rules";
 import {
   AdminInput,
-  AdminSelect,
   DateInput,
   EmptyState,
   Field,
@@ -19,10 +18,12 @@ import {
   DayPicker,
   EditButton,
   FormFooter,
+  RoomPicker,
   asDays,
   formBoxStyle,
   frDate,
   isoDay,
+  roomsLabel,
   rowActionStyle,
 } from "./rule-form-parts";
 import type { BookingRuleRow } from "./RulesPageClient";
@@ -83,7 +84,7 @@ export default function BookingRuleSection({ rooms, rules }: { rooms: Room[]; ru
               >
                 <div className="min-w-0">
                   <p className="text-[13.5px] font-semibold" style={{ color: "var(--admin-text)" }}>
-                    {rule.roomName ?? "Global (toutes les chambres)"}
+                    {roomsLabel(rule.roomIds, rooms)}
                     {rule.validFrom && (
                       <span
                         className="ml-2 text-[12px] font-bold"
@@ -116,7 +117,7 @@ export default function BookingRuleSection({ rooms, rules }: { rooms: Room[]; ru
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <EditButton
-                    label={`Modifier la règle ${rule.roomName ?? "globale"}`}
+                    label={`Modifier la règle ${roomsLabel(rule.roomIds, rooms)}`}
                     onClick={() => { setEditing(rule.id); setSaved(null); }}
                   />
                   <ConfirmButton
@@ -149,6 +150,7 @@ function BookingRuleForm({
 }) {
   const [checkInDays, setCheckInDays] = useState<number[]>(asDays(rule?.allowedCheckInDays));
   const [checkOutDays, setCheckOutDays] = useState<number[]>(asDays(rule?.allowedCheckOutDays));
+  const [roomIds, setRoomIds] = useState<string[]>(rule?.roomIds ?? []);
   const form = useFormAction(rule ? updateBookingRule.bind(null, rule.id) : createBookingRule, {
     prepare: (fd) => {
       fd.set("allowedCheckInDays", checkInDays.join(","));
@@ -160,16 +162,11 @@ function BookingRuleForm({
   return (
     <form onSubmit={form.onSubmit} data-testid="booking-rule-form" className="my-3" style={formBoxStyle}>
       {form.error && <StatusBanner variant="error">{form.error}</StatusBanner>}
-      <Field label="Chambre">
-        <AdminSelect name="roomId" defaultValue={rule?.roomId ?? ""}>
-          <option value="">Toutes les chambres</option>
-          {rooms.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name}
-            </option>
-          ))}
-        </AdminSelect>
-      </Field>
+      {rooms.length > 1 && (
+        <Field label="Chambres concernées" error={form.fieldError("roomIds")}>
+          <RoomPicker rooms={rooms} value={roomIds} onChange={setRoomIds} />
+        </Field>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Saison — début (optionnel)" error={form.fieldError("validFrom")}>

@@ -7,9 +7,8 @@ import { calculatePrice, type PriceBreakdown } from "@/lib/pricing";
 import {
   bedLimit,
   chosenMax,
-  clampQuantity,
-  defaultChosen,
   grandTotal,
+  resolveChosen,
   priceExtraLine,
   type ExtraLine,
   type StayLine,
@@ -130,9 +129,8 @@ const MAX_EXTRAS = 50;
  * Lignes d'Extras d'un séjour. Une ligne déjà sur la réservation (`bookingId`)
  * garde libellé et prix figés, quantité recalculée — même si l'Extra a été
  * désactivé ou supprimé depuis. Tout autre id doit être un Extra actif du tenant.
- * Nombre choisi (`quantities`) borné par `chosenMax` : lits pour « par lit », sinon le
- * maximum de l'option. Une ligne gardée garde au moins le nombre déjà enregistré
- * (l'hôte a pu baisser le maximum depuis) ; absent → celui enregistré.
+ * Nombre choisi (`quantities`) borné par `chosenMax` : nuits, personnes ou lits du séjour,
+ * ou le maximum de l'option « par séjour ». Absent → celui enregistré, sinon tout le séjour.
  */
 export async function resolveExtraLines(
   conn: Tx | typeof db,
@@ -168,8 +166,9 @@ export async function resolveExtraLines(
     : [];
   if (catalog.length !== fromCatalog.length) throw new ExtraUnavailableError();
 
-  // Maximum actuel des options d'origine des lignes gardées (supprimée → le nombre déjà enregistré).
-  const keptSources = kept.flatMap((l) => (l.sourceId ? [l.sourceId] : []));
+  const stay = { nights, guests, beds: maxBeds };
+  // Par séjour : maximum actuel de l'option d'origine (supprimée → le nombre déjà enregistré).
+  const keptSources = kept.flatMap((l) => (l.unit === "per_stay" && l.sourceId ? [l.sourceId] : []));
   const sourceMax = new Map(
     keptSources.length
       ? (
@@ -180,30 +179,25 @@ export async function resolveExtraLines(
         ).map((x) => [x.id, x.maxQuantity])
       : [],
   );
-  const keptQty = (l: (typeof existing)[number]) => {
-    // « Par lit » : borné aux lits (la chambre a pu changer).
-    const max =
-      l.unit === "per_bed"
-        ? maxBeds
-        : Math.max(l.chosen, chosenMax({ unit: l.unit, maxQuantity: l.sourceId ? sourceMax.get(l.sourceId) : null }, maxBeds));
-    return clampQuantity(quantities[l.id] ?? (l.sourceId ? quantities[l.sourceId] : undefined), max, l.chosen);
+  const keptChosen = (l: (typeof existing)[number]) => {
+    // Nuits, personnes, lits : bornés par le séjour (il a pu raccourcir). Par séjour : jamais
+    // sous le nombre déjà pris, même si l'hôte a baissé le maximum depuis.
+    const max = chosenMax({ unit: l.unit, maxQuantity: l.sourceId ? sourceMax.get(l.sourceId) : null }, stay);
+    const bound = l.unit === "per_stay" ? Math.max(max, l.chosen ?? 1) : max;
+    return resolveChosen(l.unit, bound, quantities[l.id] ?? (l.sourceId ? quantities[l.sourceId] : undefined), l.chosen);
   };
-  const newQty = (x: (typeof catalog)[number]) => {
-    const max = chosenMax(x, maxBeds);
-    return clampQuantity(quantities[x.id], max, defaultChosen(x.unit, max));
-  };
+  const newChosen = (x: (typeof catalog)[number]) => resolveChosen(x.unit, chosenMax(x, stay), quantities[x.id]);
 
   return [
     ...kept.map((l) =>
       priceExtraLine(
         { sourceId: l.sourceId, label: l.label, unit: l.unit, unitPrice: parseFloat(l.unitPrice) },
-        nights,
-        guests,
-        keptQty(l),
+        stay,
+        keptChosen(l),
       ),
     ),
     ...catalog.map((x) =>
-      priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: parseFloat(x.price) }, nights, guests, newQty(x)),
+      priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: parseFloat(x.price) }, stay, newChosen(x)),
     ),
   ];
 }
@@ -232,7 +226,7 @@ async function resolveFeeLines(
     )
     .orderBy(asc(fees.createdAt));
   const fromCatalog = (f: (typeof catalog)[number]) =>
-    priceExtraLine({ sourceId: f.id, label: f.label, unit: f.unit, unitPrice: parseFloat(f.price) }, nights, guests);
+    priceExtraLine({ sourceId: f.id, label: f.label, unit: f.unit, unitPrice: parseFloat(f.price) }, { nights, guests, beds: 1 });
   if (feeIds === undefined) return catalog.map(fromCatalog);
 
   const ids = [...new Set(feeIds)];
@@ -249,7 +243,7 @@ async function resolveFeeLines(
   if (kept.length + picked.length !== ids.length) throw new FeeUnavailableError();
   return [
     ...kept.map((l) =>
-      priceExtraLine({ sourceId: l.sourceId, label: l.label, unit: l.unit, unitPrice: parseFloat(l.unitPrice) }, nights, guests),
+      priceExtraLine({ sourceId: l.sourceId, label: l.label, unit: l.unit, unitPrice: parseFloat(l.unitPrice) }, { nights, guests, beds: 1 }),
     ),
     ...picked.map(fromCatalog),
   ];
@@ -314,7 +308,7 @@ export async function saveLines(tx: Tx, bookingId: string, lines: StayLine[]) {
       label: l.label,
       unit: l.unit,
       unitPrice: l.unitPrice.toFixed(2),
-      chosen: l.chosen ?? 1,
+      chosen: l.chosen ?? null,
       quantity: l.quantity,
       total: l.total.toFixed(2),
       exempt: l.exempt,

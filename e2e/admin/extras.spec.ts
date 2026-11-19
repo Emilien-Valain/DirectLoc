@@ -557,7 +557,7 @@ test.describe("Admin — Option par lit (draps)", () => {
     const sourceId = await insertExtra({ label: "Linge de lit", price: "8", unit: "per_bed" });
     await fillManual(page, { name: "Par lit", checkIn: day(784), checkOut: day(786) });
     await page.getByLabel(`Linge de lit ${TAG}`).check();
-    const qty = page.locator(`[name="extraQty_${sourceId}"]`);
+    const qty = page.locator(`[data-testid="extraQty-${sourceId}"]`);
     // Par défaut tous les lits : 2 × 100 € + 3 × 8 € = 224 €
     await expect(qty).toHaveValue("3");
     await expect(quote(page)).toContainText(/224\s€/);
@@ -574,8 +574,8 @@ test.describe("Admin — Option par lit (draps)", () => {
     // Modification : la quantité enregistrée est reprise, puis changée.
     await page.goto(`/admin/reservations/${id}/modifier`);
     const lineId = (await pool.query("SELECT id FROM booking_lines WHERE booking_id = $1", [id])).rows[0].id;
-    await expect(page.locator(`[name="extraQty_${lineId}"]`)).toHaveValue("1");
-    await page.locator(`[name="extraQty_${lineId}"]`).selectOption("2");
+    await expect(page.locator(`[data-testid="extraQty-${lineId}"]`)).toHaveValue("1");
+    await page.locator(`[data-testid="extraQty-${lineId}"]`).selectOption("2");
     await saveEdit(page, id);
     expect(await totalOf(id)).toBe("216.00");
     expect((await lines(id))[0].quantity).toBe(2);
@@ -586,12 +586,13 @@ test.describe("Admin — Option par lit (draps)", () => {
     for (const [forged, expected] of [["99", 3], ["0", 1], ["abc", 3]] as const) {
       await fillManual(page, { name: `Forgé ${forged}`, checkIn: day(787), checkOut: day(788) });
       await page.getByLabel(`Draps forgés ${TAG}`).check();
-      await page.locator(`[name="extraQty_${sourceId}"]`).evaluate((s: HTMLSelectElement, v) => {
+      await page.locator(`[data-testid="extraQty-${sourceId}"]`).evaluate((s: HTMLSelectElement, [v, id]) => {
         const o = document.createElement("option");
         o.value = v;
         s.appendChild(o);
         s.value = v;
-      }, forged);
+        s.name = `extraQty_${id}`;
+      }, [forged, sourceId] as const);
       await page.click('[type="submit"]');
       await expect(page).toHaveURL(SAVED_BOOKING_URL);
       const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
@@ -613,9 +614,15 @@ test.describe("Admin — Option à nombre au choix (paniers…)", () => {
     await section(page).getByRole("button", { name: "Ajouter", exact: true }).click();
     const form = page.getByTestId("extra-form");
     await expect(form.getByLabel("Quantité au choix, jusqu'à")).toHaveValue("1");
-    await form.locator('[name="unit"]').selectOption("per_bed");
-    await expect(form.getByLabel("Quantité au choix, jusqu'à")).toHaveCount(0);
-    await expect(form).toContainText("le client choisit pour combien de lits");
+    for (const [unit, hint] of [
+      ["per_bed", "Le client choisit pour combien de lits, jusqu'à ceux de la chambre"],
+      ["per_night", "Le client choisit pour combien de nuits, jusqu'à celles du séjour"],
+      ["per_guest", "Le client choisit pour combien de personnes, jusqu'aux voyageurs du séjour"],
+    ]) {
+      await form.locator('[name="unit"]').selectOption(unit);
+      await expect(form.getByLabel("Quantité au choix, jusqu'à")).toHaveCount(0);
+      await expect(form.getByTestId("extra-choice-hint")).toContainText(hint);
+    }
     await form.locator('[name="unit"]').selectOption("per_stay");
     await form.locator('[name="label"]').fill(label);
     await form.locator('[name="price"]').fill("14,90");
@@ -646,8 +653,8 @@ test.describe("Admin — Option à nombre au choix (paniers…)", () => {
     await fillManual(page, { name: "Paniers", checkIn: day(789), checkOut: day(791) });
     await page.getByLabel(`Panier choix ${TAG}`).check();
     await page.getByLabel(`Ménage simple ${TAG}`).check();
-    await expect(page.locator(`[name="extraQty_${simple}"]`)).toHaveCount(0);
-    const qty = page.locator(`[name="extraQty_${panier}"]`);
+    await expect(page.locator(`[data-testid="extraQty-${simple}"]`)).toHaveCount(0);
+    const qty = page.locator(`[data-testid="extraQty-${panier}"]`);
     await expect(qty).toHaveValue("1");
     await expect(qty.locator("option")).toHaveCount(3);
     // 2 × 100 € + 2 × 15 € + 20 € = 250 €
@@ -662,34 +669,48 @@ test.describe("Admin — Option à nombre au choix (paniers…)", () => {
 
     await fillManual(page, { name: "Paniers forgés", checkIn: day(792), checkOut: day(793) });
     await page.getByLabel(`Panier choix ${TAG}`).check();
-    await qty.evaluate((s: HTMLSelectElement) => {
+    await qty.evaluate((s: HTMLSelectElement, id) => {
       s.appendChild(new Option("50", "50"));
       s.value = "50";
-    });
+      s.name = `extraQty_${id}`;
+    }, panier);
     await page.click('[type="submit"]');
     await expect(page).toHaveURL(SAVED_BOOKING_URL);
     const forged = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
     expect(await chosen(forged)).toEqual({ chosen: 3, quantity: 3, total: "45.00" });
   });
 
-  test("modification : nombre × nuits recalculé ; l'hôte baisse le maximum → le nombre déjà pris est gardé", async ({ page }) => {
-    const velo = await insertExtra({ label: "Vélo", price: "10", unit: "per_night", maxQuantity: 3 });
-    await fillManual(page, { name: "Vélos", checkIn: day(794), checkOut: day(796) });
+  test("par nuit : 2 nuits sur 3 choisies ; séjour allongé → le choix reste 2, une option « tout le séjour » suit", async ({ page }) => {
+    const velo = await insertExtra({ label: "Vélo", price: "10", unit: "per_night" });
+    const dej = await insertExtra({ label: "Dej nuit", price: "5", unit: "per_night" });
+    await fillManual(page, { name: "Vélos", checkIn: day(794), checkOut: day(797) });
     await page.getByLabel(`Vélo ${TAG}`).check();
-    await page.locator(`[name="extraQty_${velo}"]`).selectOption("2");
+    await page.getByLabel(`Dej nuit ${TAG}`).check();
+    const qty = page.locator(`[data-testid="extraQty-${velo}"]`);
+    // 3 nuits proposées, tout le séjour par défaut.
+    await expect(qty.locator("option")).toHaveText(["1 nuit", "2 nuits", "3 nuits"]);
+    await expect(qty).toHaveValue("3");
+    await qty.selectOption("2");
+    // 3 × 100 € + 2 × 10 € + 3 × 5 € = 335 €
+    await expect(quote(page)).toContainText(/335\s€/);
     await page.click('[type="submit"]');
     await expect(page).toHaveURL(SAVED_BOOKING_URL);
     const id = page.url().match(/reservations\/([0-9a-f-]{36})/)![1];
-    expect(await chosen(id)).toEqual({ chosen: 2, quantity: 4, total: "40.00" });
+    const byLabel = async () =>
+      Object.fromEntries(
+        (await pool.query("SELECT source_id, chosen, quantity FROM booking_lines WHERE booking_id = $1", [id])).rows.map((r) => [
+          r.source_id,
+          { chosen: r.chosen, quantity: r.quantity },
+        ]),
+      );
+    expect(await byLabel()).toEqual({ [velo]: { chosen: 2, quantity: 2 }, [dej]: { chosen: null, quantity: 3 } });
 
-    // L'hôte ne propose plus qu'un vélo ; la réservation passe de 2 à 3 nuits.
-    await pool.query("UPDATE extras SET max_quantity = NULL WHERE id = $1", [velo]);
+    // 3 → 4 nuits, enregistré tout de suite (avant le recalcul du devis) : rien n'est faussé.
     await page.goto(`/admin/reservations/${id}/modifier`);
-    const lineId = (await pool.query("SELECT id FROM booking_lines WHERE booking_id = $1", [id])).rows[0].id;
-    await expect(page.locator(`[name="extraQty_${lineId}"]`)).toHaveValue("2");
-    await expect(page.locator(`[name="extraQty_${lineId}"] option`)).toHaveCount(2);
-    await page.locator('[name="checkOut"]').fill(day(797));
+    await page.locator('[name="checkOut"]').fill(day(798));
     await saveEdit(page, id);
-    expect(await chosen(id)).toEqual({ chosen: 2, quantity: 6, total: "60.00" });
+    const after = await byLabel();
+    expect(after[velo]).toEqual({ chosen: 2, quantity: 2 });
+    expect(after[dej]).toEqual({ chosen: null, quantity: 4 });
   });
 });

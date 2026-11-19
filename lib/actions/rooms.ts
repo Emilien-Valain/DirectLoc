@@ -1,13 +1,13 @@
 "use server";
 
 import { readRoomInfo } from "@/lib/room-info";
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { notifyIndexNow } from "@/lib/indexnow";
-import { rooms, properties, tenants } from "@/db/schema";
+import { bookingRules, fees, manualBlocks, pricingRules, rooms, properties, tenants } from "@/db/schema";
 import { isUuid, roomEmailSchema, roomSchema, roomUpdateSchema, safeParseFormData, type FormResult } from "@/lib/validation";
 
 async function requireTenantId(): Promise<string> {
@@ -117,10 +117,21 @@ export async function deleteRoom(id: string): Promise<{ error?: string }> {
   const tenantId = await requireTenantId();
 
   try {
-    const [deleted] = await db
-      .delete(rooms)
-      .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)))
-      .returning({ slug: rooms.slug });
+    const deleted = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .delete(rooms)
+        .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)))
+        .returning({ slug: rooms.slug });
+      if (!row) return null;
+      // Règles, blocages et frais qui la visaient : elle en est retirée ; ceux qui ne visaient
+      // qu'elle sont supprimés (une liste vidée voudrait dire « toutes les chambres »).
+      for (const t of [manualBlocks, bookingRules, pricingRules, fees]) {
+        const mine = and(eq(t.tenantId, tenantId), sql`${id}::uuid = ANY(${t.roomIds})`);
+        await tx.delete(t).where(and(mine, sql`cardinality(${t.roomIds}) = 1`));
+        await tx.update(t).set({ roomIds: sql`array_remove(${t.roomIds}, ${id}::uuid)` }).where(mine);
+      }
+      return row;
+    });
     if (deleted) notifyIndexNow(tenantId, ["/", "/chambres", `/chambres/${deleted.slug}`]);
   } catch (e) {
     // 23503 = clé étrangère : la chambre a encore des réservations, blocages ou calendriers liés.

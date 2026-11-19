@@ -250,3 +250,29 @@ test.describe("Public — Option à nombre au choix", () => {
     await expect(total(page)).toHaveText(/265\s€/);
   });
 });
+
+test.describe("Public — Nombre borné par le séjour", () => {
+  test("par personne et par nuit : « Pour combien de personnes ? » jusqu'aux voyageurs, tous par défaut ; par nuit : jusqu'aux nuits", async ({ page }) => {
+    const dej = await insertExtra("Petit-déj", "10", "per_guest_night");
+    const parking = await insertExtra("Parking", "6", "per_night");
+    await openForm(page, 824, 827, "2");
+    await expect(total(page)).toHaveText(/300\s€/);
+    const pick = (label: string) =>
+      page.getByTestId("booking-extras").locator("label").filter({ hasText: `${label} ${TAG}` }).locator("input");
+
+    await pick("Petit-déj").check();
+    const people = page.locator(`#extraQty-${dej}`);
+    await expect(people.locator("option")).toHaveText(["1 personne", "2 personnes"]);
+    await expect(people).toHaveValue("2");
+    await expect(total(page)).toHaveText(/360\s€/); // 2 pers. × 3 nuits × 10 €
+    await people.selectOption("1");
+    await expect(total(page)).toHaveText(/330\s€/);
+
+    await pick("Parking").check();
+    const nights = page.locator(`#extraQty-${parking}`);
+    await expect(nights.locator("option")).toHaveText(["1 nuit", "2 nuits", "3 nuits"]);
+    await expect(nights).toHaveValue("3");
+    await nights.selectOption("2");
+    await expect(total(page)).toHaveText(/342\s€/); // + 2 × 6 €
+  });
+});

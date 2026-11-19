@@ -17,30 +17,70 @@ export const EXTRA_UNIT_LABELS: Record<ExtraUnit, string> = {
   per_bed: "par lit",
 };
 
-/** Nombre qu'un hôte peut proposer au choix pour une option (2 paniers, 4 vélos…). */
+/** Maximum qu'un hôte peut fixer pour une option « par séjour » (2 paniers, 4 vélos…). */
 export const MAX_CHOSEN = 99;
 
+/** Ce que le séjour offre à choisir : nuits, voyageurs, lits de la chambre. */
+export type StaySize = { nights: number; guests: number; beds: number };
+
 /**
- * Nombre maximum que le client peut choisir pour cette option : les lits de la chambre
- * pour « par lit », sinon le maximum fixé par l'hôte (absent = 1, pas de choix).
+ * Nombre que le client peut choisir, calé sur le séjour selon l'unité : nuits (par nuit),
+ * voyageurs (par personne, par personne et par nuit), lits (par lit). « Par séjour » :
+ * le maximum fixé par l'hôte (absent = 1, pas de choix).
  */
-export function chosenMax(extra: { unit: ExtraUnit; maxQuantity?: number | null }, maxBeds: number): number {
-  if (extra.unit === "per_bed") return Math.max(1, maxBeds);
-  return Math.min(MAX_CHOSEN, Math.max(1, extra.maxQuantity ?? 1));
+export function chosenMax(extra: { unit: ExtraUnit; maxQuantity?: number | null }, stay: StaySize): number {
+  const n = (() => {
+    switch (extra.unit) {
+      case "per_stay":
+        return Math.min(MAX_CHOSEN, extra.maxQuantity ?? 1);
+      case "per_night":
+        return stay.nights;
+      case "per_guest":
+      case "per_guest_night":
+        return stay.guests;
+      case "per_bed":
+        return stay.beds;
+    }
+  })();
+  return Math.max(1, Math.floor(n) || 1);
 }
 
-/** Choix proposé d'office : tous les lits pour « par lit » (draps), un seul sinon. */
-export const defaultChosen = (unit: ExtraUnit, max: number) => (unit === "per_bed" ? max : 1);
+/** Ce que le client choisit : des nuits, des personnes, des lits, ou un nombre (par séjour). */
+export const CHOSEN_WORDS: Record<ExtraUnit, { question: string; one: string; many: string }> = {
+  per_stay: { question: "Combien ?", one: "", many: "" },
+  per_night: { question: "Pour combien de nuits ?", one: "nuit", many: "nuits" },
+  per_guest: { question: "Pour combien de personnes ?", one: "personne", many: "personnes" },
+  per_guest_night: { question: "Pour combien de personnes ?", one: "personne", many: "personnes" },
+  per_bed: { question: "Pour combien de lits ?", one: "lit", many: "lits" },
+};
+
+export const chosenLabel = (unit: ExtraUnit, n: number) => {
+  const w = CHOSEN_WORDS[unit];
+  return w.one ? `${n} ${n > 1 ? w.many : w.one}` : String(n);
+};
+
+/**
+ * Nombre retenu pour une ligne. `null` = tout le séjour (toutes les nuits, personnes ou
+ * lits) : il suit le séjour si l'hôte l'allonge. « Par séjour » : toujours un nombre (1 par défaut).
+ * Demandé > enregistré > défaut ; ramené dans [1, max] ; égal au max → `null`.
+ */
+export function resolveChosen(
+  unit: ExtraUnit,
+  max: number,
+  requested?: number,
+  stored?: number | null,
+): number | null {
+  const clamp = (n: number) => Math.min(max, Math.max(1, Math.floor(n)));
+  let c: number | null;
+  if (requested !== undefined && Number.isFinite(requested)) c = clamp(requested);
+  else if (stored !== undefined && stored !== null) c = clamp(stored);
+  else c = unit === "per_stay" ? 1 : null;
+  return unit !== "per_stay" && c === max ? null : c;
+}
 
 /** Lits proposables pour une option « par lit » : lits renseignés, sinon la capacité. */
 export const bedLimit = (room: { beds: number | null; capacity: number }) =>
   Math.max(1, room.beds ?? room.capacity);
-
-/** Nombre demandé ramené dans [1, max] ; absent ou illisible → `fallback` (défaut : max). */
-export function clampQuantity(requested: number | undefined, max: number, fallback = max): number {
-  if (requested === undefined || !Number.isFinite(requested)) return Math.min(max, Math.max(1, fallback));
-  return Math.min(max, Math.max(1, Math.floor(requested)));
-}
 
 /** Champs `extraQty_<id>` d'un formulaire → { id: nombre choisi }. */
 export function extraQuantitiesFrom(entries: Iterable<[string, FormDataEntryValue]>): Record<string, number> {
@@ -52,21 +92,21 @@ export function extraQuantitiesFrom(entries: Iterable<[string, FormDataEntryValu
 }
 
 /**
- * Quantité d'une ligne : quantité du séjour (1, nuits, personnes…) × nombre choisi
- * (`chosen`, déjà borné). « Par lit » : le nombre de lits choisi. `guests` compte tous les âges.
+ * Quantité d'une ligne selon l'unité ; `chosen` (déjà borné) remplace la dimension choisie,
+ * `null` = tout le séjour. Par personne et par nuit : personnes choisies × nuits.
  */
-export function extraQuantity(unit: ExtraUnit, nights: number, guests: number, chosen = 1): number {
+export function extraQuantity(unit: ExtraUnit, stay: StaySize, chosen: number | null = null): number {
   switch (unit) {
     case "per_stay":
-      return chosen;
+      return chosen ?? 1;
     case "per_night":
-      return nights * chosen;
+      return chosen ?? stay.nights;
     case "per_guest":
-      return guests * chosen;
+      return chosen ?? stay.guests;
     case "per_guest_night":
-      return guests * nights * chosen;
+      return (chosen ?? stay.guests) * stay.nights;
     case "per_bed":
-      return chosen;
+      return chosen ?? stay.beds;
   }
 }
 
@@ -76,8 +116,8 @@ export type ExtraLine = {
   label: string;
   unit: ExtraUnit;
   unitPrice: number;
-  /** Nombre choisi par le client (absent ou 1 : l'option ne se choisit pas en nombre). */
-  chosen?: number;
+  /** Nombre choisi par le client ; null ou absent = tout le séjour (voir `resolveChosen`). */
+  chosen?: number | null;
   quantity: number;
   total: number;
 };
@@ -90,11 +130,10 @@ const cents = (n: number) => Math.round(n * 100);
 /** Une ligne au prix donné (catalogue ou figé), quantité recalculée. Montants au centime. */
 export function priceExtraLine(
   extra: { sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number },
-  nights: number,
-  guests: number,
-  chosen = 1,
+  stay: StaySize,
+  chosen: number | null = null,
 ): ExtraLine {
-  const quantity = extraQuantity(extra.unit, nights, guests, chosen);
+  const quantity = extraQuantity(extra.unit, stay, chosen);
   return { ...extra, unitPrice: cents(extra.unitPrice) / 100, chosen, quantity, total: (cents(extra.unitPrice) * quantity) / 100 };
 }
 

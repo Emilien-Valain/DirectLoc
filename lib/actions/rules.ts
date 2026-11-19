@@ -29,24 +29,26 @@ function revalidateAll() {
   for (const path of REVALIDATE_PATHS) revalidatePath(path);
 }
 
-async function verifyRoomOwnership(roomId: string, tenantId: string) {
-  const [room] = await db
-    .select({ id: rooms.id })
-    .from(rooms)
-    .where(and(eq(rooms.id, roomId), eq(rooms.tenantId, tenantId)))
-    .limit(1);
-  if (!room) throw new Error("Chambre introuvable");
-}
+const ROOMS_NOT_FOUND = {
+  error: "Les chambres choisies n'existent plus. Rechargez la page.",
+  fieldErrors: { roomIds: "Les chambres choisies n'existent plus. Rechargez la page." },
+};
 
-/** Chambres cochées (`roomIds`) qui appartiennent bien au tenant ; les autres sont ignorées. */
-async function ownedRoomIds(formData: FormData, tenantId: string): Promise<string[]> {
-  const asked = formData.getAll("roomIds").filter((v): v is string => typeof v === "string" && isUuid(v));
+/**
+ * Chambres choisies (`roomIds`) qui appartiennent bien au tenant ; les autres sont ignorées.
+ * Aucune demandée = toutes ([]). Demandées mais aucune à lui : refus — jamais « toutes » par erreur.
+ */
+async function ownedRoomIds(formData: FormData, tenantId: string): Promise<string[] | typeof ROOMS_NOT_FOUND> {
+  const asked = formData.getAll("roomIds").filter((v): v is string => typeof v === "string" && v !== "");
   if (asked.length === 0) return [];
-  const owned = await db
-    .select({ id: rooms.id })
-    .from(rooms)
-    .where(and(inArray(rooms.id, asked), eq(rooms.tenantId, tenantId)));
-  return owned.map((r) => r.id);
+  const valid = asked.filter(isUuid);
+  const owned = valid.length
+    ? await db
+        .select({ id: rooms.id })
+        .from(rooms)
+        .where(and(inArray(rooms.id, valid), eq(rooms.tenantId, tenantId)))
+    : [];
+  return owned.length === 0 ? ROOMS_NOT_FOUND : owned.map((r) => r.id);
 }
 
 const NOT_FOUND: FormResult = { error: "Règle introuvable", fieldErrors: {} };
@@ -59,13 +61,13 @@ async function manualBlockValues(tenantId: string, formData: FormData) {
   if ("error" in parsed) return parsed;
   const { data } = parsed;
 
-  const roomId = data.roomId || null;
-  if (roomId) await verifyRoomOwnership(roomId, tenantId);
+  const roomIds = await ownedRoomIds(formData, tenantId);
+  if ("error" in roomIds) return roomIds;
 
   const isRecurring = data.recurring === "on";
   return {
     values: {
-      roomId,
+      roomIds,
       startDate: day(data.startDate)!,
       endDate: day(data.endDate)!,
       recurring: isRecurring,
@@ -111,12 +113,12 @@ async function bookingRuleValues(tenantId: string, formData: FormData) {
   if ("error" in parsed) return parsed;
   const { data } = parsed;
 
-  const roomId = data.roomId || null;
-  if (roomId) await verifyRoomOwnership(roomId, tenantId);
+  const roomIds = await ownedRoomIds(formData, tenantId);
+  if ("error" in roomIds) return roomIds;
 
   return {
     values: {
-      roomId,
+      roomIds,
       validFrom: day(data.validFrom),
       validTo: day(data.validTo),
       minStay: data.minStay ?? null,
@@ -163,9 +165,11 @@ async function pricingRuleValues(tenantId: string, formData: FormData) {
   const parsed = safeParseFormData(pricingRuleSchema, formData);
   if ("error" in parsed) return parsed;
   const { data } = parsed;
+  const roomIds = await ownedRoomIds(formData, tenantId);
+  if ("error" in roomIds) return roomIds;
   return {
     values: {
-      roomIds: await ownedRoomIds(formData, tenantId),
+      roomIds,
       name: data.name,
       validFrom: day(data.validFrom),
       validTo: day(data.validTo),

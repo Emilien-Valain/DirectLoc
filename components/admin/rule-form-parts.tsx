@@ -58,6 +58,73 @@ export function DayPicker({
   );
 }
 
+type RoomOption = { id: string; name: string };
+
+/** « Toutes les chambres », ou les noms des chambres visées (« Chambre supprimée » si aucune n'existe plus). */
+export function roomsLabel(ids: string[], rooms: RoomOption[]): string {
+  if (ids.length === 0) return "Toutes les chambres";
+  return rooms.filter((r) => ids.includes(r.id)).map((r) => r.name).join(", ") || "Chambre supprimée";
+}
+
+/**
+ * Chambres visées, en pastilles : « Toutes les chambres » ou une sélection libre.
+ * Aucune pastille de chambre = toutes. Envoie un champ caché `roomIds` par chambre choisie.
+ */
+export function RoomPicker({
+  rooms,
+  value,
+  onChange,
+  color = "var(--admin-primary)",
+}: {
+  rooms: RoomOption[];
+  value: string[];
+  onChange: (ids: string[]) => void;
+  color?: string;
+}) {
+  const pill = (active: boolean): CSSProperties => ({
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    minHeight: 36,
+    padding: "6px 12px",
+    borderRadius: 999,
+    background: active ? color : "var(--admin-surface)",
+    border: `1px solid ${active ? color : "var(--admin-border)"}`,
+    color: active ? "#fff" : "var(--admin-text)",
+    fontSize: 12.5,
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "background 0.15s, border-color 0.15s",
+  });
+  const all = value.length === 0;
+  return (
+    <div role="group" aria-label="Chambres concernées" data-testid="room-picker" className="flex flex-wrap gap-2">
+      <button type="button" aria-pressed={all} onClick={() => onChange([])} style={pill(all)}>
+        {all && <span aria-hidden="true">✓</span>}
+        Toutes les chambres
+      </button>
+      {rooms.map((r) => {
+        const active = value.includes(r.id);
+        return (
+          <button
+            key={r.id}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(active ? value.filter((id) => id !== r.id) : [...value, r.id])}
+            style={pill(active)}
+          >
+            {active && <span aria-hidden="true">✓</span>}
+            {r.name}
+          </button>
+        );
+      })}
+      {value.map((id) => (
+        <input key={id} type="hidden" name="roomIds" value={id} />
+      ))}
+    </div>
+  );
+}
+
 export const formBoxStyle: CSSProperties = {
   padding: 14,
   background: "var(--admin-surface-2)",

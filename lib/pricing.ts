@@ -1,3 +1,4 @@
+import { appliesToRoom } from "@/lib/room-scope";
 import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type { Tx } from "@/lib/booking-intake";
@@ -42,10 +43,7 @@ async function loadPricingContext(roomId: string, tenantId: string, conn: Tx | t
         and(
           eq(pricingRules.tenantId, tenantId),
           eq(pricingRules.active, true),
-          or(
-            sql`${roomId}::uuid = ANY(${pricingRules.roomIds})`,
-            sql`cardinality(${pricingRules.roomIds}) = 0`,
-          ),
+          appliesToRoom(pricingRules.roomIds, roomId),
         ),
       ),
   ]);

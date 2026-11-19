@@ -238,7 +238,8 @@ export const extras = pgTable(
     description: text("description"),
     price: decimal("price", { precision: 10, scale: 2 }).notNull(),
     unit: extraUnitEnum("unit").notNull(),
-    // Nombre que le client peut choisir (2 paniers…) ; NULL ou 1 = pas de choix. « Par lit » : borné aux lits.
+    // « Par séjour » : nombre que le client peut choisir (2 paniers…) ; NULL ou 1 = pas de choix.
+    // Les autres unités sont bornées par le séjour (nuits, voyageurs, lits).
     maxQuantity: integer("max_quantity"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow(),
@@ -271,7 +272,7 @@ export const fees = pgTable(
 
 // Tout ce qui s'ajoute à l'hébergement d'une réservation (ADR-0010, ADR-0011) :
 // Extras, Fees et taxe de séjour, copiés (libellé, unité, prix) à l'admission.
-// `totalPrice` = hébergement + Σ total. Quantité dérivée du séjour × nombre choisi (`chosen`, borné).
+// `totalPrice` = hébergement + Σ total. Quantité dérivée du séjour, ou du nombre choisi (`chosen`, borné).
 export const bookingLineKindEnum = pgEnum("booking_line_kind", ["extra", "fee", "tax"]);
 
 export const bookingLines = pgTable(
@@ -287,8 +288,9 @@ export const bookingLines = pgTable(
     label: text("label").notNull(),
     unit: extraUnitEnum("unit").notNull(),
     unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
-    // Nombre choisi par le client (paniers, lits) ; quantity = quantité du séjour × chosen.
-    chosen: integer("chosen").notNull().default(1),
+    // Nombre choisi : nuits, personnes ou lits du séjour, ou paniers (par séjour) ; NULL = tout
+    // le séjour (suit une modification des dates ou des voyageurs). Voir lib/extras.ts.
+    chosen: integer("chosen"),
     quantity: integer("quantity").notNull(),
     total: decimal("total", { precision: 10, scale: 2 }).notNull(),
     // Fee ou taxe retirés par l'admin : ligne gardée à 0 € (export de la taxe).
@@ -365,7 +367,7 @@ export const icalBlocks = pgTable(
 );
 
 // ─── MANUAL BLOCKS ──────────────────────────────────────────────────────────
-// Blocages manuels de dates (par chambre ou global)
+// Blocages manuels de dates (une, plusieurs ou toutes les chambres)
 
 export const manualBlocks = pgTable(
   "manual_blocks",
@@ -374,7 +376,8 @@ export const manualBlocks = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id),
-    roomId: uuid("room_id").references(() => rooms.id), // NULL = toutes les chambres
+    // Chambres visées ; vide = toutes. Pas de FK : un id de chambre supprimée ne matche plus rien.
+    roomIds: uuid("room_ids").array().notNull().default([]),
     startDate: timestamp("start_date").notNull(),
     endDate: timestamp("end_date").notNull(),
     recurring: boolean("recurring").notNull().default(false),
@@ -384,13 +387,13 @@ export const manualBlocks = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
-    index("manual_blocks_tenant_room_idx").on(table.tenantId, table.roomId),
+    index("manual_blocks_tenant_idx").on(table.tenantId),
     index("manual_blocks_dates_idx").on(table.startDate, table.endDate),
   ],
 );
 
 // ─── BOOKING RULES ──────────────────────────────────────────────────────────
-// Règles de réservation (global tenant ou override par chambre)
+// Règles de réservation (une, plusieurs ou toutes les chambres)
 
 export const bookingRules = pgTable(
   "booking_rules",
@@ -399,7 +402,8 @@ export const bookingRules = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id),
-    roomId: uuid("room_id").references(() => rooms.id), // NULL = règle globale
+    // Chambres visées ; vide = toutes. Pas de FK : un id de chambre supprimée ne matche plus rien.
+    roomIds: uuid("room_ids").array().notNull().default([]),
     validFrom: timestamp("valid_from"), // NULL = toute l'année
     validTo: timestamp("valid_to"),
     minStay: integer("min_stay"), // nuits minimum
@@ -410,7 +414,7 @@ export const bookingRules = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
-    index("booking_rules_tenant_room_idx").on(table.tenantId, table.roomId),
+    index("booking_rules_tenant_idx").on(table.tenantId),
     index("booking_rules_validity_idx").on(table.validFrom, table.validTo),
   ],
 );

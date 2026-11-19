@@ -26,8 +26,8 @@ function values(data: {
     description: data.description || null,
     price: parseFloat(data.price.replace(",", ".")).toFixed(2),
     unit: data.unit,
-    // « Par lit » : borné par les lits de la chambre, pas par un maximum.
-    maxQuantity: data.unit === "per_bed" ? null : data.maxQuantity,
+    // Seul « par séjour » a un maximum ; les autres unités sont bornées par le séjour.
+    maxQuantity: data.unit === "per_stay" ? data.maxQuantity : null,
   };
 }
 

@@ -13,10 +13,11 @@ function getDb() {
   return { db: drizzle(pool), pool };
 }
 
-/** Insère une booking-rule (globale si roomId omis) et retourne son id. */
+/** Insère une booking-rule (globale si roomId/roomIds omis) et retourne son id. */
 export async function insertBookingRule(input: {
   tenantId: string;
   roomId?: string | null;
+  roomIds?: string[];
   minStay?: number | null;
   maxStay?: number | null;
   allowedCheckInDays?: number[] | null;
@@ -30,7 +31,7 @@ export async function insertBookingRule(input: {
     .insert(bookingRules)
     .values({
       tenantId: input.tenantId,
-      roomId: input.roomId ?? null,
+      roomIds: input.roomIds ?? (input.roomId ? [input.roomId] : []),
       minStay: input.minStay ?? null,
       maxStay: input.maxStay ?? null,
       allowedCheckInDays: input.allowedCheckInDays ?? null,

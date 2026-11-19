@@ -141,6 +141,27 @@
       "when": 1795122625149,
       "tag": "0019_extra_chosen_quantity",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1795126510311,
+      "tag": "0020_blocks_rules_room_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795126511873,
+      "tag": "0021_blocks_rules_drop_room_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795126839410,
+      "tag": "0022_extra_chosen_follows_stay",
+      "breakpoints": true
     }
   ]
 }

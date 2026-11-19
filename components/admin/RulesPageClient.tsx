@@ -24,8 +24,8 @@ interface Props {
 
 export interface ManualBlockRow {
   id: string;
-  roomId: string | null;
-  roomName: string | null;
+  /** Chambres visées ; vide = toutes. */
+  roomIds: string[];
   startDate: string;
   endDate: string;
   recurring: boolean;
@@ -37,8 +37,8 @@ export interface ManualBlockRow {
 
 export interface BookingRuleRow {
   id: string;
-  roomId: string | null;
-  roomName: string | null;
+  /** Chambres visées ; vide = toutes. */
+  roomIds: string[];
   validFrom: string | null;
   validTo: string | null;
   minStay: number | null;

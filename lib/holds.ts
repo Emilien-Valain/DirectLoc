@@ -2,6 +2,7 @@ import { and, eq, gt, isNull, lt, ne, or, type Column } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type { Tx } from "@/lib/booking-intake";
 import { bookings, icalBlocks, manualBlocks } from "@/db/schema";
+import { appliesToRoom } from "@/lib/room-scope";
 
 /**
  * Module Hold — la disponibilité, calculée une seule fois.
@@ -97,7 +98,7 @@ export async function blockedDates(
       .where(
         and(
           eq(manualBlocks.tenantId, tenantId),
-          or(eq(manualBlocks.roomId, roomId), isNull(manualBlocks.roomId)),
+          appliesToRoom(manualBlocks.roomIds, roomId),
         ),
       ),
   ]);

@@ -5,7 +5,6 @@ import { useState } from "react";
 import { useFormAction } from "@/components/admin/useFormAction";
 import { createManualBlock, deleteManualBlock, updateManualBlock } from "@/lib/actions/rules";
 import {
-  AdminSelect,
   DateInput,
   EmptyState,
   Field,
@@ -19,10 +18,12 @@ import {
   DayPicker,
   EditButton,
   FormFooter,
+  RoomPicker,
   asDays,
   formBoxStyle,
   frDate,
   isoDay,
+  roomsLabel,
   rowActionStyle,
 } from "./rule-form-parts";
 import type { ManualBlockRow } from "./RulesPageClient";
@@ -37,7 +38,7 @@ export default function ManualBlockSection({ rooms, blocks }: { rooms: Room[]; b
   return (
     <SettingsSection
       title="Blocages manuels"
-      desc="Rendez une chambre indisponible sur une période (travaux, congés…). Elle apparaît hachurée sur le calendrier."
+      desc="Rendez une, plusieurs ou toutes les chambres indisponibles sur une période (travaux, congés…). Elles apparaissent hachurées sur le calendrier."
       action={<AddToggle open={adding} onClick={() => { setAdding(!adding); setSaved(null); }} />}
     >
       {saved && !adding && <StatusBanner variant="success">{saved}</StatusBanner>}
@@ -90,7 +91,7 @@ export default function ManualBlockSection({ rooms, blocks }: { rooms: Room[]; b
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[13.5px] font-semibold" style={{ color: "var(--admin-text)" }}>
-                    {block.roomName ?? "Toutes les chambres"}
+                    {roomsLabel(block.roomIds, rooms)}
                     {block.recurring && (
                       <span
                         className="ml-2 text-[12px] font-bold"
@@ -112,7 +113,7 @@ export default function ManualBlockSection({ rooms, blocks }: { rooms: Room[]; b
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <EditButton
-                    label={`Modifier le blocage ${block.roomName ?? "toutes les chambres"}`}
+                    label={`Modifier le blocage ${roomsLabel(block.roomIds, rooms)}`}
                     onClick={() => { setEditing(block.id); setSaved(null); }}
                   />
                   <ConfirmButton
@@ -145,6 +146,7 @@ function ManualBlockForm({
 }) {
   const [isRecurring, setIsRecurring] = useState(block?.recurring ?? false);
   const [selectedDays, setSelectedDays] = useState<number[]>(asDays(block?.recurrenceDays));
+  const [roomIds, setRoomIds] = useState<string[]>(block?.roomIds ?? []);
   const form = useFormAction(block ? updateManualBlock.bind(null, block.id) : createManualBlock, {
     prepare: (fd) => {
       if (isRecurring) fd.set("recurrenceDays", selectedDays.join(","));
@@ -155,17 +157,12 @@ function ManualBlockForm({
   return (
     <form onSubmit={form.onSubmit} data-testid="manual-block-form" className="my-3" style={formBoxStyle}>
       {form.error && <StatusBanner variant="error">{form.error}</StatusBanner>}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Field label="Chambre">
-          <AdminSelect name="roomId" defaultValue={block?.roomId ?? ""}>
-            <option value="">Toutes les chambres</option>
-            {rooms.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name}
-              </option>
-            ))}
-          </AdminSelect>
+      {rooms.length > 1 && (
+        <Field label="Chambres bloquées" error={form.fieldError("roomIds")}>
+          <RoomPicker rooms={rooms} value={roomIds} onChange={setRoomIds} color="var(--admin-danger)" />
         </Field>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Field label="Date début" error={form.fieldError("startDate")}>
           <DateInput name="startDate" required defaultValue={isoDay(block?.startDate ?? null)} />
         </Field>

@@ -4,7 +4,9 @@ import path from "path";
 import { fd } from "../helpers/dates";
 import { confirmDialog } from "../helpers/confirm";
 import { cleanRules } from "../helpers/clean-rules";
-import { deleteRoomsByName, insertHiddenRoom, insertPricingRule } from "../helpers/intake";
+import { deleteRoomsByName, insertBookingRule, insertHiddenRoom, insertPricingRule } from "../helpers/intake";
+import { insertManualBlock } from "../helpers/manual-blocks";
+import { Pool } from "pg";
 
 /**
  * Spécification : Tests de non-régression > Règles — modifier une règle,
@@ -18,7 +20,24 @@ const ctx = JSON.parse(
 ) as { tenantId: string; apiRoomId: string };
 
 const SECOND = "Chambre Règles Bis";
+const THIRD = "Chambre Règles Ter";
 let secondRoomId: string;
+let thirdRoomId: string;
+
+/** Pastille d'une chambre dans le sélecteur « Chambres concernées ». */
+const pill = (scope: import("@playwright/test").Locator, name: string) =>
+  scope.getByTestId("room-picker").getByRole("button", { name, exact: true });
+
+async function blockedDates(page: Page, roomId: string): Promise<string[]> {
+  const res = await page.request.get("/api/availability", { params: { roomId, from: fd("2027-05-01"), to: fd("2027-05-05") } });
+  expect(res.ok()).toBe(true);
+  return (await res.json()).blockedDates;
+}
+
+async function minStay(page: Page, roomId: string): Promise<number | null> {
+  const res = await page.request.get("/api/rules", { params: { roomId, checkIn: fd("2027-05-01") } });
+  return (await res.json()).minStay;
+}
 
 test.use({ extraHTTPHeaders: { "x-forwarded-for": "10.10.0.21" } });
 
@@ -39,13 +58,16 @@ test.describe("Règles — modifier et cibler plusieurs chambres", () => {
   test.beforeAll(async () => {
     await cleanRules(ctx.tenantId);
     await deleteRoomsByName(ctx.tenantId, SECOND);
+    await deleteRoomsByName(ctx.tenantId, THIRD);
     secondRoomId = await insertHiddenRoom(ctx.tenantId, SECOND);
+    thirdRoomId = await insertHiddenRoom(ctx.tenantId, THIRD);
   });
   test.afterEach(async () => {
     await cleanRules(ctx.tenantId);
   });
   test.afterAll(async () => {
     await deleteRoomsByName(ctx.tenantId, SECOND);
+    await deleteRoomsByName(ctx.tenantId, THIRD);
   });
 
   // ─── Modifier : règles de séjour ─────────────────────────────────────────────
@@ -194,8 +216,8 @@ test.describe("Règles — modifier et cibler plusieurs chambres", () => {
     await page.getByRole("button", { name: "Ajouter" }).click();
     const form = page.getByTestId("pricing-rule-form");
     await form.locator("input[name='name']").fill("Deux chambres");
-    await form.getByLabel("Chambre API Test").check();
-    await form.getByLabel(SECOND).check();
+    await pill(form, "Chambre API Test").click();
+    await pill(form, SECOND).click();
     await form.locator("input[name='fixedPrice']").fill("130");
     await form.getByRole("button", { name: "Créer la règle" }).click();
 
@@ -207,11 +229,116 @@ test.describe("Règles — modifier et cibler plusieurs chambres", () => {
 
     // Décocher la seconde chambre : elle revient au prix de base.
     await page.getByRole("button", { name: "Modifier la règle Deux chambres" }).click();
-    await page.getByTestId("pricing-rule-form").getByLabel(SECOND).uncheck();
+    await expect(pill(page.getByTestId("pricing-rule-form"), SECOND)).toHaveAttribute("aria-pressed", "true");
+    await pill(page.getByTestId("pricing-rule-form"), SECOND).click();
     await page.getByTestId("pricing-rule-form").getByRole("button", { name: "Enregistrer" }).click();
     await expect(row).not.toContainText(SECOND);
     expect(await nightPrice(page, secondRoomId)).toBe(100);
     expect(await nightPrice(page, ctx.apiRoomId)).toBe(130);
+  });
+
+  // ─── Blocages et règles de réservation sur plusieurs chambres ────────────────
+
+  test("pastilles : « Toutes les chambres » par défaut ; choisir une chambre la désélectionne ; y revenir vide le choix", async ({ page }) => {
+    await openTab(page, "Blocages manuels");
+    await page.getByRole("button", { name: "Ajouter" }).first().click();
+    const form = page.getByTestId("manual-block-form");
+    await expect(pill(form, "Toutes les chambres")).toHaveAttribute("aria-pressed", "true");
+    await pill(form, SECOND).click();
+    await expect(pill(form, "Toutes les chambres")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(form, SECOND)).toHaveAttribute("aria-pressed", "true");
+    await expect(form.locator('input[name="roomIds"]')).toHaveCount(1);
+    await pill(form, "Toutes les chambres").click();
+    await expect(pill(form, SECOND)).toHaveAttribute("aria-pressed", "false");
+    await expect(form.locator('input[name="roomIds"]')).toHaveCount(0);
+  });
+
+  test("blocage sur 2 chambres sur 3 : les deux bloquées, la troisième libre ; modifier → une seule", async ({ page }) => {
+    await openTab(page, "Blocages manuels");
+    await page.getByRole("button", { name: "Ajouter" }).first().click();
+    const form = page.getByTestId("manual-block-form");
+    await pill(form, "Chambre API Test").click();
+    await pill(form, SECOND).click();
+    await form.locator("input[name='startDate']").fill(fd("2027-05-02"));
+    await form.locator("input[name='endDate']").fill(fd("2027-05-04"));
+    await form.getByRole("button", { name: "Créer le blocage" }).click();
+    await expect(page.getByText("Blocage ajouté.")).toBeVisible();
+    const row = page.getByTestId("manual-block-row");
+    await expect(row).toContainText(`Chambre API Test, ${SECOND}`);
+    expect(await blockedDates(page, ctx.apiRoomId)).toHaveLength(2);
+    expect(await blockedDates(page, secondRoomId)).toHaveLength(2);
+    expect(await blockedDates(page, thirdRoomId)).toEqual([]);
+
+    await row.getByRole("button", { name: /^Modifier le blocage/ }).click();
+    await expect(pill(form, "Chambre API Test")).toHaveAttribute("aria-pressed", "true");
+    await pill(form, "Chambre API Test").click();
+    await form.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.getByText("Blocage modifié.")).toBeVisible();
+    await expect(row).not.toContainText("Chambre API Test");
+    expect(await blockedDates(page, ctx.apiRoomId)).toEqual([]);
+    expect(await blockedDates(page, secondRoomId)).toHaveLength(2);
+  });
+
+  test("règle de réservation sur 2 chambres sur 3 : min 3 nuits pour elles seules", async ({ page }) => {
+    await openTab(page, "Règles de réservation");
+    await page.getByRole("button", { name: "Ajouter" }).first().click();
+    const form = page.getByTestId("booking-rule-form");
+    await pill(form, SECOND).click();
+    await pill(form, THIRD).click();
+    await form.locator("input[name='minStay']").fill("3");
+    await form.getByRole("button", { name: "Créer la règle" }).click();
+    await expect(page.getByTestId("booking-rule-row")).toContainText(`${SECOND}, ${THIRD}`);
+    expect(await minStay(page, secondRoomId)).toBe(3);
+    expect(await minStay(page, thirdRoomId)).toBe(3);
+    expect(await minStay(page, ctx.apiRoomId)).toBeNull();
+  });
+
+  test("chambre forgée d'un autre établissement : refusée, jamais transformée en « toutes les chambres »", async ({ page }) => {
+    const rival = (ctx as unknown as { rivalRoomId: string }).rivalRoomId;
+    await openTab(page, "Règles de réservation");
+    await page.getByRole("button", { name: "Ajouter" }).first().click();
+    const form = page.getByTestId("booking-rule-form");
+    await form.locator("input[name='minStay']").fill("5");
+    await form.evaluate((f, id) => {
+      const i = document.createElement("input");
+      i.type = "hidden";
+      i.name = "roomIds";
+      i.value = id;
+      f.appendChild(i);
+    }, rival);
+    await form.getByRole("button", { name: "Créer la règle" }).click();
+    await expect(page.getByText("Les chambres choisies n'existent plus. Rechargez la page.").first()).toBeVisible();
+    await expect(page.getByTestId("booking-rule-row")).toHaveCount(0);
+    expect(await minStay(page, ctx.apiRoomId)).toBeNull();
+  });
+
+  test("supprimer une chambre : retirée des règles et blocages qui la visent, ceux qui ne visaient qu'elle sont supprimés", async ({ page }) => {
+    const GONE = "Chambre Règles Supprimée";
+    await deleteRoomsByName(ctx.tenantId, GONE);
+    const goneId = await insertHiddenRoom(ctx.tenantId, GONE);
+    await insertBookingRule({ tenantId: ctx.tenantId, roomIds: [goneId], minStay: 4 });
+    await insertBookingRule({ tenantId: ctx.tenantId, roomIds: [goneId, secondRoomId], maxStay: 9 });
+    await insertManualBlock({ tenantId: ctx.tenantId, roomIds: [goneId], startDate: new Date(fd("2027-05-02") + "T00:00:00Z"), endDate: new Date(fd("2027-05-03") + "T00:00:00Z") });
+    await insertPricingRule({ tenantId: ctx.tenantId, name: "Seule", fixedPrice: "50.00", roomIds: [goneId] });
+
+    await page.goto("/admin/chambres");
+    const card = page.locator(`xpath=//div[.//div[normalize-space()="${GONE}"]][.//button[normalize-space()="Supprimer"]]`).last();
+    await card.getByRole("button", { name: "Supprimer", exact: true }).click();
+    await confirmDialog(page);
+    await expect(page.getByText(GONE, { exact: true })).toHaveCount(0);
+
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    try {
+      const q = async (table: string) =>
+        (await pool.query(`SELECT room_ids FROM ${table} WHERE tenant_id = $1`, [ctx.tenantId])).rows.map((r) => r.room_ids);
+      expect(await q("booking_rules")).toEqual([[secondRoomId]]);
+      expect(await q("manual_blocks")).toEqual([]);
+      expect(await q("pricing_rules")).toEqual([]);
+      // Aucune règle n'est devenue « toutes les chambres ».
+      expect(await minStay(page, ctx.apiRoomId)).toBeNull();
+    } finally {
+      await pool.end();
+    }
   });
 
   test("précédence : la règle visant moins de chambres l'emporte", async ({ page }) => {

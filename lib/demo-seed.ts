@@ -231,7 +231,7 @@ export async function resetDemoTenant() {
 
     await tx.insert(manualBlocks).values({
       tenantId: t,
-      roomId: roomId(3),
+      roomIds: [roomId(3)],
       startDate: day(12),
       endDate: day(15),
     });

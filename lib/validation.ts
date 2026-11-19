@@ -217,7 +217,7 @@ export const extraSchema = z.object({
     .regex(/^\d+([.,]\d{1,2})?$/, "Prix : un montant positif ou nul en euros (ex : 12 ou 8,50)")
     .refine((s) => parseFloat(s.replace(",", ".")) < 100000, "Prix trop élevé"),
   unit: z.enum(EXTRA_UNITS, { message: "Choisissez une unité" }),
-  // Nombre que le client peut choisir ; vide ou 1 = pas de choix (null). Ignoré pour « par lit ».
+  // « Par séjour » : nombre que le client peut choisir ; vide ou 1 = pas de choix (null). Ignoré sinon.
   maxQuantity: z
     .preprocess(
       (v) => (v === "" || v === undefined || v === null ? undefined : v),
@@ -266,9 +266,9 @@ export const icalSourceSchema = z.object({
 
 // ── Règles de réservation ────────────────────────────────────────────────────
 
+// Chambres visées : champs `roomIds` répétés, lus par l'action (vide = toutes).
 export const manualBlockSchema = z
   .object({
-    roomId: roomIdString.optional().or(z.literal("")),
     startDate: dateString,
     endDate: dateString,
     recurring: z.enum(["on"]).optional(),
@@ -291,7 +291,6 @@ const periodInOrder: [(d: { validFrom?: string; validTo?: string }) => boolean, 
 ];
 
 export const bookingRuleSchema = z.object({
-  roomId: roomIdString.optional().or(z.literal("")),
   validFrom: dateString.optional().or(z.literal("")),
   validTo: dateString.optional().or(z.literal("")),
   minStay: z.coerce.number().int("Nombre de nuits entier").min(1, "Au moins 1 nuit").optional().or(z.literal("").transform(() => undefined)),

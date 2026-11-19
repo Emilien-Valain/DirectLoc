@@ -95,7 +95,7 @@ export default async function CalendrierPage({
   // ── Build block ranges from per-day Set ───────────────────────────────
   const blockedSet = new Set<string>();
   for (const block of rawManualBlocks) {
-    const key = block.roomId ?? "__global__";
+    const keys = block.roomIds.length > 0 ? block.roomIds : ["__global__"];
     if (block.recurring && block.recurrenceType === "weekly") {
       const days = (block.recurrenceDays as number[]) ?? [];
       const cur = new Date(
@@ -114,7 +114,7 @@ export default async function CalendrierPage({
         : monthEndExclusive;
       while (cur < end) {
         if (days.includes(cur.getUTCDay())) {
-          blockedSet.add(`${key}|${dateKey(cur)}`);
+          for (const key of keys) blockedSet.add(`${key}|${dateKey(cur)}`);
         }
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
@@ -126,7 +126,7 @@ export default async function CalendrierPage({
         Math.min(end.getTime(), monthEndExclusive.getTime()),
       );
       while (cur < rangeEnd) {
-        blockedSet.add(`${key}|${dateKey(cur)}`);
+        for (const key of keys) blockedSet.add(`${key}|${dateKey(cur)}`);
         cur.setUTCDate(cur.getUTCDate() + 1);
       }
     }

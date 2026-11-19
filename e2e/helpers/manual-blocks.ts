@@ -11,7 +11,8 @@ import { manualBlocks } from "../../db/schema";
 
 type ManualBlockInput = {
   tenantId: string;
-  roomId: string | null; // null = global (toutes les chambres)
+  roomId?: string | null; // null = global (toutes les chambres)
+  roomIds?: string[];
   startDate: Date;
   endDate: Date; // requis par le schéma (NOT NULL) ; ignoré si recurring
   recurring?: boolean;
@@ -32,7 +33,7 @@ export async function insertManualBlock(input: ManualBlockInput): Promise<string
     .insert(manualBlocks)
     .values({
       tenantId: input.tenantId,
-      roomId: input.roomId,
+      roomIds: input.roomIds ?? (input.roomId ? [input.roomId] : []),
       startDate: input.startDate,
       endDate: input.endDate,
       recurring: input.recurring ?? false,

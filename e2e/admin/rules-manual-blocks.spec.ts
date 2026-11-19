@@ -50,13 +50,13 @@ test.describe("Admin — Blocages manuels", () => {
 
     await page.getByRole("button", { name: "Ajouter" }).first().click();
 
-    // Laisser "Toutes les chambres" sélectionné (option par défaut)
+    // Laisser la pastille « Toutes les chambres » (choix par défaut)
     await page.locator("input[name='startDate']").fill(fd("2026-12-24"));
     await page.locator("input[name='endDate']").fill(fd("2026-12-26"));
 
     await page.getByRole("button", { name: "Créer le blocage" }).click();
 
-    await expect(page.getByText("Toutes les chambres")).toBeVisible();
+    await expect(page.getByTestId("manual-block-row")).toContainText("Toutes les chambres");
 
     // Cleanup
     await page.getByRole("button", { name: "Supprimer" }).first().click();

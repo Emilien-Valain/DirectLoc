@@ -27,10 +27,12 @@ import {
   DayPicker,
   EditButton,
   FormFooter,
+  RoomPicker,
   asDays,
   formBoxStyle,
   frDate,
   isoDay,
+  roomsLabel,
   rowActionStyle,
 } from "./rule-form-parts";
 import type { PricingRuleRow } from "./RulesPageClient";
@@ -77,10 +79,7 @@ export default function PricingRuleSection({ rooms, rules }: { rooms: Room[]; ru
   const [saved, setSaved] = useState<string | null>(null);
 
   const items = toItems(rules);
-  const roomNames = (ids: string[]) =>
-    ids.length === 0
-      ? "Toutes les chambres"
-      : rooms.filter((r) => ids.includes(r.id)).map((r) => r.name).join(", ") || "Chambre supprimée";
+  const roomNames = (ids: string[]) => roomsLabel(ids, rooms);
 
   return (
     <SettingsSection
@@ -233,6 +232,7 @@ function PricingRuleForm({
   const [selectedDays, setSelectedDays] = useState<number[]>(asDays(rule?.daysOfWeek));
   // Création : case « une valeur par chambre » ; modification d'un groupe : toujours.
   const [perRoom, setPerRoom] = useState(!!group);
+  const [roomIds, setRoomIds] = useState<string[]>(group ? [] : (rule?.roomIds ?? []));
   const groupValue = (roomId: string) => {
     const r = group?.find((g) => g.roomIds[0] === roomId);
     return r ? frNumber(r.fixedPrice ?? r.percentageModifier) : "";
@@ -334,32 +334,9 @@ function PricingRuleForm({
       ) : (
         <>
           {rooms.length > 1 && (
-            <fieldset className="mb-2">
-              <legend className="text-[13px] font-semibold mb-1" style={{ color: "var(--admin-text)" }}>
-                Chambres concernées
-              </legend>
-              <p className="text-[12px] mb-1.5" style={{ color: "var(--admin-text-muted)" }}>
-                Aucune cochée = toutes les chambres.
-              </p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                {rooms.map((r) => (
-                  <label
-                    key={r.id}
-                    className="flex items-center gap-2 text-[13px] cursor-pointer"
-                    style={{ color: "var(--admin-text)" }}
-                  >
-                    <input
-                      type="checkbox"
-                      name="roomIds"
-                      value={r.id}
-                      defaultChecked={rule?.roomIds.includes(r.id)}
-                      style={{ accentColor: "var(--admin-primary)" }}
-                    />
-                    {r.name}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+            <Field label="Chambres concernées" error={form.fieldError("roomIds")}>
+              <RoomPicker rooms={rooms} value={roomIds} onChange={setRoomIds} color="var(--admin-accent)" />
+            </Field>
           )}
           {rooms.length <= 1 &&
             rule?.roomIds.map((id) => <input key={id} type="hidden" name="roomIds" value={id} />)}
