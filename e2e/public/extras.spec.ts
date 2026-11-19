@@ -26,10 +26,15 @@ const stripeIsFake = () => {
   return !k || k.includes("XXXX") || k.includes("placeholder");
 };
 
-async function insertExtra(label: string, price: string, unit: string, opts: { active?: boolean; tenantId?: string } = {}) {
+async function insertExtra(
+  label: string,
+  price: string,
+  unit: string,
+  opts: { active?: boolean; tenantId?: string; maxQuantity?: number } = {},
+) {
   const { rows } = await pool.query(
-    `INSERT INTO extras (tenant_id, label, price, unit, active) VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [opts.tenantId ?? ctx.tenantId, `${label} ${TAG}`, price, unit, opts.active ?? true],
+    `INSERT INTO extras (tenant_id, label, price, unit, active, max_quantity) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [opts.tenantId ?? ctx.tenantId, `${label} ${TAG}`, price, unit, opts.active ?? true, opts.maxQuantity ?? null],
   );
   return rows[0].id as string;
 }
@@ -221,5 +226,27 @@ test.describe("Public — Option par lit (draps)", () => {
     await expect(page.getByLabel("Pour combien de lits ?")).toHaveCount(0);
     await expect(total(page)).toHaveText(/108\s€/);
     await pool.query("UPDATE rooms SET beds = 3 WHERE id = $1", [ctx.apiRoomId]);
+  });
+});
+
+test.describe("Public — Option à nombre au choix", () => {
+  test("« Combien ? » de 1 au maximum, 1 par défaut ; prix et total suivent ; option sans maximum : pas de choix", async ({ page }) => {
+    const id = await insertExtra("Panier pique-nique", "15", "per_stay", { maxQuantity: 3 });
+    const plain = await insertExtra("Bouquet", "20", "per_stay");
+    await openForm(page, 820, 822);
+    await expect(total(page)).toHaveText(/200\s€/);
+    const box = page.getByTestId("booking-extras").locator("label").filter({ hasText: `Panier pique-nique ${TAG}` });
+    await box.locator("input").check();
+    const qty = page.locator(`#extraQty-${id}`);
+    await expect(page.getByLabel("Combien ?")).toHaveValue("1");
+    await expect(qty.locator("option")).toHaveText(["1", "2", "3"]);
+    await expect(total(page)).toHaveText(/215\s€/);
+    await qty.selectOption("3");
+    await expect(box.getByTestId("booking-extra-price")).toHaveText(/45\s€/);
+    await expect(total(page)).toHaveText(/245\s€/);
+
+    await page.getByTestId("booking-extras").locator("label").filter({ hasText: `Bouquet ${TAG}` }).locator("input").check();
+    await expect(page.locator(`#extraQty-${plain}`)).toHaveCount(0);
+    await expect(total(page)).toHaveText(/265\s€/);
   });
 });

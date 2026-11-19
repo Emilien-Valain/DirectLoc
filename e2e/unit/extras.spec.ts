@@ -1,5 +1,16 @@
 import { test, expect } from "@playwright/test";
-import { balanceDue, bedLimit, clampQuantity, extraQuantitiesFrom, extraQuantity, grandTotal, priceExtraLine } from "../../lib/extras";
+import {
+  balanceDue,
+  bedLimit,
+  chosenMax,
+  clampQuantity,
+  defaultChosen,
+  extraQuantitiesFrom,
+  extraQuantity,
+  grandTotal,
+  priceExtraLine,
+} from "../../lib/extras";
+import { extraSchema, feeSchema } from "../../lib/validation";
 
 /**
  * Spécification : Tests de non-régression > Extras > Calcul (ADR-0010)
@@ -75,5 +86,50 @@ test.describe("Extras — par lit (quantité choisie)", () => {
 
   test("champs extraQty_<id> lus, vides ignorés", () => {
     expect(extraQuantitiesFrom([["extraQty_a", "2"], ["extraQty_b", ""], ["extraIds", "a"]])).toEqual({ a: 2 });
+  });
+});
+
+test.describe("Extras — nombre au choix (2 paniers…)", () => {
+  test("quantité = quantité du séjour × nombre choisi, pour chaque unité", () => {
+    expect(extraQuantity("per_stay", 3, 2, 2)).toBe(2);
+    expect(extraQuantity("per_night", 3, 2, 2)).toBe(6);
+    expect(extraQuantity("per_guest", 3, 2, 2)).toBe(4);
+    expect(extraQuantity("per_guest_night", 3, 2, 2)).toBe(12);
+    const panier = priceExtraLine({ sourceId: null, label: "Panier", unit: "per_stay", unitPrice: 14.9 }, 5, 4, 3);
+    expect(panier).toMatchObject({ chosen: 3, quantity: 3, total: 44.7 });
+    // Sans nombre : comme avant (1 par défaut).
+    expect(priceExtraLine({ sourceId: null, label: "x", unit: "per_night", unitPrice: 5 }, 3, 2).chosen).toBe(1);
+  });
+
+  test("maximum : celui de l'option (absent, 0 ou 1 → 1, plafonné à 99) ; « par lit » → lits de la chambre", () => {
+    expect(chosenMax({ unit: "per_stay", maxQuantity: 4 }, 3)).toBe(4);
+    expect(chosenMax({ unit: "per_stay", maxQuantity: null }, 3)).toBe(1);
+    expect(chosenMax({ unit: "per_stay" }, 3)).toBe(1);
+    expect(chosenMax({ unit: "per_night", maxQuantity: 0 }, 3)).toBe(1);
+    expect(chosenMax({ unit: "per_night", maxQuantity: 500 }, 3)).toBe(99);
+    expect(chosenMax({ unit: "per_bed", maxQuantity: 10 }, 3)).toBe(3);
+  });
+
+  test("par défaut : 1, sauf « par lit » (tous les lits) ; borne et valeur de repli", () => {
+    expect(defaultChosen("per_stay", 4)).toBe(1);
+    expect(defaultChosen("per_bed", 4)).toBe(4);
+    expect(clampQuantity(undefined, 4, 1)).toBe(1);
+    expect(clampQuantity(undefined, 4, 9)).toBe(4);
+    expect(clampQuantity(7, 4, 1)).toBe(4);
+  });
+
+  test("saisie de l'hôte : vide ou 1 → pas de choix ; 2 à 99 ; 0, 100, 2,5, texte refusés ; un frais n'a pas de maximum", () => {
+    const base = { label: "Panier", price: "12", unit: "per_stay" };
+    const max = (v: unknown) => extraSchema.safeParse({ ...base, maxQuantity: v });
+    expect(max("").data?.maxQuantity).toBeNull();
+    expect(max(undefined).data?.maxQuantity).toBeNull();
+    expect(max("1").data?.maxQuantity).toBeNull();
+    expect(max("4").data?.maxQuantity).toBe(4);
+    expect(max("99").data?.maxQuantity).toBe(99);
+    expect(max("0").error?.issues[0].message).toBe("Quantité maximum : au moins 1");
+    expect(max("100").error?.issues[0].message).toBe("Quantité maximum : 99 au plus");
+    expect(max("2.5").error?.issues[0].message).toBe("Quantité maximum : un nombre entier");
+    expect(max("abc").error?.issues[0].message).toBe("Quantité maximum : un nombre entier");
+    expect(feeSchema.safeParse({ ...base, maxQuantity: "4" }).data).not.toHaveProperty("maxQuantity");
   });
 });

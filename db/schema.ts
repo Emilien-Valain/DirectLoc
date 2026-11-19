@@ -238,6 +238,8 @@ export const extras = pgTable(
     description: text("description"),
     price: decimal("price", { precision: 10, scale: 2 }).notNull(),
     unit: extraUnitEnum("unit").notNull(),
+    // Nombre que le client peut choisir (2 paniers…) ; NULL ou 1 = pas de choix. « Par lit » : borné aux lits.
+    maxQuantity: integer("max_quantity"),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
@@ -269,7 +271,7 @@ export const fees = pgTable(
 
 // Tout ce qui s'ajoute à l'hébergement d'une réservation (ADR-0010, ADR-0011) :
 // Extras, Fees et taxe de séjour, copiés (libellé, unité, prix) à l'admission.
-// `totalPrice` = hébergement + Σ total. Quantité dérivée, jamais saisie.
+// `totalPrice` = hébergement + Σ total. Quantité dérivée du séjour × nombre choisi (`chosen`, borné).
 export const bookingLineKindEnum = pgEnum("booking_line_kind", ["extra", "fee", "tax"]);
 
 export const bookingLines = pgTable(
@@ -285,6 +287,8 @@ export const bookingLines = pgTable(
     label: text("label").notNull(),
     unit: extraUnitEnum("unit").notNull(),
     unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
+    // Nombre choisi par le client (paniers, lits) ; quantity = quantité du séjour × chosen.
+    chosen: integer("chosen").notNull().default(1),
     quantity: integer("quantity").notNull(),
     total: decimal("total", { precision: 10, scale: 2 }).notNull(),
     // Fee ou taxe retirés par l'admin : ligne gardée à 0 € (export de la taxe).

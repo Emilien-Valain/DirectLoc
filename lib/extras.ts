@@ -17,20 +17,32 @@ export const EXTRA_UNIT_LABELS: Record<ExtraUnit, string> = {
   per_bed: "par lit",
 };
 
-/** Unité dont la quantité est choisie (bornée), et non dérivée du séjour. */
-export const hasChosenQuantity = (unit: ExtraUnit) => unit === "per_bed";
+/** Nombre qu'un hôte peut proposer au choix pour une option (2 paniers, 4 vélos…). */
+export const MAX_CHOSEN = 99;
+
+/**
+ * Nombre maximum que le client peut choisir pour cette option : les lits de la chambre
+ * pour « par lit », sinon le maximum fixé par l'hôte (absent = 1, pas de choix).
+ */
+export function chosenMax(extra: { unit: ExtraUnit; maxQuantity?: number | null }, maxBeds: number): number {
+  if (extra.unit === "per_bed") return Math.max(1, maxBeds);
+  return Math.min(MAX_CHOSEN, Math.max(1, extra.maxQuantity ?? 1));
+}
+
+/** Choix proposé d'office : tous les lits pour « par lit » (draps), un seul sinon. */
+export const defaultChosen = (unit: ExtraUnit, max: number) => (unit === "per_bed" ? max : 1);
 
 /** Lits proposables pour une option « par lit » : lits renseignés, sinon la capacité. */
 export const bedLimit = (room: { beds: number | null; capacity: number }) =>
   Math.max(1, room.beds ?? room.capacity);
 
-/** Quantité demandée ramenée dans [1, max] ; absente ou illisible → max (tous les lits). */
-export function clampQuantity(requested: number | undefined, max: number): number {
-  if (requested === undefined || !Number.isFinite(requested)) return max;
+/** Nombre demandé ramené dans [1, max] ; absent ou illisible → `fallback` (défaut : max). */
+export function clampQuantity(requested: number | undefined, max: number, fallback = max): number {
+  if (requested === undefined || !Number.isFinite(requested)) return Math.min(max, Math.max(1, fallback));
   return Math.min(max, Math.max(1, Math.floor(requested)));
 }
 
-/** Champs `extraQty_<id>` d'un formulaire → { id: quantité }. */
+/** Champs `extraQty_<id>` d'un formulaire → { id: nombre choisi }. */
 export function extraQuantitiesFrom(entries: Iterable<[string, FormDataEntryValue]>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [k, v] of entries) {
@@ -40,19 +52,19 @@ export function extraQuantitiesFrom(entries: Iterable<[string, FormDataEntryValu
 }
 
 /**
- * Quantité d'une ligne : dérivée du séjour, sauf « par lit » où c'est le nombre de
- * lits choisi (`chosen`, déjà borné). `guests` compte tous les âges.
+ * Quantité d'une ligne : quantité du séjour (1, nuits, personnes…) × nombre choisi
+ * (`chosen`, déjà borné). « Par lit » : le nombre de lits choisi. `guests` compte tous les âges.
  */
 export function extraQuantity(unit: ExtraUnit, nights: number, guests: number, chosen = 1): number {
   switch (unit) {
     case "per_stay":
-      return 1;
+      return chosen;
     case "per_night":
-      return nights;
+      return nights * chosen;
     case "per_guest":
-      return guests;
+      return guests * chosen;
     case "per_guest_night":
-      return guests * nights;
+      return guests * nights * chosen;
     case "per_bed":
       return chosen;
   }
@@ -64,6 +76,8 @@ export type ExtraLine = {
   label: string;
   unit: ExtraUnit;
   unitPrice: number;
+  /** Nombre choisi par le client (absent ou 1 : l'option ne se choisit pas en nombre). */
+  chosen?: number;
   quantity: number;
   total: number;
 };
@@ -78,10 +92,10 @@ export function priceExtraLine(
   extra: { sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number },
   nights: number,
   guests: number,
-  chosen?: number,
+  chosen = 1,
 ): ExtraLine {
   const quantity = extraQuantity(extra.unit, nights, guests, chosen);
-  return { ...extra, unitPrice: cents(extra.unitPrice) / 100, quantity, total: (cents(extra.unitPrice) * quantity) / 100 };
+  return { ...extra, unitPrice: cents(extra.unitPrice) / 100, chosen, quantity, total: (cents(extra.unitPrice) * quantity) / 100 };
 }
 
 /** Hébergement + lignes, additionnés en centimes (pas de 0,1 + 0,2). */

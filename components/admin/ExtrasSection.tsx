@@ -5,7 +5,7 @@ import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { useFormAction } from "@/components/admin/useFormAction";
 import { createExtra, deleteExtra, setExtraActive, updateExtra } from "@/lib/actions/extras";
 import { AdminInput, AdminSelect, EmptyState, Field, SettingsSection, StatusBanner } from "@/components/admin/ui";
-import { EXTRA_UNITS, EXTRA_UNIT_LABELS } from "@/lib/extras";
+import { EXTRA_UNITS, EXTRA_UNIT_LABELS, MAX_CHOSEN, type ExtraUnit } from "@/lib/extras";
 import type { CatalogExtra } from "@/lib/queries/extras";
 import { formatEuros } from "@/lib/utils";
 
@@ -24,7 +24,7 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
   return (
     <SettingsSection
       title="Options"
-      desc="Petit-déjeuner, linge, serviettes… proposés à vos clients au moment de réserver. Le prix est calculé selon l'unité : par séjour, par nuit, par personne, ou par lit — le client choisit alors pour combien de lits (des draps pour 1 lit sur 4), dans la limite des lits de la chambre. Modifier une option ne change pas les réservations déjà faites."
+      desc="Petit-déjeuner, linge, paniers pique-nique… proposés à vos clients au moment de réserver. Le prix est calculé selon l'unité (par séjour, par nuit, par personne, par lit) et, si vous le permettez, multiplié par le nombre que le client choisit (2 paniers, draps pour 1 lit sur 4). Modifier une option ne change pas les réservations déjà faites."
       action={
         <button
           type="button"
@@ -78,6 +78,9 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
                   </p>
                   <p className="text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
                     {x.price === 0 ? "Gratuit" : `${formatEuros(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
+                    {x.unit === "per_bed"
+                      ? " · le client choisit le nombre de lits"
+                      : x.maxQuantity && x.maxQuantity > 1 && ` · jusqu'à ${x.maxQuantity} au choix`}
                     {x.description && <> · {x.description}</>}
                   </p>
                 </div>
@@ -113,6 +116,7 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
 
 function ExtraForm({ extra, onDone }: { extra?: CatalogExtra; onDone: () => void }) {
   const form = useFormAction(extra ? updateExtra.bind(null, extra.id) : createExtra, { onSuccess: onDone });
+  const [unit, setUnit] = useState<ExtraUnit>(extra?.unit ?? "per_stay");
   return (
     <form
       onSubmit={form.onSubmit}
@@ -140,7 +144,7 @@ function ExtraForm({ extra, onDone }: { extra?: CatalogExtra; onDone: () => void
           />
         </Field>
         <Field label="Unité" error={form.fieldError("unit")}>
-          <AdminSelect name="unit" defaultValue={extra?.unit ?? "per_stay"}>
+          <AdminSelect name="unit" value={unit} onChange={(e) => setUnit(e.target.value as ExtraUnit)}>
             {EXTRA_UNITS.map((u) => (
               <option key={u} value={u}>
                 {EXTRA_UNIT_LABELS[u]}
@@ -149,6 +153,28 @@ function ExtraForm({ extra, onDone }: { extra?: CatalogExtra; onDone: () => void
           </AdminSelect>
         </Field>
       </div>
+      {unit === "per_bed" ? (
+        <p className="text-[12.5px] mb-3.5" style={{ color: "var(--admin-text-muted)" }}>
+          Par lit : le client choisit pour combien de lits, jusqu&apos;au nombre de lits de la chambre.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field
+            label="Quantité au choix, jusqu'à"
+            error={form.fieldError("maxQuantity")}
+            hint="1 = le client coche l'option, sans choisir de nombre. 4 = il en prend de 1 à 4."
+          >
+            <AdminInput
+              name="maxQuantity"
+              type="number"
+              min={1}
+              max={MAX_CHOSEN}
+              inputMode="numeric"
+              defaultValue={extra?.maxQuantity ?? 1}
+            />
+          </Field>
+        </div>
+      )}
       <Field label="Description (facultatif)" error={form.fieldError("description")}>
         <AdminInput name="description" maxLength={500} defaultValue={extra?.description ?? ""} placeholder="ex : Servi de 8 h à 10 h" />
       </Field>

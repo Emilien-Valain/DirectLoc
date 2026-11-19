@@ -6,9 +6,10 @@ import { validateBookingRules } from "@/lib/booking-rules";
 import { calculatePrice, type PriceBreakdown } from "@/lib/pricing";
 import {
   bedLimit,
+  chosenMax,
   clampQuantity,
+  defaultChosen,
   grandTotal,
-  hasChosenQuantity,
   priceExtraLine,
   type ExtraLine,
   type StayLine,
@@ -129,7 +130,9 @@ const MAX_EXTRAS = 50;
  * Lignes d'Extras d'un séjour. Une ligne déjà sur la réservation (`bookingId`)
  * garde libellé et prix figés, quantité recalculée — même si l'Extra a été
  * désactivé ou supprimé depuis. Tout autre id doit être un Extra actif du tenant.
- * « Par lit » : quantité choisie (`quantities`), bornée à `maxBeds`.
+ * Nombre choisi (`quantities`) borné par `chosenMax` : lits pour « par lit », sinon le
+ * maximum de l'option. Une ligne gardée garde au moins le nombre déjà enregistré
+ * (l'hôte a pu baisser le maximum depuis) ; absent → celui enregistré.
  */
 export async function resolveExtraLines(
   conn: Tx | typeof db,
@@ -165,13 +168,30 @@ export async function resolveExtraLines(
     : [];
   if (catalog.length !== fromCatalog.length) throw new ExtraUnavailableError();
 
-  // Ligne gardée : la quantité demandée, sinon celle déjà enregistrée ; bornée aux lits (la chambre a pu changer).
-  const keptQty = (l: (typeof existing)[number]) =>
-    hasChosenQuantity(l.unit)
-      ? clampQuantity(quantities[l.id] ?? (l.sourceId ? quantities[l.sourceId] : undefined) ?? l.quantity, maxBeds)
-      : undefined;
-  const newQty = (x: (typeof catalog)[number]) =>
-    hasChosenQuantity(x.unit) ? clampQuantity(quantities[x.id], maxBeds) : undefined;
+  // Maximum actuel des options d'origine des lignes gardées (supprimée → le nombre déjà enregistré).
+  const keptSources = kept.flatMap((l) => (l.sourceId ? [l.sourceId] : []));
+  const sourceMax = new Map(
+    keptSources.length
+      ? (
+          await conn
+            .select({ id: extras.id, maxQuantity: extras.maxQuantity })
+            .from(extras)
+            .where(and(inArray(extras.id, keptSources), eq(extras.tenantId, tenantId)))
+        ).map((x) => [x.id, x.maxQuantity])
+      : [],
+  );
+  const keptQty = (l: (typeof existing)[number]) => {
+    // « Par lit » : borné aux lits (la chambre a pu changer).
+    const max =
+      l.unit === "per_bed"
+        ? maxBeds
+        : Math.max(l.chosen, chosenMax({ unit: l.unit, maxQuantity: l.sourceId ? sourceMax.get(l.sourceId) : null }, maxBeds));
+    return clampQuantity(quantities[l.id] ?? (l.sourceId ? quantities[l.sourceId] : undefined), max, l.chosen);
+  };
+  const newQty = (x: (typeof catalog)[number]) => {
+    const max = chosenMax(x, maxBeds);
+    return clampQuantity(quantities[x.id], max, defaultChosen(x.unit, max));
+  };
 
   return [
     ...kept.map((l) =>
@@ -294,6 +314,7 @@ export async function saveLines(tx: Tx, bookingId: string, lines: StayLine[]) {
       label: l.label,
       unit: l.unit,
       unitPrice: l.unitPrice.toFixed(2),
+      chosen: l.chosen ?? 1,
       quantity: l.quantity,
       total: l.total.toFixed(2),
       exempt: l.exempt,

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { parisToday } from "@/lib/date-windows";
-import { EXTRA_UNITS, FEE_UNITS } from "@/lib/extras";
+import { EXTRA_UNITS, FEE_UNITS, MAX_CHOSEN } from "@/lib/extras";
 import { isCountryCode } from "@/lib/countries";
 
 // ── Primitives réutilisables ──────────────────────────────────────────────────
@@ -213,11 +213,23 @@ export const extraSchema = z.object({
     .regex(/^\d+([.,]\d{1,2})?$/, "Prix : un montant positif ou nul en euros (ex : 12 ou 8,50)")
     .refine((s) => parseFloat(s.replace(",", ".")) < 100000, "Prix trop élevé"),
   unit: z.enum(EXTRA_UNITS, { message: "Choisissez une unité" }),
+  // Nombre que le client peut choisir ; vide ou 1 = pas de choix (null). Ignoré pour « par lit ».
+  maxQuantity: z
+    .preprocess(
+      (v) => (v === "" || v === undefined || v === null ? undefined : v),
+      z.coerce
+        .number({ message: "Quantité maximum : un nombre entier" })
+        .int("Quantité maximum : un nombre entier")
+        .min(1, "Quantité maximum : au moins 1")
+        .max(MAX_CHOSEN, `Quantité maximum : ${MAX_CHOSEN} au plus`)
+        .optional(),
+    )
+    .transform((n) => (n && n > 1 ? n : null)),
 });
 
 // Fee (ADR-0011) : même forme qu'un Extra, sans description ; chambres en cases à cocher (lues à part).
 export const feeSchema = extraSchema
-  .omit({ description: true })
+  .omit({ description: true, maxQuantity: true })
   .extend({ unit: z.enum(FEE_UNITS, { message: "Choisissez une unité" }) });
 
 /** Montant décimal positif ou nul saisi à la française (virgule ou point). */

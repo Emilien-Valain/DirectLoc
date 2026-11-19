@@ -14,12 +14,20 @@ function revalidate() {
   revalidatePath("/admin/parametres");
 }
 
-function values(data: { label: string; description?: string; price: string; unit: (typeof extras.$inferInsert)["unit"] }) {
+function values(data: {
+  label: string;
+  description?: string;
+  price: string;
+  unit: (typeof extras.$inferInsert)["unit"];
+  maxQuantity: number | null;
+}) {
   return {
     label: data.label,
     description: data.description || null,
     price: parseFloat(data.price.replace(",", ".")).toFixed(2),
     unit: data.unit,
+    // « Par lit » : borné par les lits de la chambre, pas par un maximum.
+    maxQuantity: data.unit === "per_bed" ? null : data.maxQuantity,
   };
 }
 

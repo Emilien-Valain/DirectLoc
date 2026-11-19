@@ -10,6 +10,8 @@ export type CatalogExtra = {
   description: string | null;
   price: number;
   unit: ExtraUnit;
+  /** Nombre au choix du client ; null = pas de choix (voir `chosenMax`). */
+  maxQuantity: number | null;
   active: boolean;
 };
 
@@ -26,6 +28,7 @@ export async function getExtrasByTenant(tenantId: string, { activeOnly = false }
     description: x.description,
     price: parseFloat(x.price),
     unit: x.unit,
+    maxQuantity: x.maxQuantity,
     active: x.active,
   }));
 }
@@ -47,6 +50,7 @@ export async function getBookingLines(bookingId: string) {
     label: l.label,
     unit: l.unit,
     unitPrice: parseFloat(l.unitPrice),
+    chosen: l.chosen,
     quantity: l.quantity,
     total: parseFloat(l.total),
     exempt: l.exempt,
