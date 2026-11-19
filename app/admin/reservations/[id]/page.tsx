@@ -289,6 +289,7 @@ export default async function ReservationDetailPage({
               }
             />
           )}
+          {reservation.guestAddress && <Row label="Adresse" value={reservation.guestAddress} />}
         </Section>
 
         <Section label="Paiement">

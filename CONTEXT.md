@@ -18,7 +18,7 @@ _Avoid_: utilisateur, compte
 The `properties` table is dormant: exactly one is auto-created per [[tenant]] and every room attaches to it. Reason about rooms as belonging to a tenant, not a property. "Multiple buildings under one site" is not a product capability. (See ADR-0002.)
 
 **Guest**:
-The person who reserves and stays. A single concept — the booker and the occupant are not distinguished (a head-count is just `guestCount`, plus how many of them are under 18 — used only for the [[tourist-tax]]). Stored inline on a booking (`guestName`, `guestEmail`, …); there is no separate guest entity.
+The person who reserves and stays. A single concept — the booker and the occupant are not distinguished (a head-count is just `guestCount`, plus how many of them are under 18 — used only for the [[tourist-tax]]). Stored inline on a booking (`guestName`, `guestEmail`, `guestPhone`, `guestAddress`, …); there is no separate guest entity. The public site asks first name and last name separately, plus phone and postal address, all required; they are stored as one `guestName` ("Prénom Nom"). An admin entering a booking keeps a single name and optional phone/address.
 _Avoid_: client, voyageur, customer
 
 **Operator**:

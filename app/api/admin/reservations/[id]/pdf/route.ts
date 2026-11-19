@@ -225,6 +225,11 @@ export async function GET(
   drawRow("Nom", booking.guestName);
   drawRow("Email", booking.guestEmail);
   if (booking.guestPhone) drawRow("Téléphone", booking.guestPhone);
+  // Une ligne, sans retour : une adresse très longue est coupée (complète dans l'admin).
+  if (booking.guestAddress) {
+    const a = booking.guestAddress.replace(/\s+/g, " ");
+    drawRow("Adresse", a.length > 64 ? `${a.slice(0, 61)}...` : a);
+  }
 
   // ── Paiement ──
   drawSection("Paiement");

@@ -67,8 +67,8 @@ export async function createBookingPublic(
     return { error: "Trop de tentatives, réessayez dans quelques minutes.", values };
   }
   const { data } = parsed;
-  const { roomId, guestName, guestEmail, guestCount, childCount } = data;
-  const guestPhone = data.guestPhone || null;
+  const { roomId, guestEmail, guestCount, childCount, guestPhone, guestAddress } = data;
+  const guestName = `${data.guestFirstName} ${data.guestLastName}`;
   // Cases à cocher multiples : formEntries ne garde que la dernière valeur.
   const extraIds = formData.getAll("extraIds").filter((v): v is string => typeof v === "string");
   const extraQuantities = extraQuantitiesFrom(formData.entries());
@@ -99,6 +99,7 @@ export async function createBookingPublic(
             guestName,
             guestEmail,
             guestPhone,
+            guestAddress,
             guestCount,
             childCount,
             source: "direct",

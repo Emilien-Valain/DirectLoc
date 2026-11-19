@@ -426,19 +426,62 @@ export default function BookingForm({
           <legend className="s-h3">Pour vous joindre</legend>
           <div className="s-grid-2">
             <div className="s-field">
-              <label htmlFor="guestName">Nom complet</label>
-              <input id="guestName" type="text" name="guestName" required autoComplete="name" defaultValue={v.guestName} />
+              <label htmlFor="guestFirstName">Prénom</label>
+              <input
+                id="guestFirstName"
+                type="text"
+                name="guestFirstName"
+                required
+                maxLength={100}
+                autoComplete="given-name"
+                defaultValue={v.guestFirstName}
+                aria-invalid={!!state?.fieldErrors?.guestFirstName || undefined}
+              />
+            </div>
+            <div className="s-field">
+              <label htmlFor="guestLastName">Nom</label>
+              <input
+                id="guestLastName"
+                type="text"
+                name="guestLastName"
+                required
+                maxLength={100}
+                autoComplete="family-name"
+                defaultValue={v.guestLastName}
+                aria-invalid={!!state?.fieldErrors?.guestLastName || undefined}
+              />
             </div>
             <div className="s-field">
               <label htmlFor="guestEmail">Email</label>
               <input id="guestEmail" type="email" name="guestEmail" required autoComplete="email" defaultValue={v.guestEmail} />
             </div>
+            <div className="s-field">
+              <label htmlFor="guestPhone">Téléphone</label>
+              <input
+                id="guestPhone"
+                type="tel"
+                name="guestPhone"
+                required
+                autoComplete="tel"
+                defaultValue={v.guestPhone}
+                aria-invalid={!!state?.fieldErrors?.guestPhone || undefined}
+              />
+            </div>
           </div>
-          <div className="s-field s-field-mid">
-            <label htmlFor="guestPhone">
-              Téléphone <span className="s-optional">(facultatif)</span>
-            </label>
-            <input id="guestPhone" type="tel" name="guestPhone" autoComplete="tel" defaultValue={v.guestPhone} />
+          <div className="s-field">
+            <label htmlFor="guestAddress">Adresse postale</label>
+            <input
+              id="guestAddress"
+              type="text"
+              name="guestAddress"
+              required
+              minLength={5}
+              maxLength={300}
+              autoComplete="street-address"
+              placeholder="12 rue des Lilas, 84000 Avignon"
+              defaultValue={v.guestAddress}
+              aria-invalid={!!state?.fieldErrors?.guestAddress || undefined}
+            />
           </div>
         </fieldset>
 

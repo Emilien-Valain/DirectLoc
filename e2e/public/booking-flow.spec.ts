@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
 import { test, expect } from "@playwright/test";
+import { fillGuestContact } from "../helpers/guest";
 import { cleanRules } from "../helpers/clean-rules";
 import { fd } from "../helpers/dates";
 
@@ -123,9 +124,7 @@ test.describe("Public — Parcours de réservation", () => {
     await page.goto(`/reserver/${apiRoomId}`);
 
     // Remplir d'abord les informations client
-    await page.fill('[name="guestName"]', "Jean Dupont");
-    await page.fill('[name="guestEmail"]', "jean.dupont@example.com");
-    await page.fill('[name="guestPhone"]', "0601020304");
+    await fillGuestContact(page, { firstName: "Jean", lastName: "Dupont", email: "jean.dupont@example.com", phone: "0601020304" });
 
     // Remplir les dates (libres — nettoyées ci-dessus)
     await page.fill("#checkIn", BOOKING_TEST_CHECKIN);
@@ -198,9 +197,7 @@ test.describe("Public — Parcours de réservation", () => {
   }
 
   async function fillGuest(page: import("@playwright/test").Page, email: string) {
-    await page.fill('[name="guestName"]', "Client Refusé");
-    await page.fill('[name="guestEmail"]', email);
-    await page.fill('[name="guestPhone"]', "0601020304");
+    await fillGuestContact(page, { firstName: "Client", lastName: "Refusé", email, phone: "0601020304" });
   }
 
   async function bookingCount(email: string) {
@@ -234,7 +231,8 @@ test.describe("Public — Parcours de réservation", () => {
       await expect(page.getByTestId("booking-error")).toContainText("viennent d'être réservées");
       await expect(page).toHaveURL(new RegExp(`/reserver/${apiRoomId}`));
       await expect(page.locator('[name="guestEmail"]')).toHaveValue(email);
-      await expect(page.locator('[name="guestName"]')).toHaveValue("Client Refusé");
+      await expect(page.locator('[name="guestLastName"]')).toHaveValue("Refusé");
+      await expect(page.locator('[name="guestAddress"]')).toHaveValue("12 rue des Lilas, 84000 Avignon");
       // La dispo est revérifiée après le refus : plus de bouton « payer » actif.
       await expect(page.getByText("Non disponible pour ces dates")).toBeVisible({ timeout: 8000 });
       await expect(page.getByTestId("booking-submit")).toBeDisabled();
@@ -340,8 +338,8 @@ test.describe("Public — Parcours de réservation", () => {
     const email = `centimes-${Date.now()}@example.com`;
     const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
     const { rows } = await pool.query(
-      `INSERT INTO pricing_rules (tenant_id, room_id, name, fixed_price, priority)
-       VALUES ($1, $2, 'Quasi gratuit', '0.10', 100) RETURNING id`,
+      `INSERT INTO pricing_rules (tenant_id, room_ids, name, fixed_price, priority)
+       VALUES ($1, ARRAY[$2]::uuid[], 'Quasi gratuit', '0.10', 100) RETURNING id`,
       [tenantId, apiRoomId],
     );
     try {

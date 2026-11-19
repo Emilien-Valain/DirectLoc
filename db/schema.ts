@@ -183,6 +183,8 @@ export const bookings = pgTable(
     guestName: text("guest_name").notNull(),
     guestEmail: text("guest_email").notNull(),
     guestPhone: text("guest_phone"),
+    // Adresse postale (obligatoire sur le site public, absente des saisies manuelles anciennes).
+    guestAddress: text("guest_address"),
     guestCount: integer("guest_count").notNull().default(1),
     // Dont mineurs (−18 ans), exonérés de taxe de séjour (ADR-0011) ; ≤ guestCount.
     childCount: integer("child_count").notNull().default(0),

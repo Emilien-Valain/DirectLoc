@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fillGuestContact } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
@@ -63,8 +64,7 @@ async function openForm(page: Page, from: number, to: number, guests = "1") {
 }
 
 async function fillGuest(page: Page, email: string) {
-  await page.fill("#guestName", "Client Extras");
-  await page.fill("#guestEmail", email);
+  await fillGuestContact(page, { lastName: "Extras", email });
 }
 
 const total = (page: Page) => page.getByTestId("booking-summary-total");

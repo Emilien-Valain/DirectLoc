@@ -106,6 +106,13 @@
       "when": 1795111795027,
       "tag": "0014_extra_unit_per_bed",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1795112558221,
+      "tag": "0015_booking_guest_address",
+      "breakpoints": true
     }
   ]
 }

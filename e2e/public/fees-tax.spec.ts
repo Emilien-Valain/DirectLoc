@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { fillGuestContact } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
@@ -149,8 +150,7 @@ test.describe("Public — Frais obligatoires", () => {
     test.skip(!stripeIsFake(), "vraie clé Stripe : la redirection Stripe est couverte par booking-flow");
     await insertFee("Ménage", "40", "per_stay");
     await openForm(page, family.id, 960, 962);
-    await page.fill("#guestName", "Client Frais");
-    await page.fill("#guestEmail", `admis@${TAG}.example`);
+    await fillGuestContact(page, { lastName: "Frais", email: `admis@${TAG}.example` });
     await page.getByTestId("booking-submit").click();
     await expect(page.getByTestId("booking-error")).toContainText("paiement en ligne est momentanément indisponible");
   });
@@ -184,8 +184,7 @@ test.describe("Public — Taxe de séjour", () => {
   test("plus d'enfants que de personnes : refusé par le serveur, rien en base", async ({ page }) => {
     await setTax({ mode: "fixed", amount: 1.65 });
     await openForm(page, family.id, 972, 973, "2");
-    await page.fill("#guestName", "Trop Enfants");
-    await page.fill("#guestEmail", `enfants@${TAG}.example`);
+    await fillGuestContact(page, { lastName: "Enfants", email: `enfants@${TAG}.example` });
     // Contourne le max du champ et sa remise en borne côté client.
     await page.locator("#childCount").evaluate((i: HTMLInputElement) => {
       i.removeAttribute("max");

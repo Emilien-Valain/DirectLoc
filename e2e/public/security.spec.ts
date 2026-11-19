@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { fillGuestContact } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { fd } from "../helpers/dates";
@@ -212,8 +213,7 @@ test.describe("Sécurité — Plage de dates bornée à 366 nuits", () => {
   test("réservation publique de 2 ans : bouton désactivé, et un submit forcé ne crée rien", async ({ page }) => {
     const email = `toolong-${RUN_ID}@example.com`;
     await page.goto(`/reserver/${testContext.apiRoomId}`);
-    await page.fill('[name="guestName"]', "Trop Long");
-    await page.fill('[name="guestEmail"]', email);
+    await fillGuestContact(page, { firstName: "Trop", lastName: "Long", email });
     await page.fill("#checkIn", from);
     await page.fill("#checkOut", plusNights(730));
     const submit = page.getByTestId("booking-submit");

@@ -12,6 +12,10 @@ import { parisToday } from "../../lib/date-windows";
 const base = {
   roomId: "00000000-0000-4000-8000-000000000000",
   guestName: "Test",
+  guestFirstName: "Té",
+  guestLastName: "Test",
+  guestPhone: "06 01 02 03 04",
+  guestAddress: "1 rue X, 84000 Avignon",
   guestEmail: "t@example.com",
   guestCount: "1",
   checkIn: "2027-01-04",

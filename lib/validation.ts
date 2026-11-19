@@ -106,14 +106,31 @@ const icalUrl = z
 
 // ── Schémas par action ────────────────────────────────────────────────────────
 
+// Site public : on doit pouvoir joindre le client (téléphone) et l'identifier (prénom, nom, adresse).
+const requiredPhone = z
+  .string()
+  .trim()
+  .min(1, "Téléphone obligatoire")
+  .max(30, "Numéro trop long")
+  .regex(/^[+\d\s()./-]*$/, "Numéro de téléphone invalide")
+  .refine((s) => s.replace(/\D/g, "").length >= 6, "Numéro de téléphone incomplet");
+const personName = (label: string) =>
+  z.string().trim().min(1, `${label} obligatoire`).max(100, `${label} : 100 caractères max`);
+
 export const bookingPublicSchema = z
   .object({
     roomId: roomIdString,
     checkIn: dateString,
     checkOut: dateString,
-    guestName: safeName,
+    guestFirstName: personName("Prénom"),
+    guestLastName: personName("Nom"),
     guestEmail: email,
-    guestPhone: phone,
+    guestPhone: requiredPhone,
+    guestAddress: z
+      .string()
+      .trim()
+      .min(5, "Adresse obligatoire (rue, code postal, ville)")
+      .max(300, "Adresse trop longue (300 caractères max)"),
     guestCount: positiveInt,
     childCount,
   })
