@@ -421,6 +421,9 @@ export const pricingRules = pgTable(
       .references(() => tenants.id),
     // Chambres visées ; vide = toutes. Pas de FK : un id de chambre supprimée ne matche plus rien.
     roomIds: uuid("room_ids").array().notNull().default([]),
+    // Règles créées ensemble « une valeur par chambre » : même nom, période et jours, une
+    // chambre chacune. Affichées, modifiées, activées et supprimées d'un bloc. NULL = seule.
+    groupId: uuid("group_id"),
     name: text("name").notNull(), // "Haute saison", "Week-end", etc.
     validFrom: timestamp("valid_from"), // NULL = toute l'année
     validTo: timestamp("valid_to"),

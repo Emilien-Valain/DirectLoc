@@ -234,9 +234,99 @@ test.describe("Règles — modifier et cibler plusieurs chambres", () => {
     await form.getByRole("button", { name: "Créer la règle" }).click();
 
     await expect(page.getByText("Règle tarifaire ajoutée.")).toBeVisible();
-    await expect(page.locator('[data-rule-name="Été par chambre"]')).toHaveCount(2);
+    // Un groupe = une seule ligne, avec le prix de chaque chambre.
+    const row = page.locator('[data-rule-name="Été par chambre"]');
+    await expect(row).toHaveCount(1);
+    await expect(row).toContainText("Un prix par chambre · 2 chambres");
+    await expect(row.getByTestId("pricing-group-values")).toContainText(/Chambre API Test 140\s€\/nuit/);
+    await expect(row.getByTestId("pricing-group-values")).toContainText(/Chambre Règles Bis 95,50\s€\/nuit/);
     expect(await nightPrice(page, ctx.apiRoomId)).toBe(140);
     expect(await nightPrice(page, secondRoomId)).toBe(95.5);
+  });
+
+  // ─── Groupe « une valeur par chambre » : modifier en bloc ───────────────────
+
+  async function createGroup(page: Page, name: string, values: [string, string]) {
+    await openTab(page, "Tarification");
+    await page.getByRole("button", { name: "Ajouter" }).click();
+    const form = page.getByTestId("pricing-rule-form");
+    await form.locator("input[name='name']").fill(name);
+    await form.locator("input[name='validFrom']").fill(fd("2027-02-01"));
+    await form.locator("input[name='validTo']").fill(fd("2027-04-30"));
+    await form.getByLabel("Une valeur différente pour chaque chambre").check();
+    await form.getByLabel("Chambre API Test (€/nuit)").fill(values[0]);
+    await form.getByLabel(`${SECOND} (€/nuit)`).fill(values[1]);
+    await form.getByRole("button", { name: "Créer la règle" }).click();
+    await expect(page.getByText("Règle tarifaire ajoutée.")).toBeVisible();
+  }
+
+  test("modifier un groupe : prix pré-remplis, nouvelle période pour toutes, une chambre retirée puis rajoutée", async ({ page }) => {
+    await createGroup(page, "Saison groupe", ["140", "95,50"]);
+    await page.getByRole("button", { name: "Modifier la règle Saison groupe" }).click();
+    const form = page.getByTestId("pricing-rule-form");
+    await expect(form.getByLabel("Chambre API Test (€/nuit)")).toHaveValue("140");
+    await expect(form.getByLabel(`${SECOND} (€/nuit)`)).toHaveValue("95,5");
+    await expect(form.getByLabel("Une valeur différente pour chaque chambre")).toHaveCount(0);
+
+    // Décaler la saison (le 1er mars n'y est plus), changer un prix, retirer une chambre.
+    await form.locator("input[name='name']").fill("Saison décalée");
+    await form.locator("input[name='validFrom']").fill(fd("2027-02-01"));
+    await form.locator("input[name='validTo']").fill(fd("2027-02-28"));
+    await form.getByLabel("Chambre API Test (€/nuit)").fill("");
+    await form.getByLabel(`${SECOND} (€/nuit)`).fill("110");
+    await form.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.getByText("Règles modifiées pour toutes les chambres du groupe.")).toBeVisible();
+    const row = page.locator('[data-rule-name="Saison décalée"]');
+    await expect(row).toContainText("1 chambre");
+    await expect(row.getByTestId("pricing-group-values")).not.toContainText("Chambre API Test");
+    expect(await nightPrice(page, ctx.apiRoomId)).toBe(100);
+    expect(await nightPrice(page, secondRoomId)).toBe(100);
+
+    // Remettre la saison en mars et rajouter la chambre : elle rejoint le groupe.
+    await page.getByRole("button", { name: "Modifier la règle Saison décalée" }).click();
+    await form.locator("input[name='validTo']").fill(fd("2027-04-30"));
+    await form.getByLabel("Chambre API Test (€/nuit)").fill("130");
+    await form.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(row).toContainText("2 chambres");
+    expect(await nightPrice(page, ctx.apiRoomId)).toBe(130);
+    expect(await nightPrice(page, secondRoomId)).toBe(110);
+    await expect(page.getByTestId("pricing-rule-row")).toHaveCount(1);
+  });
+
+  test("modifier un groupe : prix invalide ou toutes chambres vidées → refusé, groupe inchangé", async ({ page }) => {
+    await createGroup(page, "Groupe intact", ["140", "120"]);
+    await page.getByRole("button", { name: "Modifier la règle Groupe intact" }).click();
+    const form = page.getByTestId("pricing-rule-form");
+    await form.getByLabel(`${SECOND} (€/nuit)`).fill("-5");
+    await form.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.getByText(new RegExp(`${SECOND} : `)).first()).toBeVisible();
+
+    await form.getByLabel("Chambre API Test (€/nuit)").fill("");
+    await form.getByLabel(`${SECOND} (€/nuit)`).fill("");
+    await form.getByRole("button", { name: "Enregistrer" }).click();
+    await expect(page.getByText("Indiquez une valeur pour au moins une chambre")).toBeVisible();
+
+    expect(await nightPrice(page, ctx.apiRoomId)).toBe(140);
+    expect(await nightPrice(page, secondRoomId)).toBe(120);
+  });
+
+  test("désactiver puis supprimer un groupe agit sur toutes ses chambres", async ({ page }) => {
+    await createGroup(page, "Groupe bloc", ["140", "120"]);
+    const row = page.locator('[data-rule-name="Groupe bloc"]');
+    await row.getByRole("button", { name: "Désactiver" }).click();
+    await expect(row.getByText("Désactivée")).toBeVisible();
+    expect(await nightPrice(page, ctx.apiRoomId)).toBe(100);
+    expect(await nightPrice(page, secondRoomId)).toBe(100);
+
+    await row.getByRole("button", { name: "Activer" }).click();
+    await expect(row.getByText("Désactivée")).toHaveCount(0);
+    expect(await nightPrice(page, secondRoomId)).toBe(120);
+
+    await row.getByRole("button", { name: "Supprimer", exact: true }).click();
+    await confirmDialog(page);
+    await expect(page.getByText("Aucune règle tarifaire configurée")).toBeVisible();
+    expect(await nightPrice(page, ctx.apiRoomId)).toBe(100);
+    expect(await nightPrice(page, secondRoomId)).toBe(100);
   });
 
   test("valeur par chambre en pourcentage ; chambre laissée vide = pas de règle", async ({ page }) => {

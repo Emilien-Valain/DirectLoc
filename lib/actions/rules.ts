@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
@@ -176,20 +177,10 @@ async function pricingRuleValues(tenantId: string, formData: FormData) {
 }
 
 /**
- * Crée une règle. Avec `perRoom=on`, crée une règle par chambre — même nom, même
- * saison, mêmes jours — chacune avec sa valeur (`value_<roomId>`, prix fixe ou %
- * selon `priceType`) ; une chambre laissée vide n'a pas de règle.
+ * Valeurs « une par chambre » (`value_<roomId>`, prix fixe ou % selon `priceType`) +
+ * champs communs (nom, période, jours). Une chambre laissée vide n'a pas de règle.
  */
-export async function createPricingRule(formData: FormData): Promise<FormResult> {
-  const { tenantId } = await requireSession();
-  if (formData.get("perRoom") !== "on") {
-    const v = await pricingRuleValues(tenantId, formData);
-    if ("error" in v) return v;
-    await db.insert(pricingRules).values({ tenantId, ...v.values });
-    revalidateAll();
-    return;
-  }
-
+async function perRoomValues(tenantId: string, formData: FormData) {
   const kind = formData.get("priceType") === "percentage" ? "percentageModifier" : "fixedPrice";
   const tenantRooms = await db
     .select({ id: rooms.id, name: rooms.name })
@@ -216,16 +207,93 @@ export async function createPricingRule(formData: FormData): Promise<FormResult>
   common.set(kind, perRoom[0].value);
   const v = await pricingRuleValues(tenantId, common);
   if ("error" in v) return v;
+  const rowFor = (p: { roomId: string; value: string }) => ({
+    ...v.values,
+    roomIds: [p.roomId],
+    fixedPrice: kind === "fixedPrice" ? p.value : null,
+    percentageModifier: kind === "percentageModifier" ? p.value : null,
+  });
+  return { perRoom, rowFor };
+}
 
-  await db.insert(pricingRules).values(
-    perRoom.map((p) => ({
-      tenantId,
-      ...v.values,
-      roomIds: [p.roomId],
-      fixedPrice: kind === "fixedPrice" ? p.value : null,
-      percentageModifier: kind === "percentageModifier" ? p.value : null,
-    })),
-  );
+/**
+ * Crée une règle. Avec `perRoom=on`, crée un groupe : une règle par chambre remplie,
+ * même nom, même saison, mêmes jours, chacune avec sa valeur.
+ */
+export async function createPricingRule(formData: FormData): Promise<FormResult> {
+  const { tenantId } = await requireSession();
+  if (formData.get("perRoom") !== "on") {
+    const v = await pricingRuleValues(tenantId, formData);
+    if ("error" in v) return v;
+    await db.insert(pricingRules).values({ tenantId, ...v.values });
+    revalidateAll();
+    return;
+  }
+
+  const g = await perRoomValues(tenantId, formData);
+  if ("error" in g) return g;
+  const groupId = randomUUID();
+  await db.insert(pricingRules).values(g.perRoom.map((p) => ({ tenantId, groupId, ...g.rowFor(p) })));
+  revalidateAll();
+}
+
+const inGroup = (tenantId: string, groupId: string) =>
+  and(eq(pricingRules.groupId, groupId), eq(pricingRules.tenantId, tenantId));
+
+/**
+ * Modifie tout un groupe : nom, période, jours et type communs ; une valeur par chambre.
+ * Chambre vidée → sa règle est supprimée ; chambre nouvellement remplie → règle ajoutée
+ * au groupe (active si le groupe l'est).
+ */
+export async function updatePricingRuleGroup(groupId: string, formData: FormData): Promise<FormResult> {
+  const { tenantId } = await requireSession();
+  if (!isUuid(groupId)) return NOT_FOUND;
+  const existing = await db
+    .select({ id: pricingRules.id, roomIds: pricingRules.roomIds, active: pricingRules.active })
+    .from(pricingRules)
+    .where(inGroup(tenantId, groupId));
+  if (existing.length === 0) return NOT_FOUND;
+
+  const g = await perRoomValues(tenantId, formData);
+  if ("error" in g) return g;
+  const active = existing.some((r) => r.active);
+  const byRoom = new Map(existing.map((r) => [r.roomIds[0], r.id]));
+
+  await db.transaction(async (tx) => {
+    for (const p of g.perRoom) {
+      const id = byRoom.get(p.roomId);
+      if (id) {
+        await tx.update(pricingRules).set(g.rowFor(p)).where(and(eq(pricingRules.id, id), eq(pricingRules.tenantId, tenantId)));
+        byRoom.delete(p.roomId);
+      } else {
+        await tx.insert(pricingRules).values({ tenantId, groupId, active, ...g.rowFor(p) });
+      }
+    }
+    const removed = [...byRoom.values()];
+    if (removed.length > 0) {
+      await tx.delete(pricingRules).where(and(inGroup(tenantId, groupId), inArray(pricingRules.id, removed)));
+    }
+  });
+  revalidateAll();
+}
+
+export async function deletePricingRuleGroup(groupId: string) {
+  const { tenantId } = await requireSession();
+  if (!isUuid(groupId)) return;
+  await db.delete(pricingRules).where(inGroup(tenantId, groupId));
+  revalidateAll();
+}
+
+/** Active ou désactive tout le groupe d'un coup (désactivé seulement si aucune n'est active). */
+export async function togglePricingRuleGroup(groupId: string) {
+  const { tenantId } = await requireSession();
+  if (!isUuid(groupId)) return;
+  const rows = await db.select({ active: pricingRules.active }).from(pricingRules).where(inGroup(tenantId, groupId));
+  if (rows.length === 0) throw new Error("Règle introuvable");
+  await db
+    .update(pricingRules)
+    .set({ active: !rows.some((r) => r.active) })
+    .where(inGroup(tenantId, groupId));
   revalidateAll();
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE "pricing_rules" ADD COLUMN "group_id" uuid;

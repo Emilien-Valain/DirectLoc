@@ -7,8 +7,11 @@ import { useFormAction } from "@/components/admin/useFormAction";
 import {
   createPricingRule,
   deletePricingRule,
+  deletePricingRuleGroup,
   togglePricingRule,
+  togglePricingRuleGroup,
   updatePricingRule,
+  updatePricingRuleGroup,
 } from "@/lib/actions/rules";
 import {
   AdminInput,
@@ -37,11 +40,43 @@ type Room = { id: string; name: string };
 /** « 12.50 » (stockage) → « 12,5 » pour la saisie. */
 const frNumber = (v: string | null) => (v === null ? "" : String(parseFloat(v)).replace(".", ","));
 
+/** Une ligne de la liste : une règle seule, ou un groupe « une valeur par chambre » (même nom, période, jours). */
+type Item = { key: string; head: PricingRuleRow; rules: PricingRuleRow[]; groupId: string | null };
+
+function toItems(rules: PricingRuleRow[]): Item[] {
+  const items: Item[] = [];
+  const groups = new Map<string, Item>();
+  for (const r of rules) {
+    const g = r.groupId ? groups.get(r.groupId) : undefined;
+    if (g) {
+      g.rules.push(r);
+      continue;
+    }
+    const item = { key: r.groupId ?? r.id, head: r, rules: [r], groupId: r.groupId };
+    if (r.groupId) groups.set(r.groupId, item);
+    items.push(item);
+  }
+  return items;
+}
+
+function RuleValue({ rule }: { rule: PricingRuleRow }) {
+  if (rule.fixedPrice) return <>{formatEuros(rule.fixedPrice)}/nuit</>;
+  if (!rule.percentageModifier) return null;
+  const n = parseFloat(rule.percentageModifier);
+  return (
+    <span style={{ color: n > 0 ? "#15803D" : "var(--admin-danger)" }}>
+      {n > 0 ? "+" : ""}
+      {n.toFixed(0)}%
+    </span>
+  );
+}
+
 export default function PricingRuleSection({ rooms, rules }: { rooms: Room[]; rules: PricingRuleRow[] }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
 
+  const items = toItems(rules);
   const roomNames = (ids: string[]) =>
     ids.length === 0
       ? "Toutes les chambres"
@@ -64,7 +99,7 @@ export default function PricingRuleSection({ rooms, rules }: { rooms: Room[]; ru
         />
       )}
 
-      {rules.length === 0 && !adding ? (
+      {items.length === 0 && !adding ? (
         <EmptyState
           compact
           title="Aucune règle tarifaire configurée"
@@ -74,42 +109,44 @@ export default function PricingRuleSection({ rooms, rules }: { rooms: Room[]; ru
         </EmptyState>
       ) : (
         <div>
-          {rules.map((rule, i) => {
-            if (editing === rule.id) {
+          {items.map((item, i) => {
+            const { head: rule, groupId } = item;
+            if (editing === item.key) {
               return (
                 <PricingRuleForm
-                  key={rule.id}
+                  key={item.key}
                   rule={rule}
+                  group={groupId ? item.rules : undefined}
                   rooms={rooms}
                   onDone={(ok) => {
                     setEditing(null);
-                    if (ok) setSaved("Règle tarifaire modifiée.");
+                    if (ok) setSaved(groupId ? "Règles modifiées pour toutes les chambres du groupe." : "Règle tarifaire modifiée.");
                   }}
                 />
               );
             }
-            const isAdjPositive = rule.percentageModifier ? parseFloat(rule.percentageModifier) > 0 : true;
+            const active = item.rules.some((r) => r.active);
             return (
               <div
-                key={rule.id}
+                key={item.key}
                 data-testid="pricing-rule-row"
                 data-rule-name={rule.name}
                 className="flex items-center justify-between gap-3 py-3"
                 style={{
-                  borderBottom: i < rules.length - 1 ? "1px solid var(--admin-border-light)" : "none",
+                  borderBottom: i < items.length - 1 ? "1px solid var(--admin-border-light)" : "none",
                 }}
               >
                 <div className="min-w-0 flex-1">
                   <p className="text-[13.5px] font-semibold" style={{ color: "var(--admin-text)" }}>
                     <span
                       style={{
-                        textDecoration: rule.active ? "none" : "line-through",
-                        color: rule.active ? "var(--admin-text)" : "var(--admin-text-subtle)",
+                        textDecoration: active ? "none" : "line-through",
+                        color: active ? "var(--admin-text)" : "var(--admin-text-subtle)",
                       }}
                     >
                       {rule.name}
                     </span>
-                    {!rule.active && (
+                    {!active && (
                       <span
                         className="ml-2 text-[12px] font-bold"
                         style={{
@@ -123,17 +160,20 @@ export default function PricingRuleSection({ rooms, rules }: { rooms: Room[]; ru
                       </span>
                     )}
                     <span className="ml-2 text-[12px] font-normal" style={{ color: "var(--admin-text-muted)" }}>
-                      {roomNames(rule.roomIds)}
+                      {groupId ? `Un prix par chambre · ${item.rules.length} chambre${item.rules.length > 1 ? "s" : ""}` : roomNames(rule.roomIds)}
                     </span>
                   </p>
+                  {groupId && (
+                    <ul data-testid="pricing-group-values" className="text-[12.5px] flex flex-wrap gap-x-3 gap-y-0.5 my-0.5" style={{ color: "var(--admin-text)" }}>
+                      {item.rules.map((r) => (
+                        <li key={r.id}>
+                          {roomNames(r.roomIds)} <strong className="font-semibold"><RuleValue rule={r} /></strong>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   <p className="text-[12px] space-x-2" style={{ color: "var(--admin-text-muted)" }}>
-                    {rule.fixedPrice && <span>{formatEuros(rule.fixedPrice)}/nuit</span>}
-                    {rule.percentageModifier && (
-                      <span style={{ color: isAdjPositive ? "#15803D" : "var(--admin-danger)" }}>
-                        {isAdjPositive ? "+" : ""}
-                        {parseFloat(rule.percentageModifier).toFixed(0)}%
-                      </span>
-                    )}
+                    {!groupId && <span><RuleValue rule={rule} /></span>}
                     {Array.isArray(rule.daysOfWeek) && (
                       <span>{asDays(rule.daysOfWeek).map((d) => DAY_NAMES_FR[d]).join(", ")}</span>
                     )}
@@ -147,20 +187,20 @@ export default function PricingRuleSection({ rooms, rules }: { rooms: Room[]; ru
                 <div className="flex items-center gap-3 flex-shrink-0">
                   <EditButton
                     label={`Modifier la règle ${rule.name}`}
-                    onClick={() => { setEditing(rule.id); setSaved(null); }}
+                    onClick={() => { setEditing(item.key); setSaved(null); }}
                   />
                   <button
                     type="button"
-                    onClick={() => togglePricingRule(rule.id)}
-                    style={{ ...rowActionStyle, color: rule.active ? "var(--admin-text-muted)" : "#16A34A" }}
+                    onClick={() => (groupId ? togglePricingRuleGroup(groupId) : togglePricingRule(rule.id))}
+                    style={{ ...rowActionStyle, color: active ? "var(--admin-text-muted)" : "#16A34A" }}
                   >
-                    {rule.active ? "Désactiver" : "Activer"}
+                    {active ? "Désactiver" : "Activer"}
                   </button>
                   <ConfirmButton
-                    title={"Supprimer cette règle de tarification ?"}
+                    title={groupId ? "Supprimer cette règle pour toutes ses chambres ?" : "Supprimer cette règle de tarification ?"}
                     message="Les prochaines réservations seront calculées sans elle. Les réservations existantes gardent leur prix."
                     confirmLabel="Supprimer la règle"
-                    onConfirm={() => deletePricingRule(rule.id)}
+                    onConfirm={() => (groupId ? deletePricingRuleGroup(groupId) : deletePricingRule(rule.id))}
                     style={{ ...rowActionStyle, color: "var(--admin-danger)" }}
                   >
                     Supprimer
@@ -177,10 +217,13 @@ export default function PricingRuleSection({ rooms, rules }: { rooms: Room[]; ru
 
 function PricingRuleForm({
   rule,
+  group,
   rooms,
   onDone,
 }: {
   rule?: PricingRuleRow;
+  /** Modification d'un groupe : toutes ses règles (une par chambre). */
+  group?: PricingRuleRow[];
   rooms: Room[];
   onDone: (saved: boolean) => void;
 }) {
@@ -188,10 +231,19 @@ function PricingRuleForm({
     rule?.percentageModifier ? "percentage" : "fixed",
   );
   const [selectedDays, setSelectedDays] = useState<number[]>(asDays(rule?.daysOfWeek));
-  // Création seulement : une règle par chambre, chacune avec sa valeur.
-  const [perRoom, setPerRoom] = useState(false);
+  // Création : case « une valeur par chambre » ; modification d'un groupe : toujours.
+  const [perRoom, setPerRoom] = useState(!!group);
+  const groupValue = (roomId: string) => {
+    const r = group?.find((g) => g.roomIds[0] === roomId);
+    return r ? frNumber(r.fixedPrice ?? r.percentageModifier) : "";
+  };
 
-  const form = useFormAction(rule ? updatePricingRule.bind(null, rule.id) : createPricingRule, {
+  const action = group && rule?.groupId
+    ? updatePricingRuleGroup.bind(null, rule.groupId)
+    : rule
+      ? updatePricingRule.bind(null, rule.id)
+      : createPricingRule;
+  const form = useFormAction(action, {
     prepare: (fd) => {
       fd.set("daysOfWeek", selectedDays.join(","));
       fd.set("priceType", priceType);
@@ -261,7 +313,9 @@ function PricingRuleForm({
             {priceType === "fixed" ? "Prix par chambre (€/nuit)" : "Hausse ou baisse par chambre (%)"}
           </legend>
           <p className="text-[12px] mb-2" style={{ color: "var(--admin-text-muted)" }}>
-            Une règle est créée pour chaque chambre remplie, avec la même période et les mêmes jours. Laissez vide pour ne pas toucher une chambre.
+            {group
+              ? "Le nom, la période et les jours ci-dessus s'appliquent à toutes ces chambres. Videz une chambre pour la retirer, remplissez-en une autre pour l'ajouter."
+              : "Une règle est créée pour chaque chambre remplie, avec la même période et les mêmes jours. Laissez vide pour ne pas toucher une chambre."}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
             {rooms.map((r) => (
@@ -271,6 +325,7 @@ function PricingRuleForm({
                   name={`value_${r.id}`}
                   inputMode={priceType === "fixed" ? "decimal" : "text"}
                   placeholder={priceType === "fixed" ? "ex : 150" : "ex : 30 ou -15"}
+                  defaultValue={groupValue(r.id)}
                 />
               </Field>
             ))}

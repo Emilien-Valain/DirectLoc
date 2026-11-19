@@ -120,6 +120,13 @@
       "when": 1795121235987,
       "tag": "0016_booking_guest_first_last_country",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1795122049017,
+      "tag": "0017_pricing_rule_group",
+      "breakpoints": true
     }
   ]
 }

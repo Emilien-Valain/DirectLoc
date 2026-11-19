@@ -52,6 +52,7 @@ export interface BookingRuleRow {
 export interface PricingRuleRow {
   id: string;
   roomIds: string[];
+  groupId: string | null;
   name: string;
   validFrom: string | null;
   validTo: string | null;
