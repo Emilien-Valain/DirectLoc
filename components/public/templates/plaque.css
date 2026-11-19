@@ -149,7 +149,7 @@
 [data-tpl="plaque"] .s-search-title { display: flex; align-items: center; gap: 12px; }
 [data-tpl="plaque"] .s-sign-arrow { display: block; width: 40px; height: 20px; fill: currentColor; transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
 [data-tpl="plaque"] .s-search-form:has(#search-checkin:valid):has(#search-checkout:valid) .s-sign-arrow { transform: translateX(6px); }
-[data-tpl="plaque"] .s-search-fields input { border-color: var(--s-plate); }
+[data-tpl="plaque"] .s-search-fields :is(input, select) { border-color: var(--s-plate); }
 @media (min-width: 640px) {
   [data-tpl="plaque"] .s-search-form { --arrow: 64px; border-radius: 14px 0 0 14px; }
   [data-tpl="plaque"] .s-sign-face { padding-right: 88px; border-radius: 9px 0 0 9px; }

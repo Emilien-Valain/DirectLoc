@@ -136,7 +136,7 @@
 [data-tpl="affiche"] .s-sign-face { display: flex; flex-direction: column; gap: 16px; }
 [data-tpl="affiche"] .s-search-title { font-size: 2.4rem; color: var(--a-sky); }
 [data-tpl="affiche"] .s-search .s-field label { color: var(--a-paper); }
-[data-tpl="affiche"] .s-search .s-field input { border-color: var(--a-paper); }
+[data-tpl="affiche"] .s-search .s-field :is(input, select) { border-color: var(--a-paper); }
 [data-tpl="affiche"] .s-search .s-note { background: var(--a-paper); }
 [data-tpl="affiche"] .s-hero-rooms .s-h3 { color: var(--a-sky); font-size: 2.4rem; }
 [data-tpl="affiche"] .s-hero-rooms .s-link { color: var(--a-sky); }

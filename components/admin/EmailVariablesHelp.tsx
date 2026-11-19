@@ -17,8 +17,7 @@ export default function EmailVariablesHelp() {
         Variables : personnaliser selon le client et la chambre
       </summary>
       <p className="mt-2 mb-1.5">
-        Écrivez une variable entre accolades : elle est remplacée dans chaque email. Ex. « Bonjour
-        {" {client}"}, votre chambre {"{chambre}"} compte {"{lits}"} lits. »
+        {"Écrivez une variable entre accolades : elle est remplacée dans chaque email. Ex. « Bonjour {client}, votre chambre {chambre} compte {lits} lits. »"}
       </p>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
         {EMAIL_VARIABLES.map(([name, label]) => (
