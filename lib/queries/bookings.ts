@@ -1,3 +1,4 @@
+import { asRoomInfo, roomInfoVariables } from "@/lib/room-info";
 import { splitName } from "@/lib/guest-name";
 import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
@@ -194,10 +195,14 @@ export async function loadEmailContext(bookingId: string, tenantId: string) {
   if (!booking) return null;
 
   const [room] = await db
-    .select({ name: rooms.name, capacity: rooms.capacity, beds: rooms.beds, emailMessage: rooms.emailMessage })
+    .select({ name: rooms.name, capacity: rooms.capacity, beds: rooms.beds, emailMessage: rooms.emailMessage, info: rooms.info })
     .from(rooms)
     .where(eq(rooms.id, booking.roomId))
     .limit(1);
+  // Infos définies sur d'autres chambres : vides ici plutôt qu'un « {code_portail} » brut dans l'email.
+  const otherInfoKeys = (
+    await db.select({ info: rooms.info }).from(rooms).where(eq(rooms.tenantId, tenantId))
+  ).flatMap((r) => asRoomInfo(r.info).map((i) => i.key));
 
   const [tenant] = await db
     .select({ name: tenants.name, config: tenants.config })
@@ -225,6 +230,7 @@ export async function loadEmailContext(bookingId: string, tenantId: string) {
       roomCapacity: room?.capacity,
       roomBeds: room?.beds ?? null,
       roomMessage: room?.emailMessage ?? null,
+      roomInfo: roomInfoVariables(asRoomInfo(room?.info), otherInfoKeys),
       checkIn,
       checkOut,
       nights,

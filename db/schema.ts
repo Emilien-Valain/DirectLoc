@@ -149,6 +149,8 @@ export const rooms = pgTable(
     beds: integer("beds"),
     // Message ajouté aux emails de confirmation et de rappel de cette chambre (variables {client}…).
     emailMessage: text("email_message"),
+    // Infos pratiques [{ key, label, value }] (étage, code, wifi, infos libres) → variables {etage}… (lib/room-info.ts).
+    info: jsonb("info").notNull().default([]),
     photos: jsonb("photos").notNull().default([]),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow(),

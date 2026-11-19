@@ -4,6 +4,8 @@ import Link from "next/link";
 import { AdminInput, AdminTextarea, Field, StatusBanner } from "@/components/admin/ui";
 import { useFormAction } from "@/components/admin/useFormAction";
 import EmailVariablesHelp from "@/components/admin/EmailVariablesHelp";
+import RoomInfoFields from "@/components/admin/RoomInfoFields";
+import { asRoomInfo } from "@/lib/room-info";
 import type { FormResult } from "@/lib/validation";
 
 type DefaultValues = {
@@ -13,6 +15,7 @@ type DefaultValues = {
   capacity?: number;
   beds?: number | null;
   emailMessage?: string | null;
+  info?: unknown;
   active?: boolean;
 };
 
@@ -87,16 +90,18 @@ export default function RoomForm({
         </Field>
       </div>
 
+      <RoomInfoFields initial={asRoomInfo(defaultValues?.info)} fieldError={form.fieldError} />
+
       <Field
         label="Message dans les emails"
-        hint="Ajouté aux emails de confirmation et de rappel des réservations de cette chambre : code d'accès, étage, consignes…"
+        hint="Ajouté aux emails de confirmation et de rappel des réservations de cette chambre : consignes d'arrivée, parking…"
         error={form.fieldError("messageEmail")}
       >
         <AdminTextarea
           name="messageEmail"
           rows={3}
           defaultValue={defaultValues?.emailMessage ?? ""}
-          placeholder="ex : Votre chambre {chambre} est au 2e étage, {lits} lits faits à votre arrivée."
+          placeholder="ex : Votre chambre {chambre} est au {etage}. Code de la porte : {code_acces}. Wi-Fi {wifi}, mot de passe {wifi_mdp}."
         />
       </Field>
       <EmailVariablesHelp />

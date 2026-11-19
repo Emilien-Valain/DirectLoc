@@ -127,6 +127,13 @@
       "when": 1795122049017,
       "tag": "0017_pricing_rule_group",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795122341999,
+      "tag": "0018_room_info",
+      "breakpoints": true
     }
   ]
 }

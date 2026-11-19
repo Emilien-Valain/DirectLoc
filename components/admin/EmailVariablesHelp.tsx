@@ -1,4 +1,5 @@
 import { EMAIL_VARIABLES } from "@/lib/email-template";
+import { FIXED_ROOM_INFO } from "@/lib/room-info";
 
 /** Liste repliable des variables utilisables dans les messages d'email. */
 export default function EmailVariablesHelp() {
@@ -25,6 +26,17 @@ export default function EmailVariablesHelp() {
             <code style={{ color: "var(--admin-primary)", fontWeight: 600 }}>{`{${name}}`}</code> — {label}
           </li>
         ))}
+      </ul>
+      <p className="mt-2.5 mb-1 font-semibold" style={{ color: "var(--admin-text)" }}>
+        Infos pratiques de la chambre (à remplir dans chaque chambre)
+      </p>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
+        {FIXED_ROOM_INFO.map((f) => (
+          <li key={f.key}>
+            <code style={{ color: "var(--admin-primary)", fontWeight: 600 }}>{`{${f.key}}`}</code> — {f.label.toLowerCase()}
+          </li>
+        ))}
+        <li>+ les infos que vous ajoutez vous-même, avec leur propre variable</li>
       </ul>
     </details>
   );

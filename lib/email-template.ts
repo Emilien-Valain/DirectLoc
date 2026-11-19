@@ -32,13 +32,17 @@ export type EmailTemplateContext = {
   roomCapacity?: number;
   roomBeds?: number | null;
   hotelName: string;
+  /** Infos pratiques de la chambre ({etage}, {wifi}, infos libres) — `roomInfoVariables`. */
+  roomInfo?: Record<string, string>;
 };
 
 const longDate = (d: Date) =>
   d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 
-export function emailVariables(c: EmailTemplateContext): Record<EmailVariable, string> {
+export function emailVariables(c: EmailTemplateContext): Record<EmailVariable, string> & Record<string, string> {
   return {
+    // Les infos de la chambre d'abord : une variable de l'email n'est jamais écrasée.
+    ...c.roomInfo,
     client: c.guestName,
     prenom: c.guestFirstName?.trim() || c.guestName,
     chambre: c.roomName,

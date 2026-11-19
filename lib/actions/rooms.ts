@@ -1,5 +1,6 @@
 "use server";
 
+import { readRoomInfo } from "@/lib/room-info";
 import { and, eq, ne } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
@@ -49,6 +50,9 @@ export async function createRoom(formData: FormData): Promise<FormResult> {
   const capacity = data.capacite;
   const beds = data.lits;
   const emailMessage = data.messageEmail?.trim() || null;
+  const read = readRoomInfo(formData);
+  if ("error" in read) return read;
+  const info = read.info;
 
   // 1 tenant = 1 property dans ce modèle — on auto-crée si absente
   let property = await db.query.properties.findFirst({
@@ -79,6 +83,7 @@ export async function createRoom(formData: FormData): Promise<FormResult> {
     capacity,
     beds,
     emailMessage,
+    info,
   });
 
   notifyIndexNow(tenantId, ["/", "/chambres", `/chambres/${slug}`]);
@@ -99,6 +104,9 @@ export async function updateRoom(id: string, formData: FormData): Promise<FormRe
   const beds = data.lits;
   const emailMessage = data.messageEmail?.trim() || null;
   const active = data.actif === "on";
+  const read = readRoomInfo(formData);
+  if ("error" in read) return read;
+  const info = read.info;
 
   const old = await db.query.rooms.findFirst({
     where: and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)),
@@ -107,7 +115,7 @@ export async function updateRoom(id: string, formData: FormData): Promise<FormRe
   const slug = await uniqueRoomSlug(tenantId, id, name);
   await db
     .update(rooms)
-    .set({ name, slug, description, pricePerNight, capacity, beds, emailMessage, active })
+    .set({ name, slug, description, pricePerNight, capacity, beds, emailMessage, info, active })
     .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)));
 
   // Ancienne URL incluse : un renommage ou une désactivation la rend 404, à désindexer.
