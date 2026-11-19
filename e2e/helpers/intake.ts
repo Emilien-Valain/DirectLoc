@@ -50,10 +50,11 @@ export async function deleteBookingRule(id: string): Promise<void> {
   await pool.end();
 }
 
-/** Insère une pricing-rule (globale si roomId omis) et retourne son id. */
+/** Insère une pricing-rule (globale si roomId/roomIds omis) et retourne son id. */
 export async function insertPricingRule(input: {
   tenantId: string;
   roomId?: string | null;
+  roomIds?: string[];
   name?: string;
   fixedPrice?: string | null; // decimal string, ex "150.00"
   percentageModifier?: string | null; // decimal string, ex "-30.00"
@@ -67,7 +68,7 @@ export async function insertPricingRule(input: {
     .insert(pricingRules)
     .values({
       tenantId: input.tenantId,
-      roomId: input.roomId ?? null,
+      roomIds: input.roomIds ?? (input.roomId ? [input.roomId] : []),
       name: input.name ?? "Test rule",
       fixedPrice: input.fixedPrice ?? null,
       percentageModifier: input.percentageModifier ?? null,

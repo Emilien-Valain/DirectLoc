@@ -4,14 +4,17 @@
  *
  * Les deux familles de règles (`pricing_rules`, `booking_rules`) se résolvent
  * par la MÊME précédence : `priority` la plus haute → à égalité, la plus
- * spécifique (chambre > global, jour-restreint > tous-les-jours, fenêtre étroite
+ * spécifique (chambre > global, peu de chambres > beaucoup, jour-restreint > tous-les-jours, fenêtre étroite
  * > toute-l'année) → à égalité, la plus récente. Elles ne diffèrent qu'à
  * l'agrégation : le pricing élit UNE règle gagnante (un scalaire), les
  * booking-rules résolvent CHAQUE champ indépendamment (merge par champ).
  */
 
 export interface PrecedenceRule {
-  roomId: string | null; // null = global
+  /** Booking-rules : une chambre, ou null = global. */
+  roomId?: string | null;
+  /** Pricing : chambres visées, vide = global. Moins il y en a, plus la règle est précise. */
+  roomIds?: string[];
   validFrom: Date | string | null; // null = toute l'année
   validTo: Date | string | null;
   daysOfWeek?: number[] | null; // pricing uniquement ; absent/null = tous les jours
@@ -50,14 +53,17 @@ function windowSpan(rule: PrecedenceRule): number {
 /**
  * Comparateur de précédence : retourne < 0 si `a` l'emporte sur `b`
  * (la règle préférée se trie en premier). Ordre : priority desc → scope
- * (chambre > global) → jour-restreint > tous-jours → fenêtre étroite > large →
+ * (chambre > global, puis moins de chambres) → jour-restreint > tous-jours → fenêtre étroite > large →
  * récence (createdAt desc).
  */
 export function byPrecedence(a: PrecedenceRule, b: PrecedenceRule): number {
   if (a.priority !== b.priority) return b.priority - a.priority;
 
-  const scope = (r: PrecedenceRule) => (r.roomId !== null ? 1 : 0);
+  // Nombre de chambres visées ; 0 = global (le moins précis).
+  const rooms = (r: PrecedenceRule) => r.roomIds?.length ?? (r.roomId ? 1 : 0);
+  const scope = (r: PrecedenceRule) => (rooms(r) > 0 ? 1 : 0);
   if (scope(a) !== scope(b)) return scope(b) - scope(a);
+  if (rooms(a) !== rooms(b) && scope(a) === 1) return rooms(a) - rooms(b); // moins de chambres gagne
 
   const dayRestricted = (r: PrecedenceRule) => (r.daysOfWeek && r.daysOfWeek.length > 0 ? 1 : 0);
   if (dayRestricted(a) !== dayRestricted(b)) return dayRestricted(b) - dayRestricted(a);

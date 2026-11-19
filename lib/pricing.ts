@@ -1,4 +1,4 @@
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import type { Tx } from "@/lib/booking-intake";
 import { pricingRules, rooms } from "@/db/schema";
@@ -42,7 +42,10 @@ async function loadPricingContext(roomId: string, tenantId: string, conn: Tx | t
         and(
           eq(pricingRules.tenantId, tenantId),
           eq(pricingRules.active, true),
-          or(eq(pricingRules.roomId, roomId), isNull(pricingRules.roomId)),
+          or(
+            sql`${roomId}::uuid = ANY(${pricingRules.roomIds})`,
+            sql`cardinality(${pricingRules.roomIds}) = 0`,
+          ),
         ),
       ),
   ]);

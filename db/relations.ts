@@ -47,7 +47,6 @@ export const roomsRelations = relations(rooms, ({ one, many }) => ({
   icalBlocks: many(icalBlocks),
   manualBlocks: many(manualBlocks),
   bookingRules: many(bookingRules),
-  pricingRules: many(pricingRules),
 }));
 
 export const bookingsRelations = relations(bookings, ({ one, many }) => ({
@@ -86,7 +85,6 @@ export const bookingRulesRelations = relations(bookingRules, ({ one }) => ({
 
 export const pricingRulesRelations = relations(pricingRules, ({ one }) => ({
   tenant: one(tenants, { fields: [pricingRules.tenantId], references: [tenants.id] }),
-  room: one(rooms, { fields: [pricingRules.roomId], references: [rooms.id] }),
 }));
 
 export const bookingLinesRelations = relations(bookingLines, ({ one }) => ({

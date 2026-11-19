@@ -405,7 +405,8 @@ export const pricingRules = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id),
-    roomId: uuid("room_id").references(() => rooms.id), // NULL = règle globale
+    // Chambres visées ; vide = toutes. Pas de FK : un id de chambre supprimée ne matche plus rien.
+    roomIds: uuid("room_ids").array().notNull().default([]),
     name: text("name").notNull(), // "Haute saison", "Week-end", etc.
     validFrom: timestamp("valid_from"), // NULL = toute l'année
     validTo: timestamp("valid_to"),
@@ -420,7 +421,7 @@ export const pricingRules = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [
-    index("pricing_rules_tenant_room_idx").on(table.tenantId, table.roomId),
+    index("pricing_rules_tenant_idx").on(table.tenantId),
     index("pricing_rules_validity_idx").on(table.validFrom, table.validTo),
   ],
 );

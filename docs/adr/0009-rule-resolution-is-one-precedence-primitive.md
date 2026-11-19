@@ -26,3 +26,7 @@ The structural insight: a **price is a scalar** (one winner makes sense); **book
 - *Keep two separate resolvers* — leaves the precedence logic (priority/specificity/recency) duplicated and free to drift again, which is exactly how we got here.
 
 Resolves the booking-rules merge question (open thread #3) and the pricing-resolution bug (`.scratch/pricing-resolution/`).
+
+## Amendment (2026-11-19): pricing rules target a set of rooms
+
+A pricing rule now targets **one, several or all** rooms (`pricing_rules.room_ids`, empty = all), so a host can apply one season to several apartments without duplicating it. Specificity extends naturally: room-scoped > global, then **fewer rooms > more rooms** (a rule on one apartment beats a rule on three, at equal `priority`). Booking rules keep their single `roomId`. "Different price per room for the same season" is entered once in the admin form but stored as one rule per room — the precedence primitive needs no new concept.

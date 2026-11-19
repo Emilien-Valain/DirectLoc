@@ -73,7 +73,7 @@ test.describe("Admin — Blocages manuels", () => {
     await page.locator("input[name='endDate']").fill(fd("2026-06-01"));
 
     // Activer la récurrence
-    await page.locator("#recurring").check();
+    await page.getByLabel("Récurrent (chaque semaine)").check();
     await expect(page.getByText("Jours bloqués")).toBeVisible();
 
     // Sélectionner lundi (index 1)

@@ -241,6 +241,11 @@ export const manualBlockSchema = z
     { message: "La date de fin doit être après la date de début", path: ["endDate"] },
   );
 
+const periodInOrder: [(d: { validFrom?: string; validTo?: string }) => boolean, { message: string; path: string[] }] = [
+  (d) => !d.validFrom || !d.validTo || d.validTo >= d.validFrom,
+  { message: "La fin de période doit être après le début", path: ["validTo"] },
+];
+
 export const bookingRuleSchema = z.object({
   roomId: roomIdString.optional().or(z.literal("")),
   validFrom: dateString.optional().or(z.literal("")),
@@ -249,23 +254,25 @@ export const bookingRuleSchema = z.object({
   maxStay: z.coerce.number().int("Nombre de nuits entier").min(1, "Au moins 1 nuit").optional().or(z.literal("").transform(() => undefined)),
   allowedCheckInDays: z.string().optional().or(z.literal("")), // "6" ou "0,6"
   allowedCheckOutDays: z.string().optional().or(z.literal("")),
-});
+}).refine(...periodInOrder);
+
+const percentageModifier = z
+  .string()
+  .regex(/^-?\d+([.,]\d{1,2})?$/, "Format invalide (ex: 30 ou -15.50)")
+  // -100 % = nuit à 0 € : Stripe refuse tout paiement sous 0,50 €.
+  .refine((s) => parseFloat(s.replace(",", ".")) > -100, "La réduction doit rester inférieure à 100 %");
+
+/** Valeur seule d'une règle tarifaire (saisie « un prix par chambre »). */
+export const pricingValueSchema = { fixedPrice: positiveDecimal, percentageModifier };
 
 export const pricingRuleSchema = z
   .object({
-    roomId: roomIdString.optional().or(z.literal("")),
     name: safeName,
     validFrom: dateString.optional().or(z.literal("")),
     validTo: dateString.optional().or(z.literal("")),
     daysOfWeek: z.string().optional().or(z.literal("")), // "5,6"
     fixedPrice: positiveDecimal.optional().or(z.literal("")),
-    percentageModifier: z
-      .string()
-      .regex(/^-?\d+([.,]\d{1,2})?$/, "Format invalide (ex: 30 ou -15.50)")
-      // -100 % = nuit à 0 € : Stripe refuse tout paiement sous 0,50 €.
-      .refine((s) => parseFloat(s.replace(",", ".")) > -100, "La réduction doit rester inférieure à 100 %")
-      .optional()
-      .or(z.literal("")),
+    percentageModifier: percentageModifier.optional().or(z.literal("")),
   })
   .refine(
     (d) => {
@@ -274,7 +281,8 @@ export const pricingRuleSchema = z
       return hasFP || hasPM;
     },
     { message: "Indiquez un prix fixe ou un modificateur en pourcentage", path: ["fixedPrice"] },
-  );
+  )
+  .refine(...periodInOrder);
 
 export const locationSchema = z.object({
   googleMapsUrl: z

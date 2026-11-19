@@ -1,4 +1,4 @@
-import { and, asc, eq, or, gt, lt } from "drizzle-orm";
+import { and, asc, eq, or, gt, lt, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { manualBlocks, bookingRules, pricingRules, rooms } from "@/db/schema";
 
@@ -87,27 +87,13 @@ export async function getBookingRulesByRoom(roomId: string, tenantId: string) {
 
 export async function getPricingRulesByTenant(tenantId: string) {
   return db
-    .select({
-      id: pricingRules.id,
-      tenantId: pricingRules.tenantId,
-      roomId: pricingRules.roomId,
-      roomName: rooms.name,
-      name: pricingRules.name,
-      validFrom: pricingRules.validFrom,
-      validTo: pricingRules.validTo,
-      daysOfWeek: pricingRules.daysOfWeek,
-      fixedPrice: pricingRules.fixedPrice,
-      percentageModifier: pricingRules.percentageModifier,
-      priority: pricingRules.priority,
-      active: pricingRules.active,
-      createdAt: pricingRules.createdAt,
-    })
+    .select()
     .from(pricingRules)
-    .leftJoin(rooms, eq(pricingRules.roomId, rooms.id))
     .where(eq(pricingRules.tenantId, tenantId))
     .orderBy(asc(pricingRules.createdAt));
 }
 
+/** Règles visant explicitement cette chambre (seule ou avec d'autres). */
 export async function getPricingRulesByRoom(roomId: string, tenantId: string) {
   return db
     .select()
@@ -115,7 +101,7 @@ export async function getPricingRulesByRoom(roomId: string, tenantId: string) {
     .where(
       and(
         eq(pricingRules.tenantId, tenantId),
-        eq(pricingRules.roomId, roomId),
+        sql`${roomId}::uuid = ANY(${pricingRules.roomIds})`,
       ),
     )
     .orderBy(asc(pricingRules.createdAt));
