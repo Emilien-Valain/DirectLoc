@@ -1,10 +1,11 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
-import { fees, rooms } from "@/db/schema";
+import { fees } from "@/db/schema";
+import { ownedRoomIds } from "@/lib/room-scope";
 import { feeSchema, isUuid, safeParseFormData, type FormResult } from "@/lib/validation";
 
 // Fees (ADR-0011). Modifier ou supprimer un Fee ne touche jamais les réservations
@@ -18,17 +19,14 @@ function revalidate() {
 async function values(tenantId: string, formData: FormData) {
   const parsed = safeParseFormData(feeSchema, formData);
   if ("error" in parsed) return parsed;
-  const asked = formData.getAll("roomIds").filter((v): v is string => typeof v === "string" && isUuid(v));
-  // Seules les chambres du tenant sont retenues.
-  const owned = asked.length
-    ? await db.select({ id: rooms.id }).from(rooms).where(and(inArray(rooms.id, asked), eq(rooms.tenantId, tenantId)))
-    : [];
+  const roomIds = await ownedRoomIds(formData, tenantId);
+  if ("error" in roomIds) return roomIds;
   return {
     data: {
       label: parsed.data.label,
       price: parseFloat(parsed.data.price.replace(",", ".")).toFixed(2),
       unit: parsed.data.unit,
-      roomIds: owned.map((r) => r.id),
+      roomIds,
     },
   };
 }

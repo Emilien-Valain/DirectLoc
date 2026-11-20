@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmButton } from "@/components/admin/ConfirmButton";
+import { RoomPicker, roomsLabel } from "@/components/admin/rule-form-parts";
 import { useFormAction } from "@/components/admin/useFormAction";
 import { createExtra, deleteExtra, setExtraActive, updateExtra } from "@/lib/actions/extras";
 import { AdminInput, AdminSelect, EmptyState, Field, SettingsSection, StatusBanner } from "@/components/admin/ui";
@@ -25,7 +26,9 @@ const smallBtn = {
   cursor: "pointer",
 } as const;
 
-export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
+type Room = { id: string; name: string };
+
+export default function ExtrasSection({ extras, rooms }: { extras: CatalogExtra[]; rooms: Room[] }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -48,7 +51,7 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
         </button>
       }
     >
-      {adding && <ExtraForm onDone={() => setAdding(false)} />}
+      {adding && <ExtraForm rooms={rooms} onDone={() => setAdding(false)} />}
 
       {extras.length === 0 && !adding ? (
         <EmptyState compact title="Aucune option proposée" example="Petit-déjeuner, 12 € par personne et par nuit.">
@@ -59,7 +62,7 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
           {extras.map((x) =>
             editing === x.id ? (
               <li key={x.id}>
-                <ExtraForm extra={x} onDone={() => setEditing(null)} />
+                <ExtraForm extra={x} rooms={rooms} onDone={() => setEditing(null)} />
               </li>
             ) : (
               <li
@@ -91,6 +94,11 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
                       : ` · ${CHOSEN_WORDS[x.unit].many} au choix du client`}
                     {x.description && <> · {x.description}</>}
                   </p>
+                  {rooms.length > 1 && (
+                    <p className="text-[12.5px] break-words" style={{ color: "var(--admin-text-muted)" }} data-testid="extra-rooms">
+                      {roomsLabel(x.roomIds, rooms)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0 text-[12px] font-semibold">
                   <button type="button" onClick={() => setEditing(x.id)} style={{ color: "var(--admin-primary)" }}>
@@ -122,9 +130,10 @@ export default function ExtrasSection({ extras }: { extras: CatalogExtra[] }) {
   );
 }
 
-function ExtraForm({ extra, onDone }: { extra?: CatalogExtra; onDone: () => void }) {
+function ExtraForm({ extra, rooms, onDone }: { extra?: CatalogExtra; rooms: Room[]; onDone: () => void }) {
   const form = useFormAction(extra ? updateExtra.bind(null, extra.id) : createExtra, { onSuccess: onDone });
   const [unit, setUnit] = useState<ExtraUnit>(extra?.unit ?? "per_stay");
+  const [roomIds, setRoomIds] = useState<string[]>(extra?.roomIds ?? []);
   return (
     <form
       onSubmit={form.onSubmit}
@@ -186,6 +195,11 @@ function ExtraForm({ extra, onDone }: { extra?: CatalogExtra; onDone: () => void
       <Field label="Description (facultatif)" error={form.fieldError("description")}>
         <AdminInput name="description" maxLength={500} defaultValue={extra?.description ?? ""} placeholder="ex : Servi de 8 h à 10 h" />
       </Field>
+      {rooms.length > 1 && (
+        <Field label="Chambres concernées" error={form.fieldError("roomIds")}>
+          <RoomPicker rooms={rooms} value={roomIds} onChange={setRoomIds} />
+        </Field>
+      )}
       <div className="flex justify-end gap-3 mt-2">
         {extra && (
           <button type="button" onClick={onDone} style={{ ...smallBtn, color: "var(--admin-text-muted)" }}>

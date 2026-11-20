@@ -152,6 +152,6 @@ export function balanceDue(total: number, paidOnline: number, paidAt: Date | nul
   return Math.max(0, (cents(total) - cents(paidOnline)) / 100);
 }
 
-/** Un Fee (ADR-0011) s'applique-t-il à cette chambre ? `roomIds` vide = toutes. */
-export const feeAppliesTo = (fee: { roomIds: string[] }, roomId: string) =>
-  fee.roomIds.length === 0 || fee.roomIds.includes(roomId);
+/** Une option ou un frais (ADR-0010, 0011) s'applique-t-il à cette chambre ? `roomIds` vide = toutes. */
+export const matchesRoom = (item: { roomIds: string[] }, roomId: string) =>
+  item.roomIds.length === 0 || item.roomIds.includes(roomId);

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ConfirmButton } from "@/components/admin/ConfirmButton";
+import { RoomPicker, roomsLabel } from "@/components/admin/rule-form-parts";
 import { useFormAction } from "@/components/admin/useFormAction";
 import { createFee, deleteFee, setFeeActive, updateFee } from "@/lib/actions/fees";
 import { AdminInput, AdminSelect, EmptyState, Field, SettingsSection, StatusBanner } from "@/components/admin/ui";
@@ -22,8 +23,6 @@ type Room = { id: string; name: string };
 export default function FeesSection({ fees, rooms }: { fees: CatalogFee[]; rooms: Room[] }) {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const roomNames = (ids: string[]) =>
-    ids.length === 0 ? "toutes les chambres" : rooms.filter((r) => ids.includes(r.id)).map((r) => r.name).join(", ");
 
   return (
     <SettingsSection
@@ -81,7 +80,7 @@ export default function FeesSection({ fees, rooms }: { fees: CatalogFee[]; rooms
                     )}
                   </p>
                   <p className="text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
-                    {f.price === 0 ? "Gratuit" : `${formatEuros(f.price)} ${EXTRA_UNIT_LABELS[f.unit]}`} · {roomNames(f.roomIds)}
+                    {f.price === 0 ? "Gratuit" : `${formatEuros(f.price)} ${EXTRA_UNIT_LABELS[f.unit]}`} · {roomsLabel(f.roomIds, rooms)}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 flex-shrink-0 text-[12px] font-semibold">
@@ -112,6 +111,7 @@ export default function FeesSection({ fees, rooms }: { fees: CatalogFee[]; rooms
 
 function FeeForm({ fee, rooms, onDone }: { fee?: CatalogFee; rooms: Room[]; onDone: () => void }) {
   const form = useFormAction(fee ? updateFee.bind(null, fee.id) : createFee, { onSuccess: onDone });
+  const [roomIds, setRoomIds] = useState<string[]>(fee?.roomIds ?? []);
   return (
     <form
       onSubmit={form.onSubmit}
@@ -149,28 +149,9 @@ function FeeForm({ fee, rooms, onDone }: { fee?: CatalogFee; rooms: Room[]; onDo
         </Field>
       </div>
       {rooms.length > 1 && (
-        <fieldset className="mb-2">
-          <legend className="text-[13px] font-semibold mb-1" style={{ color: "var(--admin-text)" }}>
-            Chambres concernées
-          </legend>
-          <p className="text-[12px] mb-1.5" style={{ color: "var(--admin-text-muted)" }}>
-            Aucune cochée = toutes les chambres.
-          </p>
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {rooms.map((r) => (
-              <label key={r.id} className="flex items-center gap-2 text-[13px] cursor-pointer" style={{ color: "var(--admin-text)" }}>
-                <input
-                  type="checkbox"
-                  name="roomIds"
-                  value={r.id}
-                  defaultChecked={fee?.roomIds.includes(r.id)}
-                  style={{ accentColor: "var(--admin-primary)" }}
-                />
-                {r.name}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        <Field label="Chambres concernées" error={form.fieldError("roomIds")}>
+          <RoomPicker rooms={rooms} value={roomIds} onChange={setRoomIds} />
+        </Field>
       )}
       <div className="flex justify-end gap-3 mt-2">
         {fee && (

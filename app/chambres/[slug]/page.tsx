@@ -8,7 +8,7 @@ import { requireTenant, type TenantConfig } from "@/lib/tenant-context";
 import { getRoomBySlugPublic, getRoomsPublic } from "@/lib/queries/public";
 import { getMinPricePerNight } from "@/lib/pricing";
 import { getFeesByTenant } from "@/lib/queries/fees";
-import { feeAppliesTo } from "@/lib/extras";
+import { matchesRoom } from "@/lib/extras";
 import { metaDescription, roomJsonLd, tenantBaseUrl, tenantMetadata } from "@/lib/seo";
 import JsonLd from "@/components/public/JsonLd";
 
@@ -52,7 +52,7 @@ export default async function ChambreDetailPage({
   ].filter(Boolean) as [string, string][];
   // « À partir de » = hébergement seul : annoncer ce qui s'y ajoute d'office (ADR-0011).
   const charges = [
-    ...fees.filter((f) => f.price > 0 && feeAppliesTo(f, room.id)).map((f) => f.label.toLocaleLowerCase("fr")),
+    ...fees.filter((f) => f.price > 0 && matchesRoom(f, room.id)).map((f) => f.label.toLocaleLowerCase("fr")),
     ...(config.touristTax ? ["taxe de séjour"] : []),
   ];
   const chargesNote = charges.length

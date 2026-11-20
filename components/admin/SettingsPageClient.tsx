@@ -138,7 +138,7 @@ export default function SettingsPageClient({
               latitude={config.latitude}
               longitude={config.longitude}
             />
-            <ExtrasSection extras={extras} />
+            <ExtrasSection extras={extras} rooms={rooms} />
             <FeesSection fees={fees} rooms={rooms} />
             <TouristTaxSection tax={config.touristTax} />
           </>

@@ -216,7 +216,7 @@ export const bookings = pgTable(
 );
 
 // ─── EXTRAS ──────────────────────────────────────────────────────────────────
-// Options payantes du catalogue (petit-déj, linge…), toutes chambres (ADR-0010).
+// Options payantes du catalogue (petit-déj, linge…), toutes chambres ou certaines (ADR-0010).
 
 export const extraUnitEnum = pgEnum("extra_unit", [
   "per_stay",
@@ -241,6 +241,8 @@ export const extras = pgTable(
     // « Par séjour » : nombre que le client peut choisir (2 paniers…) ; NULL ou 1 = pas de choix.
     // Les autres unités sont bornées par le séjour (nuits, voyageurs, lits).
     maxQuantity: integer("max_quantity"),
+    // Chambres qui proposent l'option ; vide = toutes. Pas de FK, comme `fees.roomIds`.
+    roomIds: uuid("room_ids").array().notNull().default([]),
     active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),

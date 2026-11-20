@@ -28,7 +28,10 @@ export default function EmailVariablesHelp() {
         ))}
       </ul>
       <p className="mt-2.5 mb-1 font-semibold" style={{ color: "var(--admin-text)" }}>
-        Infos pratiques de la chambre (à remplir plus bas, chambre par chambre)
+        Infos pratiques de la chambre
+      </p>
+      <p className="mb-1.5">
+        {"Remplies plus bas, dans « Par chambre ». Deux façons de les envoyer : écrivez-les directement dans le message de chaque chambre, ou placez ces variables dans le message commun, elles prendront la valeur de la chambre réservée."}
       </p>
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5">
         {FIXED_ROOM_INFO.map((f) => (

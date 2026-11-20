@@ -20,7 +20,7 @@ import {
 import {
   EXTRA_UNIT_LABELS,
   extraQuantitiesFrom,
-  feeAppliesTo,
+  matchesRoom,
   CHOSEN_WORDS,
   chosenLabel,
   chosenMax,
@@ -115,7 +115,8 @@ export default function ManualBookingForm({
   // Une case par ligne existante (valeur = id de ligne, prix figé) puis par élément du catalogue
   // pas encore pris (valeur = id catalogue, prix actuel). Contrôlé : survit au remontage après erreur.
   const [roomId, setRoomId] = useState(v.roomId ?? defaultRoomId ?? "");
-  const extraChoices = choices(edit?.lines ?? [], extras);
+  // Options réservées à d'autres chambres masquées : leur case disparaît, rien n'est envoyé.
+  const extraChoices = choices(edit?.lines ?? [], extras.filter((x) => matchesRoom(x, roomId)));
   const [chosenExtras, setChosenExtras] = useState<string[]>(() => edit?.lines.map((l) => l.id) ?? []);
   // Nombre au choix des options, borné par le séjour saisi (le serveur borne aussi) :
   // lits de la chambre choisie, voyageurs saisis, nuits du devis.
@@ -123,7 +124,7 @@ export default function ManualBookingForm({
   const [guests, setGuests] = useState(Math.max(1, Number(v.guestCount) || 1));
   const [counts, setCounts] = useState<Record<string, number>>({});
   // Fees : cochés d'office à la création ; en modification, seuls ceux déjà sur la réservation.
-  const feeChoices = choices(edit?.feeLines ?? [], fees.filter((f) => feeAppliesTo(f, roomId)));
+  const feeChoices = choices(edit?.feeLines ?? [], fees.filter((f) => matchesRoom(f, roomId)));
   const [chosenFees, setChosenFees] = useState<string[]>(() =>
     edit ? edit.feeLines.map((l) => l.id) : fees.map((f) => f.id),
   );

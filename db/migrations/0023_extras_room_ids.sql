@@ -1,0 +1,1 @@
+ALTER TABLE "extras" ADD COLUMN "room_ids" uuid[] DEFAULT '{}' NOT NULL;

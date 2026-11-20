@@ -12,6 +12,8 @@ export type CatalogExtra = {
   unit: ExtraUnit;
   /** Nombre au choix du client ; null = pas de choix (voir `chosenMax`). */
   maxQuantity: number | null;
+  /** Chambres qui la proposent ; vide = toutes (`matchesRoom`). */
+  roomIds: string[];
   active: boolean;
 };
 
@@ -29,6 +31,7 @@ export async function getExtrasByTenant(tenantId: string, { activeOnly = false }
     price: parseFloat(x.price),
     unit: x.unit,
     maxQuantity: x.maxQuantity,
+    roomIds: x.roomIds,
     active: x.active,
   }));
 }

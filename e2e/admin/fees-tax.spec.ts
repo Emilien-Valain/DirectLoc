@@ -139,17 +139,17 @@ test.describe("Admin — Frais (catalogue)", () => {
     const label = `Ménage ${TAG}`;
     await openSettings(page);
     const form = await addFee(page, label, "40");
-    await form.getByLabel(`Famille ${TAG}`).check();
+    await form.getByTestId("room-picker").getByRole("button", { name: `Famille ${TAG}`, exact: true }).click();
     await form.getByRole("button", { name: "Ajouter le frais" }).click();
     await expect(feeRow(page, label)).toContainText(`40 € par séjour · Famille ${TAG}`);
     const { rows } = await pool.query("SELECT room_ids FROM fees WHERE label = $1", [label]);
     expect(rows[0].room_ids).toEqual([familyRoomId]);
 
     await feeRow(page, label).getByRole("button", { name: "Modifier" }).click();
-    await page.getByTestId("fee-form").getByLabel(`Famille ${TAG}`).uncheck();
+    await page.getByTestId("fee-form").getByTestId("room-picker").getByRole("button", { name: "Toutes les chambres", exact: true }).click();
     await page.getByTestId("fee-form").locator('[name="price"]').fill("45,50");
     await page.getByRole("button", { name: "Enregistrer le frais" }).click();
-    await expect(feeRow(page, label)).toContainText("45,50 € par séjour · toutes les chambres");
+    await expect(feeRow(page, label)).toContainText("45,50 € par séjour · Toutes les chambres");
 
     await feeRow(page, label).getByRole("button", { name: "Désactiver" }).click();
     await expect(feeRow(page, label)).toContainText("Désactivé");
@@ -189,7 +189,7 @@ test.describe("Admin — Frais (catalogue)", () => {
     expect(dialog).toBe(false);
   });
 
-  test("isolation : Fee d'un autre tenant invisible ; chambre d'un autre tenant ignorée", async ({ page }) => {
+  test("isolation : Fee d'un autre tenant invisible ; chambre forgée seule refusée, jamais « toutes »", async ({ page }) => {
     await insertFee({ label: "Rival", price: "9", unit: "per_stay", tenantId: ctx.rivalTenantId });
     await openSettings(page);
     await expect(page.getByText(`Rival ${TAG}`)).toHaveCount(0);
@@ -204,9 +204,8 @@ test.describe("Admin — Frais (catalogue)", () => {
       f.appendChild(i);
     });
     await form.getByRole("button", { name: "Ajouter le frais" }).click();
-    await expect(feeRow(page, label)).toBeVisible();
-    const { rows } = await pool.query("SELECT room_ids FROM fees WHERE label = $1", [label]);
-    expect(rows[0].room_ids).toEqual([]);
+    await expect(page.getByText("Les chambres choisies n'existent plus. Rechargez la page.").first()).toBeVisible();
+    expect((await pool.query("SELECT 1 FROM fees WHERE label = $1", [label])).rowCount).toBe(0);
   });
 });
 

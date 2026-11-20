@@ -353,7 +353,7 @@ async function admissionErrorState(
     return { error: e.message, fieldErrors: { guestCount: e.message }, values };
   }
   if (e instanceof ExtraUnavailableError) {
-    return { error: "Une option cochée vient d'être désactivée ou supprimée. Rechargez la page.", values };
+    return { error: "Une option cochée vient d'être désactivée ou supprimée, ou n'est pas proposée pour cette chambre. Rechargez la page.", values };
   }
   if (e instanceof FeeUnavailableError) {
     return { error: e.message, values };

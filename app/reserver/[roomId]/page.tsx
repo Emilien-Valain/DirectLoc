@@ -8,7 +8,7 @@ import { requireTenant, type TenantConfig } from "@/lib/tenant-context";
 import { getRoomByIdPublic } from "@/lib/queries/public";
 import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant } from "@/lib/queries/fees";
-import { feeAppliesTo } from "@/lib/extras";
+import { matchesRoom } from "@/lib/extras";
 import { isDemoTenant } from "@/lib/demo";
 
 // Tunnel de réservation : rien à indexer.
@@ -57,8 +57,8 @@ export default async function ReserverPage({
             beds: room.beds,
             photos: room.photos,
           }}
-          extras={extras}
-          fees={fees.filter((f) => feeAppliesTo(f, room.id))}
+          extras={extras.filter((x) => matchesRoom(x, room.id))}
+          fees={fees.filter((f) => matchesRoom(f, room.id))}
           touristTax={config.touristTax}
           host={{ phone: config.phone, checkInTime: config.checkInTime, checkOutTime: config.checkOutTime }}
           demo={demo}

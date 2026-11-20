@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { appliesToRoom } from "@/lib/room-scope";
 import { db } from "@/lib/db";
 import { bookingLines, extras, fees, rooms, tenants } from "@/db/schema";
 import { isRoomAvailable } from "@/lib/availability";
@@ -128,14 +129,16 @@ const MAX_EXTRAS = 50;
 /**
  * Lignes d'Extras d'un séjour. Une ligne déjà sur la réservation (`bookingId`)
  * garde libellé et prix figés, quantité recalculée — même si l'Extra a été
- * désactivé ou supprimé depuis. Tout autre id doit être un Extra actif du tenant.
+ * désactivé ou supprimé depuis, ou réservé à d'autres chambres. Tout autre id doit être
+ * un Extra actif du tenant, proposé pour cette chambre.
  * Nombre choisi (`quantities`) borné par `chosenMax` : nuits, personnes ou lits du séjour,
  * ou le maximum de l'option « par séjour ». Absent → celui enregistré, sinon tout le séjour.
  */
 export async function resolveExtraLines(
   conn: Tx | typeof db,
-  { tenantId, extraIds, nights, guests, bookingId, quantities = {}, maxBeds }: {
+  { tenantId, roomId, extraIds, nights, guests, bookingId, quantities = {}, maxBeds }: {
     tenantId: string;
+    roomId: string;
     extraIds: string[];
     nights: number;
     guests: number;
@@ -162,7 +165,14 @@ export async function resolveExtraLines(
     ? await conn
         .select()
         .from(extras)
-        .where(and(inArray(extras.id, fromCatalog), eq(extras.tenantId, tenantId), eq(extras.active, true)))
+        .where(
+          and(
+            inArray(extras.id, fromCatalog),
+            eq(extras.tenantId, tenantId),
+            eq(extras.active, true),
+            appliesToRoom(extras.roomIds, roomId),
+          ),
+        )
     : [];
   if (catalog.length !== fromCatalog.length) throw new ExtraUnavailableError();
 
@@ -271,6 +281,7 @@ export async function priceStay(
   const stay = { tenantId, nights, guests: guestCount, bookingId };
   const extraLines = await resolveExtraLines(conn, {
     ...stay,
+    roomId,
     extraIds,
     quantities: input.extraQuantities,
     maxBeds: room ? bedLimit(room) : 1,

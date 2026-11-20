@@ -162,6 +162,13 @@
       "when": 1795126839410,
       "tag": "0022_extra_chosen_follows_stay",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795206889937,
+      "tag": "0023_extras_room_ids",
+      "breakpoints": true
     }
   ]
 }

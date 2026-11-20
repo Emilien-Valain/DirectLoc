@@ -5,6 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
+import { ownedRoomIds } from "@/lib/room-scope";
 import { manualBlocks, bookingRules, pricingRules, rooms } from "@/db/schema";
 import {
   manualBlockSchema,
@@ -27,28 +28,6 @@ function parseDays(s?: string) {
 
 function revalidateAll() {
   for (const path of REVALIDATE_PATHS) revalidatePath(path);
-}
-
-const ROOMS_NOT_FOUND = {
-  error: "Les chambres choisies n'existent plus. Rechargez la page.",
-  fieldErrors: { roomIds: "Les chambres choisies n'existent plus. Rechargez la page." },
-};
-
-/**
- * Chambres choisies (`roomIds`) qui appartiennent bien au tenant ; les autres sont ignorées.
- * Aucune demandée = toutes ([]). Demandées mais aucune à lui : refus — jamais « toutes » par erreur.
- */
-async function ownedRoomIds(formData: FormData, tenantId: string): Promise<string[] | typeof ROOMS_NOT_FOUND> {
-  const asked = formData.getAll("roomIds").filter((v): v is string => typeof v === "string" && v !== "");
-  if (asked.length === 0) return [];
-  const valid = asked.filter(isUuid);
-  const owned = valid.length
-    ? await db
-        .select({ id: rooms.id })
-        .from(rooms)
-        .where(and(inArray(rooms.id, valid), eq(rooms.tenantId, tenantId)))
-    : [];
-  return owned.length === 0 ? ROOMS_NOT_FOUND : owned.map((r) => r.id);
 }
 
 const NOT_FOUND: FormResult = { error: "Règle introuvable", fieldErrors: {} };

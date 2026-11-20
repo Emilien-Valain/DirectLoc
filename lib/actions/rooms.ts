@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { db } from "@/lib/db";
 import { notifyIndexNow } from "@/lib/indexnow";
-import { bookingRules, fees, manualBlocks, pricingRules, rooms, properties, tenants } from "@/db/schema";
+import { bookingRules, extras, fees, manualBlocks, pricingRules, rooms, properties, tenants } from "@/db/schema";
 import { isUuid, roomEmailSchema, roomSchema, roomUpdateSchema, safeParseFormData, type FormResult } from "@/lib/validation";
 
 async function requireTenantId(): Promise<string> {
@@ -123,9 +123,9 @@ export async function deleteRoom(id: string): Promise<{ error?: string }> {
         .where(and(eq(rooms.id, id), eq(rooms.tenantId, tenantId)))
         .returning({ slug: rooms.slug });
       if (!row) return null;
-      // Règles, blocages et frais qui la visaient : elle en est retirée ; ceux qui ne visaient
+      // Règles, blocages, frais et options qui la visaient : elle en est retirée ; ceux qui ne visaient
       // qu'elle sont supprimés (une liste vidée voudrait dire « toutes les chambres »).
-      for (const t of [manualBlocks, bookingRules, pricingRules, fees]) {
+      for (const t of [manualBlocks, bookingRules, pricingRules, fees, extras]) {
         const mine = and(eq(t.tenantId, tenantId), sql`${id}::uuid = ANY(${t.roomIds})`);
         await tx.delete(t).where(and(mine, sql`cardinality(${t.roomIds}) = 1`));
         await tx.update(t).set({ roomIds: sql`array_remove(${t.roomIds}, ${id}::uuid)` }).where(mine);
