@@ -4,6 +4,7 @@ import path from "path";
 import { Pool } from "pg";
 import { deleteOrphanDossiers } from "../helpers/dossier";
 import { confirmDialog } from "../helpers/confirm";
+import { formatEuros } from "../../lib/utils";
 
 /**
  * Spécification : Tests de non-régression > Admin > Dossiers (plusieurs chambres)
@@ -11,7 +12,9 @@ import { confirmDialog } from "../helpers/confirm";
  *
  * Fiche Dossier, saisie manuelle de plusieurs chambres (avec « Forcer »), annulation
  * d'une chambre seule / de tout le Dossier, reste à payer commun, marque « groupe »
- * (liste, calendrier), PDF du Dossier, 404 / isolation / XSS.
+ * (liste, calendrier), PDF du Dossier, 404 / isolation / XSS ; depuis la fiche : changer
+ * les dates de tout le Dossier, ajouter une chambre (isolation des actions :
+ * `e2e/unit/dossier-isolation.spec.ts`).
  *
  * Données : trois chambres dédiées (apiRoom est partagée par d'autres specs en parallèle),
  * dates en 2035, tout est supprimé en afterEach/afterAll (réservations, paiements, Dossiers, chambres).
@@ -336,6 +339,259 @@ test.describe("Admin — Dossiers de plusieurs chambres", () => {
       [dossierId],
     );
     expect(new Set(names.rows.map((r) => r.guest_name))).toEqual(new Set([`Famille Renommé ${STAMP}`]));
+  });
+
+  // ─── Fiche Dossier : changer les dates de toutes les chambres ──────────────────
+
+  /** Ouvre le panneau « Changer les dates » et saisit les nouvelles dates. */
+  async function fillDates(page: Page, checkIn: string, checkOut: string) {
+    const panel = page.getByTestId("dossier-dates");
+    if (!(await panel.evaluate((el) => (el as HTMLDetailsElement).open))) await panel.locator("summary").click();
+    await panel.locator('[name="checkIn"]').fill(checkIn);
+    await panel.locator('[name="checkOut"]').fill(checkOut);
+    return panel;
+  }
+
+  const datesOf = async (dossierId: string) =>
+    (
+      await pool.query(
+        `SELECT DISTINCT check_in::date::text || '/' || check_out::date::text AS d FROM bookings WHERE dossier_id = $1 AND status <> 'cancelled'
+         UNION SELECT check_in::date::text || '/' || check_out::date::text || ' (dossier)' FROM dossiers WHERE id = $1 ORDER BY 1`,
+        [dossierId],
+      )
+    ).rows.map((r) => r.d as string);
+
+  test("changer les dates du Dossier : toutes les chambres suivent, anciennes nuits libres, nouvelles bloquées, prix et reste à payer recalculés", async ({ page }) => {
+    test.setTimeout(60000);
+    const { dossierId } = await insertDossier(
+      [
+        { roomId: roomA, total: "200.00" },
+        { roomId: roomB, total: "200.00" },
+        { roomId: roomC, total: "200.00", status: "cancelled" },
+      ],
+      { checkIn: "2035-02-05", checkOut: "2035-02-07", payment: { amount: "400.00", status: "paid" } },
+    );
+    // Rappel déjà parti pour l'ancienne arrivée : il devra repartir.
+    await pool.query("UPDATE dossiers SET reminder_sent_at = now() WHERE id = $1", [dossierId]);
+    await page.goto(`/admin/dossiers/${dossierId}`);
+    await expect(page.locator("[data-balance-due]")).toHaveCount(0);
+
+    const panel = await fillDates(page, "2035-02-12", "2035-02-15");
+    // Devis avant d'enregistrer : chaque chambre, ancien → nouveau prix.
+    await expect(panel.locator("[data-dates-quote]")).toContainText("3 nuits");
+    await expect(panel.locator("[data-dates-quote]")).toContainText(`${ROOM_NAMES.a}`);
+    await expect(panel.locator("[data-dates-quote]")).toContainText("→");
+    await panel.locator('[name="notifyGuest"]').uncheck();
+    await panel.getByRole("button", { name: "Déplacer les 2 chambres" }).click();
+    await expect(page).toHaveURL(/dates-modifiees=silence$/);
+    await expect(page.getByText("Dates changées pour les 2 chambres")).toBeVisible();
+
+    // Toutes les chambres actives et le Dossier ont bougé ; la chambre annulée garde son historique.
+    expect(await datesOf(dossierId)).toEqual(["2035-02-12/2035-02-15", "2035-02-12/2035-02-15 (dossier)"]);
+    const cancelled = await pool.query("SELECT check_in::date::text AS d FROM bookings WHERE dossier_id = $1 AND status = 'cancelled'", [dossierId]);
+    expect(cancelled.rows[0].d).toBe("2035-02-05");
+    const marker = await pool.query("SELECT reminder_sent_at FROM dossiers WHERE id = $1", [dossierId]);
+    expect(marker.rows[0].reminder_sent_at).toBeNull();
+    // Prix recalculés : hébergement = 3 nuits à 100 € (options, frais, taxe en lignes).
+    const prices = await pool.query(
+      `SELECT b.total_price::numeric AS total, b.total_price::numeric - coalesce((SELECT sum(l.total) FROM booking_lines l WHERE l.booking_id = b.id), 0) AS accommodation
+       FROM bookings b WHERE b.dossier_id = $1 AND b.status = 'confirmed'`,
+      [dossierId],
+    );
+    expect(prices.rows.map((r) => Number(r.accommodation))).toEqual([300, 300]);
+    // Anciennes nuits libres, nouvelles bloquées, pour chaque chambre.
+    for (const room of [roomA, roomB]) {
+      expect(await blocked(page, room, "2035-02-05", "2035-02-07")).toEqual([]);
+      expect(await blocked(page, room, "2035-02-12", "2035-02-15")).toEqual(["2035-02-12", "2035-02-13", "2035-02-14"]);
+    }
+    // Reste à payer : le nouveau total moins les 400 € payés en ligne.
+    const due = prices.rows.reduce((n, r) => n + Number(r.total), 0);
+    await expect(page.locator("[data-balance-due]")).toHaveText(formatEuros(Math.round((due - 400) * 100) / 100));
+    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.locator("header")).toContainText("3 nuits");
+  });
+
+  test("changer les dates : une chambre occupée → rien ne bouge, le message nomme la chambre (XSS échappé) ; « Forcer » déplace tout", async ({ page }) => {
+    let dialog = false;
+    page.on("dialog", async (d) => {
+      dialog = true;
+      await d.dismiss();
+    });
+    const { dossierId } = await insertDossier(
+      [
+        { roomId: roomA, total: "200.00" },
+        { roomId: roomB, total: "200.00" },
+      ],
+      { checkIn: "2035-02-20", checkOut: "2035-02-22", source: "manual" },
+    );
+    const xss = `<img src=x onerror=alert(1)> Occupant ${STAMP}`;
+    await insertDossier([{ roomId: roomB, total: "200.00" }], { checkIn: "2035-02-25", checkOut: "2035-02-27", name: xss, source: "manual" });
+
+    await page.goto(`/admin/dossiers/${dossierId}`);
+    const panel = await fillDates(page, "2035-02-25", "2035-02-27");
+    await panel.locator('[name="notifyGuest"]').uncheck();
+    await panel.getByRole("button", { name: "Déplacer les 2 chambres" }).click();
+    const force = panel.locator("[data-force-panel]");
+    await expect(force).toContainText(`${ROOM_NAMES.b} : Ces dates chevauchent le séjour de ${xss}`);
+    // Tout ou rien : la chambre A, libre, n'a pas bougé seule.
+    expect(await datesOf(dossierId)).toEqual(["2035-02-20/2035-02-22", "2035-02-20/2035-02-22 (dossier)"]);
+    expect(await panel.locator("[data-force-panel] img").count()).toBe(0);
+
+    await force.locator('input[name="force"]').check();
+    await panel.getByRole("button", { name: "Déplacer les 2 chambres" }).click();
+    await expect(page).toHaveURL(/dates-modifiees=silence$/);
+    expect(await datesOf(dossierId)).toEqual(["2035-02-25/2035-02-27", "2035-02-25/2035-02-27 (dossier)"]);
+    expect(dialog).toBe(false);
+  });
+
+  test("changer les dates : départ ≤ arrivée, date impossible, arrivée passée, plus de 366 nuits, mêmes dates → refus, rien ne bouge", async ({ page }) => {
+    const { dossierId } = await insertDossier(
+      [
+        { roomId: roomA, total: "200.00" },
+        { roomId: roomB, total: "200.00" },
+      ],
+      { checkIn: "2035-03-05", checkOut: "2035-03-07", source: "manual" },
+    );
+    await page.goto(`/admin/dossiers/${dossierId}`);
+    const cases: [string, string, string][] = [
+      ["2035-03-10", "2035-03-10", "La date de départ doit être après la date d'arrivée"],
+      ["2035-03-10", "2035-03-09", "La date de départ doit être après la date d'arrivée"],
+      ["31/02/2035", "2035-03-04", "Date invalide"],
+      ["2024-01-10", "2024-01-12", "La date d'arrivée est déjà passée"],
+      ["2035-01-01", "2036-01-03", "Séjour trop long (366 nuits maximum)"],
+      ["2035-03-05", "2035-03-07", "Ce sont déjà les dates du Dossier."],
+    ];
+    for (const [checkIn, checkOut, message] of cases) {
+      const panel = await fillDates(page, checkIn, checkOut);
+      // Attendre la réponse : l'erreur précédente reste affichée pendant l'envoi.
+      await Promise.all([
+        page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes(dossierId)),
+        panel.getByRole("button", { name: "Déplacer les 2 chambres" }).click(),
+      ]);
+      await expect(panel.getByRole("alert")).toContainText(message);
+      expect(await datesOf(dossierId)).toEqual(["2035-03-05/2035-03-07", "2035-03-05/2035-03-07 (dossier)"]);
+    }
+  });
+
+  // ─── Fiche Dossier : ajouter une chambre ──────────────────────────────────────
+
+  test("ajouter une chambre : même voyageur et mêmes dates, confirmée, chambre bloquée, reste à payer augmente", async ({ page }) => {
+    const { dossierId } = await insertDossier(
+      [
+        { roomId: roomA, total: "300.00" },
+        { roomId: roomB, total: "300.00" },
+      ],
+      { checkIn: "2035-03-20", checkOut: "2035-03-23", payment: { amount: "600.00", status: "paid" } },
+    );
+    await page.goto(`/admin/dossiers/${dossierId}`);
+    await expect(page.locator("[data-balance-due]")).toHaveCount(0);
+    const panel = page.getByTestId("dossier-add-room");
+    await panel.locator("summary").click();
+    // Les chambres déjà dans le Dossier ne sont pas proposées.
+    for (const id of [roomA, roomB]) await expect(panel.locator(`select[name="roomId"] option[value="${id}"]`)).toHaveCount(0);
+    await panel.locator('select[name="roomId"]').selectOption(roomC);
+    await panel.locator('[name="guestCount"]').fill("2");
+    await expect(panel.locator("[data-add-room-quote]")).toContainText("+ ");
+    await panel.locator('[name="notifyGuest"]').uncheck();
+    await panel.getByRole("button", { name: "Ajouter au Dossier" }).click();
+    await expect(page).toHaveURL(/chambre-ajoutee=silence$/);
+    await expect(page.getByText("Chambre ajoutée au Dossier")).toBeVisible();
+    await expect(page.getByText("Dossier · 3 chambres")).toBeVisible();
+
+    const { rows } = await pool.query(
+      `SELECT b.status, b.source, b.guest_count, b.total_price, b.guest_name = d.guest_name AND b.guest_email = d.guest_email AND b.guest_phone = d.guest_phone AS same_guest,
+              b.check_in = d.check_in AND b.check_out = d.check_out AS same_dates
+       FROM bookings b JOIN dossiers d ON d.id = b.dossier_id WHERE b.dossier_id = $1 AND b.room_id = $2`,
+      [dossierId, roomC],
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: "confirmed", source: "manual", guest_count: 2, same_guest: true, same_dates: true });
+    expect(await blocked(page, roomC, "2035-03-20", "2035-03-23")).toEqual(["2035-03-20", "2035-03-21", "2035-03-22"]);
+    // Payé 600 € pour 2 chambres : la 3e reste à payer.
+    await expect(page.locator("[data-balance-due]")).toHaveText(formatEuros(Number(rows[0].total_price)));
+  });
+
+  test("ajouter une chambre : déjà dans le Dossier, d'un autre tenant, capacité dépassée → refus ; occupée → « Forcer »", async ({ page }) => {
+    test.setTimeout(60000);
+    const { dossierId } = await insertDossier([{ roomId: roomA, total: "200.00" }], {
+      checkIn: "2035-04-24",
+      checkOut: "2035-04-26",
+      source: "manual",
+    });
+    await insertDossier([{ roomId: roomB, total: "200.00" }], { checkIn: "2035-04-25", checkOut: "2035-04-27", name: `Voisin ${STAMP}`, source: "manual" });
+    const count = async () => (await pool.query("SELECT 1 FROM bookings WHERE dossier_id = $1", [dossierId])).rowCount;
+
+    await page.goto(`/admin/dossiers/${dossierId}`);
+    const panel = page.getByTestId("dossier-add-room");
+    await panel.locator("summary").click();
+    const select = panel.locator('select[name="roomId"]');
+    await expect(select.locator(`option[value="${roomB}"]`)).toContainText("occupée sur ces dates");
+    const submit = () => panel.getByRole("button", { name: "Ajouter au Dossier" }).click();
+
+    // Capacité dépassée.
+    await select.selectOption(roomC);
+    await panel.locator('[name="guestCount"]').fill("5");
+    await submit();
+    await expect(panel.getByRole("alert")).toContainText(`${ROOM_NAMES.c} : Cette chambre accueille 2 personnes maximum`);
+    expect(await count()).toBe(1);
+
+    // Requêtes forgées : une chambre déjà dans le Dossier, une chambre d'un autre tenant.
+    const forge = (id: string) =>
+      select.evaluate((el, value) => {
+        const o = document.createElement("option");
+        o.value = value;
+        o.text = "forgée";
+        el.appendChild(o);
+        (el as HTMLSelectElement).value = value;
+      }, id);
+    for (const [id, message] of [
+      [roomA, "Cette chambre est déjà dans le Dossier."],
+      [ctx.rivalRoomId, "Cette chambre n'existe plus ou est désactivée."],
+    ]) {
+      await panel.locator('[name="guestCount"]').fill("1");
+      await forge(id);
+      await submit();
+      await expect(panel.getByRole("alert").first()).toContainText(message);
+      expect(await count()).toBe(1);
+    }
+    expect((await pool.query("SELECT 1 FROM bookings WHERE room_id = $1 AND tenant_id = $2", [ctx.rivalRoomId, ctx.tenantId])).rowCount).toBe(0);
+
+    // Chambre occupée : le conflit nomme la chambre et le séjour, « Forcer » l'ajoute.
+    await select.selectOption(roomB);
+    await panel.locator('[name="guestCount"]').fill("1");
+    await submit();
+    const force = panel.locator("[data-force-panel]");
+    await expect(force).toContainText(`${ROOM_NAMES.b} : Ces dates chevauchent le séjour de Voisin ${STAMP}`);
+    expect(await count()).toBe(1);
+    await force.locator('input[name="force"]').check();
+    await panel.locator('[name="notifyGuest"]').uncheck();
+    await submit();
+    await expect(page).toHaveURL(/chambre-ajoutee=silence$/);
+    expect(await statusesOf(dossierId)).toEqual({ [roomA]: "confirmed", [roomB]: "confirmed" });
+  });
+
+  test("Dossier annulé ou terminé : ni changement de dates ni ajout de chambre", async ({ page }) => {
+    const cancelled = await insertDossier(
+      [
+        { roomId: roomA, total: "200.00", status: "cancelled" },
+        { roomId: roomB, total: "200.00", status: "cancelled" },
+      ],
+      { checkIn: "2035-05-10", checkOut: "2035-05-12" },
+    );
+    const finished = await insertDossier([{ roomId: roomC, total: "200.00", status: "completed" }], {
+      checkIn: "2025-05-10",
+      checkOut: "2025-05-12",
+    });
+    const live = await insertDossier([{ roomId: roomC, total: "200.00" }], { checkIn: "2035-05-10", checkOut: "2035-05-12" });
+    for (const id of [cancelled.dossierId, finished.dossierId]) {
+      await page.goto(`/admin/dossiers/${id}`);
+      await expect(page.locator("[data-dossier]")).toBeVisible();
+      await expect(page.locator("[data-dossier-edit]")).toHaveCount(0);
+    }
+    // Témoin : un Dossier actif les propose.
+    await page.goto(`/admin/dossiers/${live.dossierId}`);
+    await expect(page.getByTestId("dossier-dates")).toBeVisible();
+    await expect(page.getByTestId("dossier-add-room")).toBeVisible();
   });
 
   // ─── Marque « groupe » : liste et calendrier ───────────────────────────────────

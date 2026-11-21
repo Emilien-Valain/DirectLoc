@@ -20,10 +20,27 @@ import {
 import { admitRoomsInTx, createDossier, RoomRefused } from "@/lib/dossiers";
 import { extraQuantitiesFrom, grandTotal, matchesRoom, type StayLine } from "@/lib/extras";
 import { getBookingLines } from "@/lib/queries/extras";
-import { bookingManualSchema, frDateToIso, isStayTooLong, isUuid, manualMoreRoomsSchema, safeParseFormData } from "@/lib/validation";
-import { sendBookingModification } from "@/lib/email";
+import {
+  bookingManualSchema,
+  dossierAddRoomSchema,
+  dossierDatesSchema,
+  frDateToIso,
+  isStayTooLong,
+  isUuid,
+  manualMoreRoomsSchema,
+  safeParseFormData,
+} from "@/lib/validation";
+import { sendBookingModification, sendDossierModification } from "@/lib/email";
 import { notifyHostCancellation } from "@/lib/dossier-cancellation";
-import { loadEditableBooking, loadEmailContext, type BookingStatus } from "@/lib/queries/bookings";
+import { loadDossierEmailContext, loadEditableBooking, loadEmailContext, type BookingStatus } from "@/lib/queries/bookings";
+import {
+  addRoomToDossier,
+  cancelDossierRooms,
+  changeDossierDates,
+  DossierActionError,
+  quoteDossierDatesFor,
+  setDossierPaidState,
+} from "@/lib/dossier-admin";
 import { dossierSizes } from "@/lib/queries/dossiers";
 
 async function requireTenantId() {
@@ -97,27 +114,13 @@ export async function cancelBooking(id: string) {
   redirect(`/admin/reservations/${id}?annulee=${emailSent ? "1" : "sans-email"}`);
 }
 
-/** Annule les réservations actives (pending|confirmed) d'un Dossier du tenant ; `only` = une chambre. */
-async function cancelInDossier(dossierId: string, tenantId: string, only?: string) {
-  const rows = await db
-    .update(bookings)
-    .set({ status: "cancelled", updatedAt: new Date() })
-    .where(
-      and(
-        eq(bookings.dossierId, dossierId),
-        eq(bookings.tenantId, tenantId),
-        inArray(bookings.status, ["pending", "confirmed"]),
-        only ? eq(bookings.id, only) : undefined,
-      ),
-    )
-    .returning({ id: bookings.id });
-  if (rows.length === 0) return [];
+/** Après une action sur un Dossier : sa fiche, les listes et les réservations touchées. */
+function revalidateDossier(dossierId: string, bookingIds: string[]) {
   revalidatePath("/admin");
   revalidatePath("/admin/reservations");
   revalidatePath("/admin/calendrier");
   revalidatePath(`/admin/dossiers/${dossierId}`);
-  for (const r of rows) revalidatePath(`/admin/reservations/${r.id}`);
-  return rows.map((r) => r.id);
+  for (const id of bookingIds) revalidatePath(`/admin/reservations/${id}`);
 }
 
 /**
@@ -126,9 +129,9 @@ async function cancelInDossier(dossierId: string, tenantId: string, only?: strin
  */
 export async function cancelDossierBooking(dossierId: string, bookingId: string) {
   const { session, tenantId } = await requireSession();
-  if (!isUuid(dossierId) || !isUuid(bookingId)) return;
-  const cancelled = await cancelInDossier(dossierId, tenantId, bookingId);
+  const cancelled = await cancelDossierRooms(tenantId, dossierId, bookingId);
   if (cancelled.length === 0) return;
+  revalidateDossier(dossierId, cancelled);
   captureServer("booking_cancelled", { surface: "admin", tenant_id: tenantId, scope: "room" }, session.user.id);
   const emailSent = await notifyHostCancellation(tenantId, dossierId, cancelled);
   redirect(`/admin/dossiers/${dossierId}?chambre-annulee=${emailSent ? "1" : "sans-email"}`);
@@ -137,9 +140,9 @@ export async function cancelDossierBooking(dossierId: string, bookingId: string)
 /** Annuler tout le Dossier : chaque chambre encore active passe `cancelled` (transitions gardées). */
 export async function cancelDossier(dossierId: string) {
   const { session, tenantId } = await requireSession();
-  if (!isUuid(dossierId)) return;
-  const cancelled = await cancelInDossier(dossierId, tenantId);
+  const cancelled = await cancelDossierRooms(tenantId, dossierId);
   if (cancelled.length === 0) return;
+  revalidateDossier(dossierId, cancelled);
   captureServer(
     "booking_cancelled",
     { surface: "admin", tenant_id: tenantId, scope: "dossier", rooms: cancelled.length },
@@ -152,21 +155,147 @@ export async function cancelDossier(dossierId: string) {
 /** Règlement hors ligne de tout le Dossier : chaque chambre non annulée (voir `setBookingPaid`). */
 export async function setDossierPaid(dossierId: string, paid: boolean) {
   const tenantId = await requireTenantId();
-  if (!isUuid(dossierId)) return;
-  const rows = await db
-    .update(bookings)
-    .set({ paidAt: paid ? new Date() : null, updatedAt: new Date() })
-    .where(
-      and(
-        eq(bookings.dossierId, dossierId),
-        eq(bookings.tenantId, tenantId),
-        inArray(bookings.status, ["pending", "confirmed", "completed"]),
-      ),
-    )
-    .returning({ id: bookings.id });
+  const rows = await setDossierPaidState(tenantId, dossierId, paid);
   revalidatePath(`/admin/dossiers/${dossierId}`);
   revalidatePath("/admin/reservations");
-  for (const r of rows) revalidatePath(`/admin/reservations/${r.id}`);
+  for (const id of rows) revalidatePath(`/admin/reservations/${id}`);
+}
+
+/** Prévient le client du nouveau récapitulatif du Dossier ; `"1"` si parti, `"sans-email"` sinon. */
+async function notifyDossierModified(tenantId: string, dossierId: string): Promise<"1" | "sans-email"> {
+  try {
+    const active = await db
+      .select({ id: bookings.id })
+      .from(bookings)
+      .where(and(eq(bookings.dossierId, dossierId), eq(bookings.tenantId, tenantId), inArray(bookings.status, ["pending", "confirmed"])));
+    const ctx = await loadDossierEmailContext(active.map((b) => b.id), tenantId);
+    if (!ctx) return "sans-email";
+    await sendDossierModification(ctx.emailData);
+    return "1";
+  } catch (emailError) {
+    console.error("Erreur envoi email modification du Dossier:", emailError);
+    return "sans-email";
+  }
+}
+
+/** Nom des chambres (refus d'admission : l'hôte doit savoir laquelle bloque). */
+async function roomName(tenantId: string, roomId: string) {
+  if (!isUuid(roomId)) return undefined;
+  const [row] = await db.select({ name: rooms.name }).from(rooms).where(and(eq(rooms.id, roomId), eq(rooms.tenantId, tenantId)));
+  return row?.name;
+}
+
+/** Refus du gate pour une chambre d'un Dossier : le message nomme la chambre. */
+async function dossierRoomRefusal(
+  e: unknown,
+  stay: { tenantId: string; roomId: string; checkIn: Date; checkOut: Date; excludeBookingId?: string },
+  values: Record<string, string>,
+): Promise<ManualBookingState> {
+  const state = await admissionErrorState(e, stay, values);
+  if (!state) return null;
+  const name = await roomName(stay.tenantId, stay.roomId);
+  return { ...state, error: name ? `${name} : ${state.error}` : state.error };
+}
+
+/**
+ * Nouvelles dates pour tout le Dossier (fiche Dossier) : voir `changeDossierDates`.
+ * Tout ou rien ; un refus nomme la chambre bloquée et propose « Forcer » s'il s'agit d'un chevauchement.
+ */
+export async function updateDossierDates(
+  dossierId: string,
+  _prev: ManualBookingState,
+  formData: FormData,
+): Promise<ManualBookingState> {
+  const tenantId = await requireTenantId();
+  const values: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (typeof v === "string") values[k] = v;
+  const parsed = safeParseFormData(dossierDatesSchema, formData);
+  if ("error" in parsed) return { ...parsed, values };
+  const { data } = parsed;
+  const checkIn = new Date(data.checkIn + "T00:00:00.000Z");
+  const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
+
+  let moved: string[];
+  try {
+    moved = await changeDossierDates(tenantId, dossierId, { checkIn, checkOut, force: data.force });
+  } catch (e) {
+    if (e instanceof DossierActionError) {
+      return { error: e.message, fieldErrors: e.field ? { [e.field]: e.message } : undefined, values };
+    }
+    if (e instanceof RoomRefused) {
+      const [own] = await db
+        .select({ id: bookings.id })
+        .from(bookings)
+        .where(and(eq(bookings.dossierId, dossierId), eq(bookings.tenantId, tenantId), eq(bookings.roomId, e.roomId), inArray(bookings.status, ["pending", "confirmed"])));
+      const state = await dossierRoomRefusal(e.reason, { tenantId, roomId: e.roomId, checkIn, checkOut, excludeBookingId: own?.id }, values);
+      if (state) return state;
+      throw e.reason;
+    }
+    throw e;
+  }
+  if (moved.length === 0) return { error: "Ce sont déjà les dates du Dossier.", values };
+
+  revalidateDossier(dossierId, moved);
+  const outcome = data.notifyGuest ? await notifyDossierModified(tenantId, dossierId) : "silence";
+  redirect(`/admin/dossiers/${dossierId}?dates-modifiees=${outcome}`);
+}
+
+/** Devis du formulaire « Changer les dates » : nouveau total de chaque chambre (même calcul que l'enregistrement). */
+export async function quoteDossierDates(dossierId: string, checkIn: string, checkOut: string) {
+  const tenantId = await requireTenantId();
+  const from = new Date(frDateToIso(checkIn) + "T00:00:00.000Z");
+  const to = new Date(frDateToIso(checkOut) + "T00:00:00.000Z");
+  return quoteDossierDatesFor(tenantId, dossierId, from, to);
+}
+
+/**
+ * Ajouter une chambre à un Dossier existant (fiche Dossier) : voir `addRoomToDossier`.
+ * Options et frais cochés comme la saisie manuelle ; « Forcer » après un chevauchement.
+ */
+export async function addDossierRoom(
+  dossierId: string,
+  _prev: ManualBookingState,
+  formData: FormData,
+): Promise<ManualBookingState> {
+  const tenantId = await requireTenantId();
+  const values: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (typeof v === "string") values[k] = v;
+  const parsed = safeParseFormData(dossierAddRoomSchema, formData);
+  if ("error" in parsed) return { ...parsed, values };
+  const { data } = parsed;
+
+  let bookingId: string;
+  try {
+    bookingId = await addRoomToDossier(tenantId, dossierId, {
+      roomId: data.roomId,
+      guestCount: data.guestCount,
+      childCount: data.childCount,
+      extraIds: formIds(formData, "extraIds"),
+      extraQuantities: extraQuantitiesFrom(formData.entries()),
+      feeIds: formIds(formData, "feeIds"),
+      waiveTax: data.waiveTax,
+      force: data.force,
+    });
+  } catch (e) {
+    if (e instanceof DossierActionError) {
+      return { error: e.message, fieldErrors: e.field ? { [e.field]: e.message } : undefined, values };
+    }
+    const [dossier] = isUuid(dossierId)
+      ? await db
+          .select({ checkIn: dossiers.checkIn, checkOut: dossiers.checkOut })
+          .from(dossiers)
+          .where(and(eq(dossiers.id, dossierId), eq(dossiers.tenantId, tenantId)))
+      : [];
+    const state = dossier
+      ? await dossierRoomRefusal(e, { tenantId, roomId: data.roomId, checkIn: dossier.checkIn, checkOut: dossier.checkOut }, values)
+      : null;
+    if (state) return state;
+    throw e;
+  }
+
+  revalidateDossier(dossierId, [bookingId]);
+  const outcome = data.notifyGuest ? await notifyDossierModified(tenantId, dossierId) : "silence";
+  redirect(`/admin/dossiers/${dossierId}?chambre-ajoutee=${outcome}`);
 }
 
 /**
@@ -601,7 +730,7 @@ export async function updateBookingManual(
     (checkIn.getTime() !== new Date(editable.booking.checkIn).getTime() ||
       checkOut.getTime() !== new Date(editable.booking.checkOut).getTime())
   ) {
-    const message = `Les ${dossierSize} chambres de ce Dossier ont les mêmes dates : elles ne se changent pas pour une seule chambre. Annulez cette chambre et saisissez-la à nouveau, ou annulez le Dossier.`;
+    const message = `Les ${dossierSize} chambres de ce Dossier ont les mêmes dates : elles ne se changent pas pour une seule chambre. Changez-les pour toutes les chambres depuis la fiche du Dossier (« Changer les dates »).`;
     return { error: message, fieldErrors: { checkIn: "Dates du Dossier" }, values };
   }
   // Hébergement : prix convenu saisi > ancien hébergement gardé > nouveau calcul ; les Extras s'y ajoutent.
@@ -660,9 +789,16 @@ export async function updateBookingManual(
         // Le voyageur est celui de tout le Dossier : ses autres réservations le reprennent.
         const { dossierId } = updated[0];
         const guest = { guestName, guestFirstName, guestLastName, guestEmail, guestPhone: data.guestPhone || null };
+        // Séjour déplacé : rappel et remerciement du Dossier à renvoyer pour les nouvelles dates.
+        const moved =
+          checkIn.getTime() !== new Date(editable.booking.checkIn).getTime()
+            ? { reminderSentAt: null, thankYouSentAt: null }
+            : checkOut.getTime() !== new Date(editable.booking.checkOut).getTime()
+              ? { thankYouSentAt: null }
+              : {};
         await tx
           .update(dossiers)
-          .set({ checkIn, checkOut, ...guest, updatedAt: new Date() })
+          .set({ checkIn, checkOut, ...guest, ...moved, updatedAt: new Date() })
           .where(and(eq(dossiers.id, dossierId), eq(dossiers.tenantId, tenantId)));
         await tx
           .update(bookings)

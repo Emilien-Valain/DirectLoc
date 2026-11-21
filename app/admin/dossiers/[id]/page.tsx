@@ -11,6 +11,13 @@ import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { HOTEL_TIME_ZONE } from "@/lib/date-windows";
 import { ChannelTag, StatusBadge, StatusBanner } from "@/components/admin/ui";
 import { Icon } from "@/components/admin/icons";
+import { DossierAddRoomForm, DossierDatesForm } from "@/components/admin/DossierForms";
+import { openCheckoutDeadline } from "@/lib/checkout-window";
+import { getRoomsByTenant } from "@/lib/queries/rooms";
+import { getExtrasByTenant } from "@/lib/queries/extras";
+import { getFeesByTenant, getTouristTax } from "@/lib/queries/fees";
+import { isRoomAvailable } from "@/lib/availability";
+import { bedLimit } from "@/lib/extras";
 
 export const metadata = { title: "Dossier" };
 
@@ -47,7 +54,13 @@ export default async function DossierPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ enregistre?: string; annule?: string; "chambre-annulee"?: string }>;
+  searchParams: Promise<{
+    enregistre?: string;
+    annule?: string;
+    "chambre-annulee"?: string;
+    "dates-modifiees"?: string;
+    "chambre-ajoutee"?: string;
+  }>;
 }) {
   const { id } = await params;
   const query = await searchParams;
@@ -65,6 +78,32 @@ export default async function DossierPage({
   const allCancelled = bookings.every((b) => b.status === "cancelled");
   const isManual = bookings.every((b) => b.source === "manual");
   const paidLabel = payment?.stripePaymentId ? ` (paiement ${payment.stripePaymentId})` : "";
+  // Dates et chambres se modifient tant que le séjour n'est ni annulé, ni terminé, ni en plein paiement en ligne.
+  const editable =
+    active.length > 0 && !bookings.some((b) => b.status === "completed") && !openCheckoutDeadline(payment);
+  const iso = (d: Date) => new Date(d).toISOString().slice(0, 10);
+  const [roomList, extraCatalog, feeCatalog, touristTax] = editable
+    ? await Promise.all([
+        getRoomsByTenant(tenantId),
+        getExtrasByTenant(tenantId, { activeOnly: true }),
+        getFeesByTenant(tenantId, { activeOnly: true }),
+        getTouristTax(tenantId),
+      ])
+    : [[], [], [], null];
+  // Chambres qu'on peut ajouter : actives, pas déjà dans le Dossier ; libres d'abord.
+  const addable = await Promise.all(
+    roomList
+      .filter((r) => r.active && !active.some((b) => b.roomId === r.id))
+      .map(async (r) => ({
+        id: r.id,
+        name: r.name,
+        pricePerNight: String(r.pricePerNight),
+        maxBeds: bedLimit(r),
+        capacity: r.capacity,
+        free: await isRoomAvailable(r.id, tenantId, dossier.checkIn, dossier.checkOut),
+      })),
+  );
+  addable.sort((a, b) => Number(b.free) - Number(a.free));
 
   return (
     <div className="space-y-5 max-w-2xl admin-fade-in" data-dossier>
@@ -127,6 +166,18 @@ export default async function DossierPage({
         {query.annule === "1" && (
           <StatusBanner variant="success">
             Dossier annulé : toutes les chambres sont libérées. Un email a été envoyé à {dossier.guestEmail}.
+          </StatusBanner>
+        )}
+        {(query["dates-modifiees"] || query["chambre-ajoutee"]) && (
+          <StatusBanner variant={query["dates-modifiees"] === "sans-email" || query["chambre-ajoutee"] === "sans-email" ? "warning" : "success"}>
+            {query["dates-modifiees"]
+              ? `Dates changées pour ${active.length > 1 ? `les ${active.length} chambres` : "la chambre"} : du ${dateFr(dossier.checkIn, false)} au ${dateFr(dossier.checkOut)}. Les anciennes nuits sont libérées.`
+              : "Chambre ajoutée au Dossier : ces nuits ne sont plus proposées sur votre site."}{" "}
+            {(query["dates-modifiees"] ?? query["chambre-ajoutee"]) === "1"
+              ? `Le nouveau récapitulatif a été envoyé à ${dossier.guestEmail}.`
+              : (query["dates-modifiees"] ?? query["chambre-ajoutee"]) === "sans-email"
+                ? `L'email n'a pas pu partir : prévenez ${dossier.guestName} directement.`
+                : ""}
           </StatusBanner>
         )}
         {(query["chambre-annulee"] === "sans-email" || query.annule === "sans-email") && (
@@ -227,6 +278,28 @@ export default async function DossierPage({
           })}
         </ol>
       </section>
+
+      {editable && (
+        <section aria-label="Modifier le séjour" className="space-y-2.5" data-dossier-edit>
+          <DossierDatesForm
+            dossierId={dossier.id}
+            checkIn={iso(dossier.checkIn)}
+            checkOut={iso(dossier.checkOut)}
+            rooms={active.map((b) => ({ bookingId: b.id, name: b.room?.name ?? "Chambre", total: parseFloat(b.totalPrice) }))}
+            guestEmail={dossier.guestEmail}
+          />
+          <DossierAddRoomForm
+            dossierId={dossier.id}
+            checkIn={iso(dossier.checkIn)}
+            checkOut={iso(dossier.checkOut)}
+            rooms={addable}
+            extras={extraCatalog}
+            fees={feeCatalog}
+            taxEnabled={!!touristTax}
+            guestEmail={dossier.guestEmail}
+          />
+        </section>
+      )}
 
       <Card label="Paiement">
         <Row label="Total du séjour" value={formatEuros(money.due)} />

@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { distributeGuests, suggestCombination, validateCombination, type RoomCandidate } from "../../lib/room-combination";
+import { distributeGuests, ruleReasons, suggestCombination, validateCombination, type RoomCandidate } from "../../lib/room-combination";
+import { noCombinationMessage } from "../../lib/dossier-messages";
 
 const room = (id: string, capacity: number, totalPrice: number, excludedReason?: string): RoomCandidate => ({
   id,
@@ -172,5 +173,26 @@ test.describe("distributeGuests (voyageur qui ajoute / retire / échange une cha
   test("aucune chambre / valeurs négatives : rien n'est placé, jamais d'exception", () => {
     expect(distributeGuests([], 3, 1)).toEqual([]);
     expect(distributeGuests(caps, -1, -4).every((x) => x.guests === 0)).toBe(true);
+  });
+});
+
+test.describe("règles qui écartent des chambres : la raison est dite au voyageur", () => {
+  test("ruleReasons : raisons uniques, chambres sans règle ignorées", () => {
+    const c = [room("a", 4, 1, "Séjour minimum de 2 nuits"), room("b", 2, 1, "Séjour minimum de 2 nuits"), room("c", 2, 1)];
+    expect(ruleReasons(c)).toEqual(["Séjour minimum de 2 nuits"]);
+    expect(ruleReasons([room("c", 2, 1)])).toEqual([]);
+  });
+
+  test("toutes les chambres libres écartées : la règle remplace « Complet »", () => {
+    const msg = noCombinationMessage("insufficient_capacity", 6, 5, 0, ["Séjour minimum de 2 nuits"]);
+    expect(msg).toContain("Séjour minimum de 2 nuits");
+    expect(msg).not.toContain("Complet");
+    expect(noCombinationMessage("insufficient_capacity", 6, 5, 0)).toContain("Complet");
+  });
+
+  test("une partie des chambres écartée : capacité restante + la règle", () => {
+    const msg = noCombinationMessage("insufficient_capacity", 6, 5, 4, ["Arrivée autorisée uniquement le samedi"]);
+    expect(msg).toContain("4 personnes au plus");
+    expect(msg).toContain("Arrivée autorisée uniquement le samedi");
   });
 });

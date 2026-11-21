@@ -236,6 +236,35 @@ export const bookingManualSchema = z
   )
   .refine(stayNotTooLong, { message: STAY_TOO_LONG_MESSAGE, path: ["checkOut"] });
 
+const checkbox = z
+  .string()
+  .optional()
+  .transform((v) => v === "on");
+
+/**
+ * Nouvelles dates de tout un Dossier (fiche Dossier, ADR-0012). Le refus d'une arrivée
+ * passée dépend de l'ancienne arrivée : il est fait par `changeDossierDates`.
+ */
+export const dossierDatesSchema = z
+  .object({ checkIn: dateString, checkOut: dateString, force: checkbox, notifyGuest: checkbox })
+  .refine(
+    (d) => new Date(d.checkOut + "T00:00:00Z") > new Date(d.checkIn + "T00:00:00Z"),
+    { message: "La date de départ doit être après la date d'arrivée", path: ["checkOut"] },
+  )
+  .refine(stayNotTooLong, { message: STAY_TOO_LONG_MESSAGE, path: ["checkOut"] });
+
+/** Une chambre ajoutée à un Dossier existant (mêmes dates, même voyageur que le Dossier). */
+export const dossierAddRoomSchema = z
+  .object({
+    roomId: roomIdString,
+    guestCount: positiveInt.refine((n) => n <= MAX_PARTY, `${MAX_PARTY} personnes maximum`),
+    childCount,
+    force: checkbox,
+    waiveTax: checkbox,
+    notifyGuest: checkbox,
+  })
+  .refine(...childrenWithinGuests);
+
 /**
  * Chambres supplémentaires d'un Dossier saisi par l'hôte (ADR-0012) : champ caché `moreRooms`
  * (JSON). Mêmes dates et même voyageur que la chambre principale ; vide = une seule chambre.

@@ -51,12 +51,18 @@ export function noCombinationMessage(
   people: number,
   adults: number,
   maxCapacity: number,
+  rules: string[] = [],
 ): string {
+  // Chambres libres mais écartées par une règle : le voyageur doit savoir laquelle.
+  const ruleNote = rules.length > 0 ? ` Certaines chambres libres demandent : ${rules.join(" ; ")}.` : "";
   if (reason === "not_enough_adults") {
-    return `Chaque chambre doit accueillir au moins un adulte : avec ${adults} adulte${adults > 1 ? "s" : ""}, nos chambres libres logent ${pers(maxCapacity)} au plus. Ajoutez un adulte ou choisissez d'autres dates.`;
+    return `Chaque chambre doit accueillir au moins un adulte : avec ${adults} adulte${adults > 1 ? "s" : ""}, nos chambres libres logent ${pers(maxCapacity)} au plus. Ajoutez un adulte ou choisissez d'autres dates.${ruleNote}`;
   }
   if (reason === "invalid_input") return "Indiquez au moins un adulte.";
+  if (maxCapacity === 0 && rules.length > 0) {
+    return `Pour ces dates : ${rules.join(" ; ")}. Modifiez vos dates pour réserver.`;
+  }
   return maxCapacity > 0
-    ? `Pas assez de place pour ${pers(people)} à ces dates : ${pers(maxCapacity)} au plus. Essayez d'autres dates.`
+    ? `Pas assez de place pour ${pers(people)} à ces dates : ${pers(maxCapacity)} au plus.${ruleNote} Essayez d'autres dates.`
     : "Complet pour ces dates. Essayez d'autres dates.";
 }

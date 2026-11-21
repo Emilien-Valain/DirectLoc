@@ -25,7 +25,12 @@ type Group =
       totalPrice: number;
       rooms: { id: string; name: string; capacity: number; adults: number; minors: number }[];
     }
-  | { ok: false; reason: "insufficient_capacity" | "not_enough_adults" | "invalid_input"; maxCapacity: number };
+  | {
+      ok: false;
+      reason: "insufficient_capacity" | "not_enough_adults" | "invalid_input";
+      maxCapacity: number;
+      rules?: string[];
+    };
 
 /** Pas de plafond lié aux chambres : un groupe se loge sur plusieurs chambres. */
 const MAX_ADULTS = 30;
@@ -196,7 +201,7 @@ export default function Search() {
         {status === "done" && rooms.length === 0 && !(group?.ok) && (
           <p className="s-note is-bad" data-testid="search-no-room">
             {group && !group.ok
-              ? noCombinationMessage(group.reason, guests, adults, group.maxCapacity)
+              ? noCombinationMessage(group.reason, guests, adults, group.maxCapacity, group.rules)
               : guests > 1
                 ? `Aucune chambre libre pour ${guests} personnes à ces dates. Essayez d'autres dates.`
                 : "Complet pour ces dates. Essayez d'autres dates."}

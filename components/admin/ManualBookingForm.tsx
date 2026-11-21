@@ -17,17 +17,8 @@ import {
   Field,
   StatusBanner,
 } from "@/components/admin/ui";
-import {
-  EXTRA_UNIT_LABELS,
-  extraQuantitiesFrom,
-  matchesRoom,
-  CHOSEN_WORDS,
-  chosenLabel,
-  chosenMax,
-  resolveChosen,
-  type ExtraUnit,
-  type StayLine,
-} from "@/lib/extras";
+import { extraQuantitiesFrom, matchesRoom, type StayLine } from "@/lib/extras";
+import { calendarHrefFor, choices, ForcePanel, StayChoicesFields, type FrozenLine } from "@/components/admin/StayChoices";
 import type { CatalogExtra } from "@/lib/queries/extras";
 import type { CatalogFee } from "@/lib/queries/fees";
 
@@ -65,33 +56,7 @@ function parseMoreRooms(json?: string): MoreRoom[] {
   }
 }
 
-type FrozenLine = { id: string; sourceId: string | null; label: string; unit: ExtraUnit; unitPrice: number; chosen?: number | null };
 type Quote = { nights: number; computed: number; accommodation: number; lines: StayLine[]; total: number };
-
-/** Cases à cocher : lignes figées de la réservation puis catalogue pas encore pris. */
-type Choice = { value: string; label: string; unit: ExtraUnit; price: number; frozen: boolean; chosen?: number | null; maxQuantity?: number | null };
-
-/** Cases à cocher : lignes figées de la réservation puis catalogue pas encore pris. */
-function choices(
-  frozen: FrozenLine[],
-  catalog: { id: string; label: string; unit: ExtraUnit; price: number; maxQuantity?: number | null }[],
-): Choice[] {
-  return [
-    // Ligne figée « par séjour » : maximum actuel de l'option d'origine, jamais sous le nombre déjà pris (comme le serveur).
-    ...frozen.map((l) => ({
-      value: l.id,
-      label: l.label,
-      unit: l.unit,
-      price: l.unitPrice,
-      frozen: true,
-      chosen: l.chosen,
-      maxQuantity: l.unit === "per_stay" ? Math.max(l.chosen ?? 1, catalog.find((x) => x.id === l.sourceId)?.maxQuantity ?? 1) : null,
-    })),
-    ...catalog
-      .filter((x) => !frozen.some((l) => l.sourceId === x.id))
-      .map((x) => ({ value: x.id, label: x.label, unit: x.unit, price: x.price, frozen: false, maxQuantity: x.maxQuantity })),
-  ];
-}
 
 export default function ManualBookingForm({
   rooms,
@@ -202,11 +167,6 @@ export default function ManualBookingForm({
   // Re-chiffre après chaque envoi ; edit.id ne change pas pendant la vie du formulaire.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(refreshQuote, [state, moreRooms]);
-  // Le lien du conflit ouvre le mois de l'arrivée saisie (mois 0-indexé, comme le calendrier).
-  const arrival = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v.checkIn ?? "");
-  const calendarHref = arrival
-    ? `/admin/calendrier?year=${arrival[3]}&month=${Number(arrival[2]) - 1}`
-    : "/admin/calendrier";
 
   return (
     <form
@@ -250,7 +210,7 @@ export default function ManualBookingForm({
       </div>
       {sharedDates && (
         <p data-dossier-dates className="-mt-2 mb-3.5 text-[12px] leading-[1.5]" style={{ color: "var(--admin-text-muted)" }}>
-          Dates communes aux {edit?.dossierRooms} chambres du Dossier : elles ne changent pas pour une seule chambre.
+          Dates communes aux {edit?.dossierRooms} chambres du Dossier : elles se changent pour toutes à la fois, depuis la fiche du Dossier.
           Le nom, l&apos;email et le téléphone, eux, s&apos;appliquent à tout le Dossier.
         </p>
       )}
@@ -485,98 +445,14 @@ export default function ManualBookingForm({
         </fieldset>
       )}
 
-      {feeChoices.length > 0 && (
-        <fieldset className="mb-3.5" data-testid="manual-fees">
-          <legend className="text-[13px] font-semibold mb-1.5" style={{ color: "var(--admin-text)" }}>
-            Frais
-          </legend>
-          {feeChoices.map((x) => {
-            const checked = chosenFees.includes(x.value);
-            return (
-              <label key={x.value} className="flex items-start gap-2.5 py-1 cursor-pointer" style={{ color: "var(--admin-text)" }}>
-                <input
-                  type="checkbox"
-                  name="feeIds"
-                  value={x.value}
-                  checked={checked}
-                  className="mt-0.5"
-                  style={{ accentColor: "var(--admin-primary)" }}
-                  onChange={() =>
-                    setChosenFees((ids) => (checked ? ids.filter((id) => id !== x.value) : [...ids, x.value]))
-                  }
-                />
-                <span className="text-[13px] leading-snug">
-                  {x.label}{" "}
-                  <span style={{ color: "var(--admin-text-muted)" }}>
-                    {x.price === 0 ? "· gratuit" : `· ${formatEuros(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
-                    {x.frozen && " · prix de la réservation"}
-                  </span>
-                </span>
-              </label>
-            );
-          })}
-        </fieldset>
-      )}
-
-      {extraChoices.length > 0 && (
-        <fieldset className="mb-3.5" data-testid="manual-extras">
-          <legend className="text-[13px] font-semibold mb-1.5" style={{ color: "var(--admin-text)" }}>
-            Options
-          </legend>
-          {extraChoices.map((x) => {
-            const checked = chosenExtras.includes(x.value);
-            const stay = { nights: Math.max(1, quote?.nights ?? 1), guests, beds: maxBeds };
-            const max = chosenMax(x, stay);
-            const pick = checked && max > 1;
-            // Choix en cours > nombre enregistré > tout le séjour (affiché comme le maximum).
-            const shown = resolveChosen(x.unit, max, counts[x.value], x.chosen) ?? max;
-            return (
-              <div key={x.value}>
-              <label className="flex items-start gap-2.5 py-1 cursor-pointer" style={{ color: "var(--admin-text)" }}>
-                <input
-                  type="checkbox"
-                  name="extraIds"
-                  value={x.value}
-                  checked={checked}
-                  className="mt-0.5"
-                  style={{ accentColor: "var(--admin-primary)" }}
-                  onChange={() =>
-                    setChosenExtras((ids) => (checked ? ids.filter((id) => id !== x.value) : [...ids, x.value]))
-                  }
-                />
-                <span className="text-[13px] leading-snug">
-                  {x.label}{" "}
-                  <span style={{ color: "var(--admin-text-muted)" }}>
-                    {x.price === 0 ? "· gratuit" : `· ${formatEuros(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
-                    {x.frozen && " · prix de la réservation"}
-                  </span>
-                </span>
-              </label>
-              {pick && (
-                <label className="flex items-center gap-2 pl-7 pb-1.5 text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
-                  {CHOSEN_WORDS[x.unit].question}
-                  <AdminSelect
-                    // Envoyé seulement si l'hôte a choisi : sinon le serveur garde le nombre enregistré
-                    // ou tout le séjour (pas d'ancien maximum envoyé avant le recalcul du devis).
-                    name={counts[x.value] !== undefined ? `extraQty_${x.value}` : undefined}
-                    data-testid={`extraQty-${x.value}`}
-                    value={shown}
-                    onChange={(e) => setCounts((c) => ({ ...c, [x.value]: Number(e.target.value) }))}
-                    style={{ width: 130 }}
-                  >
-                    {Array.from({ length: max }, (_, i) => i + 1).map((n) => (
-                      <option key={n} value={n}>
-                        {chosenLabel(x.unit, n)}
-                      </option>
-                    ))}
-                  </AdminSelect>
-                </label>
-              )}
-              </div>
-            );
-          })}
-        </fieldset>
-      )}
+      <StayChoicesFields
+        feeChoices={feeChoices}
+        extraChoices={extraChoices}
+        fees={[chosenFees, setChosenFees]}
+        extras={[chosenExtras, setChosenExtras]}
+        counts={[counts, setCounts]}
+        stay={{ nights: Math.max(1, quote?.nights ?? 1), guests, beds: maxBeds }}
+      />
 
       <Field label="Email client *" error={fe.guestEmail}>
         <AdminInput name="guestEmail" type="email" required defaultValue={v.guestEmail} />
@@ -614,37 +490,7 @@ export default function ManualBookingForm({
       )}
 
       {/* « Forcer » n'apparaît qu'après un vrai conflit, collé au bouton : la décision et son effet au même endroit. */}
-      {state?.conflict && (
-        <div
-          role="alert"
-          data-force-panel
-          className="mt-1 mb-1 px-3.5 py-3 rounded-lg"
-          style={{ background: "#FEF3C7", border: "1px solid #FCD34D", color: "#92400E" }}
-        >
-          <p className="text-[13px] font-bold leading-snug">
-            {state.error}{" "}
-            <Link href={calendarHref} className="font-semibold underline underline-offset-2">
-              Voir le calendrier
-            </Link>
-          </p>
-          <p className="text-[12.5px] leading-[1.5] mt-1">
-            {state.clash?.kind === "booking"
-              ? `${state.clash.guestName} occupe déjà la chambre : enregistrer quand même y mettra deux clients en même temps. À faire seulement si vous déplacez l'un des deux ensuite.`
-              : state.clash?.kind === "ical"
-                ? "Si c'est la même réservation, recopiée ici, vous pouvez enregistrer. Sinon, deux clients arriveront le même soir."
-                : "Enregistrez quand même si ce blocage n'a plus lieu d'être."}
-          </p>
-          <label className="flex items-start gap-2.5 mt-2.5 cursor-pointer" style={{ color: "var(--admin-text)" }}>
-            <input
-              type="checkbox"
-              name="force"
-              className="mt-0.5"
-              style={{ accentColor: "var(--admin-primary)" }}
-            />
-            <span className="text-[13px] font-semibold leading-snug">Enregistrer quand même</span>
-          </label>
-        </div>
-      )}
+      {state?.conflict && <ForcePanel state={state} calendarHref={calendarHrefFor(v.checkIn)} />}
 
       <div className="flex gap-3 pt-2">
         <button

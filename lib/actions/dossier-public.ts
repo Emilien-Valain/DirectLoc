@@ -17,7 +17,7 @@ import {
 } from "@/lib/booking-intake";
 import { admitRoomsInTx, createDossier, RoomRefused } from "@/lib/dossiers";
 import { loadRoomCandidates, type LoadedCandidate } from "@/lib/room-combination-candidates";
-import { suggestCombination, validateCombination } from "@/lib/room-combination";
+import { ruleReasons, suggestCombination, validateCombination } from "@/lib/room-combination";
 import { combinationErrorMessage, noCombinationMessage } from "@/lib/dossier-messages";
 import { grandTotal } from "@/lib/extras";
 import { MAX_STRIPE_LINE_ITEMS, openCheckoutOrRollback, roomLineItems } from "@/lib/checkout-lines";
@@ -272,7 +272,7 @@ function goneState(
   const next = suggestCombination(free, adults, minors);
   if (!next.ok) {
     return {
-      error: `${lead} Rien n'a été réservé. ${noCombinationMessage(next.reason, adults + minors, adults, next.maxCapacity)}`,
+      error: `${lead} Rien n'a été réservé. ${noCombinationMessage(next.reason, adults + minors, adults, next.maxCapacity, ruleReasons(free))}`,
       values,
       gone,
     };

@@ -19,6 +19,11 @@
 /** Plafond de chambres examinées (garde-fou : la recherche reste en O(n²·personnes)). */
 export const MAX_CANDIDATE_ROOMS = 30;
 
+/** Règles qui écartent des chambres pourtant libres (« Séjour minimum de 2 nuits »…), sans doublon. */
+export function ruleReasons(candidates: Pick<RoomCandidate, "excludedReason">[]): string[] {
+  return [...new Set(candidates.flatMap((c) => (c.excludedReason ? [c.excludedReason] : [])))].slice(0, 3);
+}
+
 export interface RoomCandidate {
   id: string;
   capacity: number;

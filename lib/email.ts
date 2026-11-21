@@ -351,6 +351,17 @@ ${customMessage}
 
 // ─── 1b. Séjour modifié par l'établissement (client) ───────────────────────
 
+/** « Une question ? » vers le contact de l'hôte : l'email part d'une adresse noreply, on ne propose jamais d'y répondre. */
+export function renderQuestionLine(config?: TenantConfig): string {
+  const p = '<p style="font-size: 15px; color: #333; line-height: 1.6;">';
+  if (config?.email) {
+    const e = escapeHtml(config.email);
+    return `${p}Une question ? &Eacute;crivez-nous &agrave; <a href="mailto:${e}" style="color: inherit;">${e}</a>.</p>`;
+  }
+  if (config?.phone) return `${p}Une question ? Appelez-nous au ${escapeHtml(config.phone)}.</p>`;
+  return "";
+}
+
 export async function sendBookingModification(data: BookingEmailData) {
   const { guestName, guestEmail, hotelName, config } = data;
 
@@ -359,7 +370,27 @@ export async function sendBookingModification(data: BookingEmailData) {
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
 <p style="font-size: 15px; color: #333; line-height: 1.6;"><strong>${escapeHtml(hotelName)}</strong> a mis &agrave; jour votre r&eacute;servation. Voici le nouveau r&eacute;capitulatif :</p>
 ${renderBookingSummaryTable(data, "Total du s&eacute;jour")}
-<p style="font-size: 15px; color: #333; line-height: 1.6;">Une question ? R&eacute;pondez simplement &agrave; cet email.</p>`;
+${renderQuestionLine(config)}`;
+
+  await sendEmail({
+    tenantId: data.tenantId ?? null,
+    to: guestEmail,
+    subject: `Votre réservation a été modifiée — ${hotelName}`,
+    html: renderEmailLayout({ hotelName, config }, body),
+    hotelName,
+    replyTo: config?.email,
+  });
+}
+
+/** Dossier modifié par l'hôte (dates de toutes les chambres, chambre ajoutée) : le nouveau récapitulatif. */
+export async function sendDossierModification(data: DossierEmailData) {
+  const { guestName, guestEmail, hotelName, config } = data;
+  const body = `
+<h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">Votre s&eacute;jour a &eacute;t&eacute; modifi&eacute;</h2>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
+<p style="font-size: 15px; color: #333; line-height: 1.6;"><strong>${escapeHtml(hotelName)}</strong> a mis &agrave; jour votre r&eacute;servation. Voici le nouveau r&eacute;capitulatif :</p>
+${renderDossierSummary(data, "Total du s&eacute;jour")}
+${renderQuestionLine(config)}`;
 
   await sendEmail({
     tenantId: data.tenantId ?? null,

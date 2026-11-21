@@ -491,6 +491,37 @@ test.describe("Public — réserver plusieurs chambres", () => {
     expect(body).not.toContain("Code boîte à clés");
   });
 
+  test("règle qui écarte les chambres (nuits min) : la raison est dite, jamais « Complet »", async ({ page, request }) => {
+    const { rows: [rule] } = await pool.query(
+      "INSERT INTO booking_rules (tenant_id, min_stay) VALUES ($1, 3) RETURNING id",
+      [TENANT_ID],
+    );
+    try {
+      const res = await request.get(`${SITE}/api/rooms/combination`, {
+        params: { from: CHECK_IN, to: CHECK_OUT, adults: "7", minors: "2" },
+      });
+      expect(await res.json()).toMatchObject({ ok: false, maxCapacity: 0, rules: ["Séjour minimum de 3 nuits"] });
+
+      await open(page, `${SITE}/`);
+      await expect(async () => {
+        await page.fill("#search-checkin", CHECK_IN);
+        await page.fill("#search-checkout", CHECK_OUT);
+        await page.selectOption("#search-adults", "7");
+        await page.selectOption("#search-minors", "2");
+        await page.getByRole("button", { name: "Voir les disponibilités" }).click();
+        await expect(page.getByTestId("search-no-room")).toBeVisible({ timeout: 3000 });
+      }).toPass({ timeout: 20_000 });
+      await expect(page.getByTestId("search-no-room")).toContainText("Séjour minimum de 3 nuits");
+      await expect(page.getByTestId("search-no-room")).not.toContainText("Complet");
+
+      // Page multi-chambres ouverte par un lien : même raison.
+      await page.goto(groupUrl(7, 2));
+      await expect(page.getByTestId("dossier-none")).toContainText("Séjour minimum de 3 nuits");
+    } finally {
+      await pool.query("DELETE FROM booking_rules WHERE id = $1", [rule.id]);
+    }
+  });
+
   test("Stripe indisponible : rien n'est gardé, message clair", async ({ page }) => {
     const email = "stripe.down@example.com";
     await stripe.close();

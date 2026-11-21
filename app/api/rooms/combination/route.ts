@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { loadRoomCandidates } from "@/lib/room-combination-candidates";
-import { suggestCombination } from "@/lib/room-combination";
+import { ruleReasons, suggestCombination } from "@/lib/room-combination";
 import { isStayTooLong, isUuid, MAX_PARTY, STAY_TOO_LONG_MESSAGE } from "@/lib/validation";
 
 /**
@@ -8,7 +8,8 @@ import { isStayTooLong, isUuid, MAX_PARTY, STAY_TOO_LONG_MESSAGE } from "@/lib/v
  *
  * Combinaison de chambres proposée pour un groupe (Dossier, ADR-0012) : le moins de
  * chambres, puis la moins chère, chaque chambre avec au moins un adulte. Sinon la raison
- * (`insufficient_capacity`, `not_enough_adults`) et la capacité max atteignable.
+ * (`insufficient_capacity`, `not_enough_adults`), la capacité max atteignable et `rules` : les
+ * règles qui écartent des chambres libres (« Séjour minimum de 2 nuits »), à montrer au voyageur.
  * tenantId injecté par le proxy via x-tenant-id. Champs publics seulement.
  */
 export async function GET(request: NextRequest) {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
   const candidates = await loadRoomCandidates(tenantId, checkIn, checkOut);
   const result = suggestCombination(candidates, adults, minors);
   if (!result.ok) {
-    return NextResponse.json({ ok: false, reason: result.reason, maxCapacity: result.maxCapacity });
+    return NextResponse.json({ ok: false, reason: result.reason, maxCapacity: result.maxCapacity, rules: ruleReasons(candidates) });
   }
   const byId = new Map(candidates.map((c) => [c.id, c]));
   return NextResponse.json({

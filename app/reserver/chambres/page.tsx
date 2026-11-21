@@ -12,7 +12,7 @@ import { isDemoTenant } from "@/lib/demo";
 import { parisToday } from "@/lib/date-windows";
 import { isStayTooLong, MAX_PARTY } from "@/lib/validation";
 import { loadRoomCandidates } from "@/lib/room-combination-candidates";
-import { distributeGuests, suggestCombination } from "@/lib/room-combination";
+import { distributeGuests, ruleReasons, suggestCombination } from "@/lib/room-combination";
 import { noCombinationMessage } from "@/lib/dossier-messages";
 
 // Tunnel de réservation : rien à indexer.
@@ -93,7 +93,7 @@ export default async function ReserverChambresPage({ searchParams }: { searchPar
       return (
         <Shell>
           <p className="s-alert is-bad" data-testid="dossier-none">
-            {noCombinationMessage(suggestion.reason, adults + minors, adults, suggestion.maxCapacity)}
+            {noCombinationMessage(suggestion.reason, adults + minors, adults, suggestion.maxCapacity, ruleReasons(candidates))}
           </p>
           <Link href="/#dates" className="s-btn">
             Changer de dates

@@ -42,7 +42,7 @@ A reservation record — a [[guest]] holding a room for a date interval, with a 
 _Avoid_: réservation, résa, séjour, stay
 
 **Dossier**:
-A stay reserved in one go by one [[guest]]: one or more [[booking|Bookings]] (one per room) sharing the same dates, guest and a single payment. Every Booking belongs to exactly one Dossier, even a one-room stay. The guest never sees the word: to them the Dossier is « votre réservation », listing its rooms; the admin sees « Dossier » for the whole and « réservation » for each room. A Dossier is admitted all-or-nothing, but a single room can later be cancelled on its own. Editing one of its Bookings changes the guest of the whole Dossier; its dates cannot diverge from the other rooms' (v1). (See ADR-0012.)
+A stay reserved in one go by one [[guest]]: one or more [[booking|Bookings]] (one per room) sharing the same dates, guest and a single payment. Every Booking belongs to exactly one Dossier, even a one-room stay. The guest never sees the word: to them the Dossier is « votre réservation », listing its rooms; the admin sees « Dossier » for the whole and « réservation » for each room. A Dossier is admitted all-or-nothing, but a single room can later be cancelled on its own. Editing one of its Bookings changes the guest of the whole Dossier; its dates cannot diverge from the other rooms' (v1): the admin changes the dates of the whole Dossier at once (every non-cancelled room re-admitted and re-priced, all or nothing), and may add a room to an existing Dossier (same dates, same guest). (See ADR-0012.)
 _Avoid_: groupe, commande, panier, réservation groupée
 
 **Block**:

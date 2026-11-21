@@ -80,17 +80,18 @@ export class RoomRefused extends Error {
  * rien). Ordre stable (id croissant) : deux Dossiers concurrents prennent les verrous de
  * chambre dans le même ordre, sans s'interbloquer. Une chambre refusée → `RoomRefused`
  * (l'appelant laisse la transaction échouer : rien n'est créé). Résultat indexé par chambre.
+ * `options` par chambre : un changement de dates exclut la propre réservation de chaque chambre.
  */
 export async function admitRoomsInTx<R extends { roomId: string }>(
   tx: Tx,
   rooms: R[],
   input: (room: R) => AdmitInput,
-  options: AdmitOptions,
+  options: AdmitOptions | ((room: R) => AdmitOptions),
 ): Promise<Map<string, Admission>> {
   const byRoom = new Map<string, Admission>();
   for (const r of [...rooms].sort((a, b) => (a.roomId < b.roomId ? -1 : a.roomId > b.roomId ? 1 : 0))) {
     try {
-      byRoom.set(r.roomId, await admitInTx(tx, input(r), options));
+      byRoom.set(r.roomId, await admitInTx(tx, input(r), typeof options === "function" ? options(r) : options));
     } catch (e) {
       throw new RoomRefused(r.roomId, e);
     }
