@@ -45,4 +45,14 @@ test.describe("Stripe test du tenant démo", () => {
     expect(stripeModeAllowed(false, false)).toBe(true);
     expect(stripeModeAllowed(false, true)).toBe(true);
   });
+
+  test("clés restreintes (rk_) : même règle que les clés secrètes", () => {
+    process.env.STRIPE_SECRET_KEY = "rk_live_xxx";
+    delete process.env.STRIPE_TEST_SECRET_KEY;
+    expect(() => getStripe({ test: true })).toThrow(/STRIPE_TEST_SECRET_KEY/);
+    expect(stripeModeAllowed(false, false)).toBe(false);
+    expect(stripeModeAllowed(true, false)).toBe(true);
+    process.env.STRIPE_SECRET_KEY = "rk_test_xxx";
+    expect(stripeModeAllowed(false, false)).toBe(true);
+  });
 });

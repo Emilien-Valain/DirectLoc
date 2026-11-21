@@ -20,6 +20,10 @@ function apiOverride(): Stripe.StripeConfig {
   };
 }
 
+/** Clé secrète (`sk_`) ou restreinte (`rk_`) : seul le mode compte. */
+const isLiveKey = (key?: string) => !!key && /^(sk|rk)_live_/.test(key);
+const isTestKey = (key?: string) => !!key && /^(sk|rk)_test_/.test(key);
+
 /**
  * `{ test: true }` : client en mode test (tenant démo), quelle que soit la clé principale.
  * STRIPE_TEST_SECRET_KEY, à défaut STRIPE_SECRET_KEY seulement si c'est une clé test :
@@ -28,7 +32,7 @@ function apiOverride(): Stripe.StripeConfig {
 export function getStripe(opts?: { test?: boolean }): Stripe {
   if (opts?.test) {
     const main = process.env.STRIPE_SECRET_KEY;
-    const key = process.env.STRIPE_TEST_SECRET_KEY || (main?.startsWith("sk_test_") ? main : undefined);
+    const key = process.env.STRIPE_TEST_SECRET_KEY || (isTestKey(main) ? main : undefined);
     if (!key) {
       throw new Error("STRIPE_TEST_SECRET_KEY manquant (la clé principale n'est pas une clé test)");
     }
@@ -46,5 +50,5 @@ export function getStripe(opts?: { test?: boolean }): Stripe {
  */
 export function stripeModeAllowed(livemode: boolean, demo: boolean): boolean {
   if (demo) return !livemode;
-  return livemode || !process.env.STRIPE_SECRET_KEY?.startsWith("sk_live_");
+  return livemode || !isLiveKey(process.env.STRIPE_SECRET_KEY);
 }
