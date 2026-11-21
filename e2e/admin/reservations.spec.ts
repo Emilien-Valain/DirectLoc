@@ -3,6 +3,7 @@ import { expectAdminGuestName, fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers } from "../helpers/dossier";
 import { deleteBookingsByEmail } from "../helpers/intake";
 import { confirmDialog, submitManualBookingForm, SAVED_BOOKING_URL } from "../helpers/confirm";
 
@@ -516,13 +517,14 @@ test.describe("Admin — Gestion des réservations", () => {
     const pi = `pi_test_late_${RUN_ID}`;
     const insert = async (status: "cancelled" | "confirmed", guestName: string) => {
       const { rows } = await pool.query(
-        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-         VALUES ($1, $2, '2027-11-01', '2027-11-03', '240.00', $3, $4, 'late-pay@example.com', 1, 'direct') RETURNING id`,
+        `WITH d AS (INSERT INTO dossiers (tenant_id, check_in, check_out, guest_name, guest_email) VALUES ($1, '2030-01-01', '2030-01-02', 'Dossier Test', 'dossier@example.com') RETURNING id)
+     INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, dossier_id)
+         VALUES ($1, $2, '2027-11-01', '2027-11-03', '240.00', $3, $4, 'late-pay@example.com', 1, 'direct', (SELECT id FROM d)) RETURNING id`,
         [ctx.tenantId, ctx.apiRoomId, status, guestName],
       );
       await pool.query(
-        `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, stripe_payment_id, amount, currency, status)
-         VALUES ($1, $2, $3, $4, '240.00', 'eur', 'paid')`,
+        `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, stripe_payment_id, amount, currency, status)
+         VALUES ($1, (SELECT dossier_id FROM bookings WHERE id = $2), $3, $4, '240.00', 'eur', 'paid')`,
         [ctx.tenantId, rows[0].id, `cs_test_late_${status}_${RUN_ID}`, `${pi}_${status}`],
       );
       return rows[0].id as string;
@@ -543,10 +545,11 @@ test.describe("Admin — Gestion des réservations", () => {
       await expect(page.getByText(/la réservation est annulée/)).toHaveCount(0);
     } finally {
       await pool.query(
-        "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE tenant_id = $1 AND guest_email = 'late-pay@example.com')",
+        "DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE tenant_id = $1 AND guest_email = 'late-pay@example.com')",
         [ctx.tenantId],
       );
       await pool.query("DELETE FROM bookings WHERE tenant_id = $1 AND guest_email = 'late-pay@example.com'", [ctx.tenantId]);
+      await deleteOrphanDossiers(pool);
       await pool.end();
     }
   });
@@ -556,14 +559,15 @@ test.describe("Admin — Gestion des réservations", () => {
     const EMAIL = "pending-explainer@example.com";
     const insert = async (status: "pending" | "confirmed", guestName: string, paymentAgeMin?: number) => {
       const { rows } = await pool.query(
-        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-         VALUES ($1, $2, '2027-12-01', '2027-12-03', '240.00', $3, $4, $5, 1, 'direct') RETURNING id`,
+        `WITH d AS (INSERT INTO dossiers (tenant_id, check_in, check_out, guest_name, guest_email) VALUES ($1, '2030-01-01', '2030-01-02', 'Dossier Test', 'dossier@example.com') RETURNING id)
+     INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, dossier_id)
+         VALUES ($1, $2, '2027-12-01', '2027-12-03', '240.00', $3, $4, $5, 1, 'direct', (SELECT id FROM d)) RETURNING id`,
         [ctx.tenantId, ctx.apiRoomId, status, guestName, EMAIL],
       );
       if (paymentAgeMin !== undefined) {
         await pool.query(
-          `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status, created_at)
-           VALUES ($1, $2, $3, '240.00', 'eur', 'pending', now() - make_interval(mins => $4))`,
+          `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status, created_at)
+           VALUES ($1, (SELECT dossier_id FROM bookings WHERE id = $2), $3, '240.00', 'eur', 'pending', now() - make_interval(mins => $4))`,
           [ctx.tenantId, rows[0].id, `cs_test_pending_${paymentAgeMin}_${RUN_ID}`, paymentAgeMin],
         );
       }
@@ -599,10 +603,11 @@ test.describe("Admin — Gestion des réservations", () => {
       await expect(explainer).toHaveCount(0);
     } finally {
       await pool.query(
-        "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE tenant_id = $1 AND guest_email = $2)",
+        "DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE tenant_id = $1 AND guest_email = $2)",
         [ctx.tenantId, EMAIL],
       );
       await pool.query("DELETE FROM bookings WHERE tenant_id = $1 AND guest_email = $2", [ctx.tenantId, EMAIL]);
+      await deleteOrphanDossiers(pool);
       await pool.end();
     }
   });

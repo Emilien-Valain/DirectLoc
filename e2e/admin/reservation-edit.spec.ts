@@ -3,6 +3,7 @@ import { expectAdminGuestName, fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers, insertDossier } from "../helpers/dossier";
 import { deleteManualBlock, insertManualBlock } from "../helpers/manual-blocks";
 
 /**
@@ -49,8 +50,9 @@ async function insertBooking(opts: {
   email?: string;
 }) {
   const { rows } = await pool.query(
-    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_phone, guest_count, source)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, $10) RETURNING id`,
+    `WITH d AS (INSERT INTO dossiers (tenant_id, check_in, check_out, guest_name, guest_email) VALUES ($1, '2030-01-01', '2030-01-02', 'Dossier Test', 'dossier@example.com') RETURNING id)
+     INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_phone, guest_count, source, dossier_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 1, $10, (SELECT id FROM d)) RETURNING id`,
     [
       opts.tenantId ?? ctx.tenantId,
       opts.roomId ?? ctx.apiRoomId,
@@ -69,8 +71,8 @@ async function insertBooking(opts: {
 
 async function insertPayment(bookingId: string, status: "pending" | "paid", amount: string, ageMin = 0) {
   await pool.query(
-    `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status, created_at)
-     VALUES ($1, $2, $3, $4, 'eur', $5, now() - make_interval(mins => $6))`,
+    `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status, created_at)
+     VALUES ($1, (SELECT dossier_id FROM bookings WHERE id = $2), $3, $4, 'eur', $5, now() - make_interval(mins => $6))`,
     [ctx.tenantId, bookingId, `cs_edit_${bookingId}`, amount, status, ageMin],
   );
 }
@@ -86,10 +88,11 @@ async function row(id: string) {
 async function cleanup() {
   const like = `%@${DOMAIN}`;
   await pool.query(
-    "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE guest_email LIKE $1)",
+    "DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE guest_email LIKE $1)",
     [like],
   );
   await pool.query("DELETE FROM bookings WHERE guest_email LIKE $1", [like]);
+  await deleteOrphanDossiers(pool);
 }
 
 async function openEdit(page: Page, id: string) {
@@ -409,12 +412,14 @@ test.describe("Admin — Liste des réservations : à venir, anciennes, recherch
 
   test("plus de 50 anciennes : pagination, page 2 contient le reste", async ({ page }) => {
     const email = `pages-${RUN_ID}@${DOMAIN}`;
-    const values = Array.from({ length: 51 }, (_, i) => {
+    const values: string[] = [];
+    for (let i = 0; i < 51; i++) {
       const d = day(800 + i);
-      return `('${ctx.tenantId}', '${ctx.apiRoomId}', '${d}', '${d}'::date + 1, '100.00', 'cancelled', 'Page ${String(i).padStart(2, "0")} ${RUN_ID}', '${email}', 1, 'manual')`;
-    });
+      const dossierId = await insertDossier(pool, ctx.tenantId);
+      values.push(`('${ctx.tenantId}', '${dossierId}', '${ctx.apiRoomId}', '${d}', '${d}'::date + 1, '100.00', 'cancelled', 'Page ${String(i).padStart(2, "0")} ${RUN_ID}', '${email}', 1, 'manual')`);
+    }
     await pool.query(
-      `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source) VALUES ${values.join(",")}`,
+      `INSERT INTO bookings (tenant_id, dossier_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source) VALUES ${values.join(",")}`,
     );
     await page.goto(`/admin/reservations?vue=anciennes&q=${encodeURIComponent(email)}`);
     await expect(page.locator("tbody tr")).toHaveCount(50);

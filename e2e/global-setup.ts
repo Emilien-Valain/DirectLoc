@@ -6,8 +6,9 @@ import { hashPassword } from "better-auth/crypto";
 import { randomBytes } from "crypto";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { tenants, users, accounts, properties, rooms, bookings, userTenants, manualBlocks, bookingRules, pricingRules, icalSources, icalBlocks } from "../db/schema";
+import { tenants, users, accounts, properties, rooms, dossiers, bookings, userTenants, manualBlocks, bookingRules, pricingRules, icalSources, icalBlocks } from "../db/schema";
 import { computeDateShiftDays, fd } from "./helpers/dates";
+import { deleteOrphanDossiers } from "./helpers/dossier";
 
 function generateId(): string {
   return randomBytes(16).toString("base64url");
@@ -139,8 +140,13 @@ export default async function globalSetup() {
     .delete(bookings)
     .where(and(eq(bookings.roomId, apiRoom.id), eq(bookings.guestEmail, "api-test@example.com")));
 
+  const [{ id: apiDossierId }] = await db
+    .insert(dossiers)
+    .values({ tenantId: tenant.id, checkIn: bookingCheckIn, checkOut: bookingCheckOut, guestName: "Test API Réservation", guestEmail: "api-test@example.com" })
+    .returning({ id: dossiers.id });
   await db.insert(bookings).values({
     tenantId: tenant.id,
+    dossierId: apiDossierId,
     roomId: apiRoom.id,
     checkIn: bookingCheckIn,
     checkOut: bookingCheckOut,
@@ -224,8 +230,13 @@ export default async function globalSetup() {
     .delete(bookings)
     .where(and(eq(bookings.roomId, rivalRoom.id), eq(bookings.guestEmail, "rival-secret@example.com")));
 
+  const [{ id: rivalDossierId }] = await db
+    .insert(dossiers)
+    .values({ tenantId: rivalTenant.id, checkIn: rivalBookingCheckIn, checkOut: rivalBookingCheckOut, guestName: "Client Rival Secret", guestEmail: "rival-secret@example.com" })
+    .returning({ id: dossiers.id });
   await db.insert(bookings).values({
     tenantId: rivalTenant.id,
+    dossierId: rivalDossierId,
     roomId: rivalRoom.id,
     checkIn: rivalBookingCheckIn,
     checkOut: rivalBookingCheckOut,
@@ -271,6 +282,9 @@ export default async function globalSetup() {
   await db.delete(manualBlocks).where(eq(manualBlocks.tenantId, tenant.id));
   await db.delete(bookingRules).where(eq(bookingRules.tenantId, tenant.id));
   await db.delete(pricingRules).where(eq(pricingRules.tenantId, tenant.id));
+
+  // Dossiers laissés par des réservations supprimées (setup précédent, tests).
+  await deleteOrphanDossiers(pool);
 
   await pool.end();
 

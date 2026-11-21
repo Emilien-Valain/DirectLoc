@@ -14,13 +14,13 @@ import {
   RoomUnavailableError,
   saveLines,
 } from "@/lib/booking-intake";
-import { getStripe } from "@/lib/stripe";
-import { isDemoTenant } from "@/lib/demo";
+import { createDossier } from "@/lib/dossiers";
 import { CHECKOUT_TTL_MINUTES } from "@/lib/checkout-window";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { amountBucket, browserDistinctId, captureServer } from "@/lib/analytics";
 import { bookingPublicSchema, safeParseFormData } from "@/lib/validation";
 import { extraQuantitiesFrom } from "@/lib/extras";
+import { openCheckoutOrRollback, roomLineItems } from "@/lib/checkout-lines";
 import type Stripe from "stripe";
 
 /** Montant minimum d'un paiement Stripe en euros. */
@@ -28,7 +28,7 @@ const MIN_STRIPE_AMOUNT = 0.5;
 
 /**
  * Server action publique pour créer une réservation.
- * Crée un booking pending + un payment pending + une Stripe Checkout Session,
+ * Crée un Dossier d'une chambre (booking pending) + un payment pending + une Stripe Checkout Session,
  * puis redirige le client vers la page de paiement Stripe.
  *
  * Les refus (saisie, dates prises entre-temps, règles, Stripe) sont RENDUS au
@@ -90,29 +90,26 @@ export async function createBookingPublic(
       async (tx, { room, breakdown, lines, total }) => {
         // Stripe refuse tout paiement sous 0,50 € : ne rien réserver plutôt qu'un pending orphelin.
         if (total < MIN_STRIPE_AMOUNT) return null;
+        const guest = { guestName, guestFirstName, guestLastName, guestEmail, guestPhone, guestAddress, guestCountry };
+        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest });
         const [row] = await tx
           .insert(bookings)
           .values({
             tenantId,
+            dossierId,
             roomId,
             checkIn,
             checkOut,
             totalPrice: total.toFixed(2),
             status: "pending",
-            guestName,
-            guestFirstName,
-            guestLastName,
-            guestEmail,
-            guestPhone,
-            guestAddress,
-            guestCountry,
+            ...guest,
             guestCount,
             childCount,
             source: "direct",
           })
           .returning({ id: bookings.id });
         await saveLines(tx, row.id, lines);
-        return { room, breakdown, lines, total, bookingId: row.id };
+        return { room, breakdown, lines, total, dossierId };
       },
     );
   } catch (e) {
@@ -148,7 +145,7 @@ export async function createBookingPublic(
       values,
     };
   }
-  const { room, breakdown, lines, total, bookingId } = admitted;
+  const { room, breakdown, lines, total, dossierId } = admitted;
   const nights = breakdown.nights.length;
   const totalPrice = total.toFixed(2);
 
@@ -176,36 +173,14 @@ export async function createBookingPublic(
     mode: "payment",
     payment_method_types: ["card"],
     customer_email: guestEmail,
-    line_items: [
-      {
-        price_data: {
-          currency: "eur",
-          unit_amount: Math.round(breakdown.totalPrice * 100),
-          product_data: {
-            name: `${room.name} — ${nights} nuit${nights > 1 ? "s" : ""}`,
-            description: `${formatDate(checkIn)} → ${formatDate(checkOut)} · ${tenant?.name ?? ""}`,
-          },
-        },
-        quantity: 1,
-      },
-      // Un line item par ligne payante (Stripe refuse un montant nul) : prix unitaire × quantité.
-      // La taxe en % a un prix moyen arrondi : envoyée en un seul item pour que Stripe encaisse le total exact.
-      ...lines
-        .filter((x) => x.total > 0)
-        .map((x) => {
-          const exact = Math.round(x.unitPrice * 100) * x.quantity === Math.round(x.total * 100);
-          return {
-            price_data: {
-              currency: "eur",
-              unit_amount: Math.round((exact ? x.unitPrice : x.total) * 100),
-              product_data: { name: exact ? x.label : `${x.label} (${x.quantity} nuitées)` },
-            },
-            quantity: exact ? x.quantity : 1,
-          };
-        }),
-    ],
+    line_items: roomLineItems({
+      name: `${room.name} — ${nights} nuit${nights > 1 ? "s" : ""}`,
+      description: `${formatDate(checkIn)} → ${formatDate(checkOut)} · ${tenant?.name ?? ""}`,
+      accommodation: breakdown.totalPrice,
+      lines,
+    }),
     metadata: {
-      bookingId,
+      dossierId,
       tenantId,
       ...(distinctId && { posthogDistinctId: distinctId }),
     },
@@ -214,19 +189,8 @@ export async function createBookingPublic(
     expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_TTL_MINUTES * 60,
   };
 
-  // Sans session Stripe, aucun événement `expired` n'annulera jamais ce pending :
-  // on le retire tout de suite pour ne pas bloquer la chambre indéfiniment.
-  let session: Stripe.Checkout.Session;
-  try {
-    // Démo : mode test sur le compte plateforme, jamais sur un compte connecté.
-    const demo = await isDemoTenant(tenantId);
-    session = await getStripe({ test: demo }).checkout.sessions.create(
-      sessionParams,
-      stripeAccountId && !demo ? { stripeAccount: stripeAccountId } : undefined,
-    );
-  } catch (e) {
-    await db.delete(bookings).where(eq(bookings.id, bookingId));
-    console.error("Création de la session Stripe impossible:", e);
+  const session = await openCheckoutOrRollback(tenantId, dossierId, stripeAccountId, sessionParams);
+  if (!session) {
     return {
       error:
         "Le paiement en ligne est momentanément indisponible. Votre réservation n'a pas été enregistrée : réessayez dans quelques minutes.",
@@ -237,7 +201,7 @@ export async function createBookingPublic(
   // Insérer le payment en DB
   await db.insert(payments).values({
     tenantId,
-    bookingId,
+    dossierId,
     stripeSessionId: session.id,
     amount: totalPrice,
     currency: "eur",

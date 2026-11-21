@@ -82,6 +82,9 @@ export default defineConfig({
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "sk_test_placeholder",
       STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_test_XXXX",
       STRIPE_CONNECT_WEBHOOK_SECRET: process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+      // Faux Stripe local (e2e/helpers/fake-stripe.ts), démarré par les specs qui en ont besoin ;
+      // ailleurs la connexion est refusée = Stripe indisponible (même effet que la clé placeholder).
+      STRIPE_API_BASE: "http://localhost:3995",
       SMTP_HOST: "localhost",
       SMTP_PORT: "1025",
       SMTP_FROM: "test@maresa.test",

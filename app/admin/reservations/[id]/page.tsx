@@ -9,6 +9,7 @@ import {
   completeFinishedStays,
 } from "@/lib/queries/bookings";
 import { confirmBooking, cancelBooking, setBookingPaid } from "@/lib/actions/bookings";
+import { getBookingDossier } from "@/lib/queries/dossiers";
 import ReservationPdfActions from "@/components/admin/ReservationPdfActions";
 import { ConfirmButton } from "@/components/admin/ConfirmButton";
 import { openCheckoutDeadline } from "@/lib/checkout-window";
@@ -39,19 +40,24 @@ export default async function ReservationDetailPage({
   const { enregistree, annulee, modifiee } = await searchParams;
   const { tenantId } = await requireSession();
   await completeFinishedStays(tenantId);
-  const [reservation, payment] = await Promise.all([
+  const [reservation, payment, dossier] = await Promise.all([
     getBookingByIdAndTenant(id, tenantId),
     getLatestPayment(id, tenantId),
+    getBookingDossier(id, tenantId),
   ]);
   if (!reservation) notFound();
   const extraLines = await getBookingLines(id);
-  const paidOnline = payment?.status === "paid" ? parseFloat(payment.amount) : 0;
+  // Dossier de plusieurs chambres (ADR-0012) : le paiement en ligne couvre toutes les chambres.
+  // Il ne se lit donc pas chambre par chambre : reste à payer et trop-perçu sont sur la fiche du Dossier.
+  const group = dossier && dossier.size > 1 ? dossier : null;
+  const dossierHref = group ? `/admin/dossiers/${group.id}` : "";
+  const paidOnline = payment?.status === "paid" && !group ? parseFloat(payment.amount) : 0;
   // Reste à payer : Extras ajoutés après le paiement en ligne, réglés sur place (ADR-0010).
   const balance =
     reservation.status === "cancelled" ? 0 : balanceDue(parseFloat(reservation.totalPrice), paidOnline, reservation.paidAt);
   // Annulée alors que l'argent est encaissé (annulation par l'hôte, ou paiement
   // arrivé après l'annulation via le webhook) : DirectLoc ne rembourse jamais seul.
-  const paidAfterCancel = reservation.status === "cancelled" && payment?.status === "paid";
+  const paidAfterCancel = reservation.status === "cancelled" && payment?.status === "paid" && !group;
   const paymentInfo = paidAfterCancel
     ? { label: "Payé, à rembourser", tone: "cancelled" }
     : payment
@@ -86,6 +92,28 @@ export default async function ReservationDetailPage({
         </h1>
         <StatusBadge status={reservation.status} />
       </div>
+
+      {group && (
+        <Link
+          href={dossierHref}
+          data-dossier-link
+          className="flex items-center justify-between gap-3 rounded-[var(--admin-radius)] px-4 py-3 min-h-[44px]"
+          style={{ background: "var(--admin-primary-light)", color: "var(--admin-primary)" }}
+        >
+          <span className="text-[13px] leading-[1.45]">
+            <strong className="font-bold">Une chambre d&apos;un Dossier de {group.size} chambres.</strong>{" "}
+            Paiement, reste à payer et annulation du séjour entier : voir le Dossier.
+          </span>
+          <span className="text-[13px] font-semibold whitespace-nowrap">Dossier →</span>
+        </Link>
+      )}
+
+      {group && reservation.status === "cancelled" && payment?.status === "paid" && (
+        <StatusBanner variant="warning">
+          Chambre annulée alors que le Dossier a été payé en ligne : le montant à rembourser depuis Stripe est
+          indiqué sur la fiche du Dossier.
+        </StatusBanner>
+      )}
 
       {paidAfterCancel && (
         <StatusBanner variant="error">
@@ -186,9 +214,10 @@ export default async function ReservationDetailPage({
             )}
           </div>
           <ConfirmButton
-            title={`Annuler la réservation de ${reservation.guestName} ?`}
+            title={group ? `Annuler la chambre « ${reservation.room?.name ?? "Chambre"} » ?` : `Annuler la réservation de ${reservation.guestName} ?`}
             message={
               <>
+                {group && "Seule cette chambre est annulée : les autres chambres du Dossier restent réservées. "}
                 La chambre sera libérée et un email d&apos;annulation sera envoyé à{" "}
                 <strong style={{ color: "var(--admin-text)" }}>{reservation.guestEmail}</strong>.
                 Cette action est définitive.
@@ -202,7 +231,12 @@ export default async function ReservationDetailPage({
                       : { background: "var(--admin-surface-2)", color: "var(--admin-text-muted)" }
                   }
                 >
-                  {payment?.status === "paid" ? (
+                  {group && payment?.status === "paid" ? (
+                    <>
+                      <strong>Le Dossier a été payé en ligne.</strong> L&apos;annulation ne rembourse rien : la fiche du
+                      Dossier indiquera le montant à rendre depuis Stripe.
+                    </>
+                  ) : payment?.status === "paid" ? (
                     <>
                       <strong>{reservation.guestName} a payé {formatEuros(payment.amount)} en ligne.</strong>{" "}
                       L&apos;annulation ne le rembourse pas : faites-le depuis votre tableau de bord Stripe.
@@ -336,7 +370,11 @@ export default async function ReservationDetailPage({
           <Row
             label="Règlement"
             value={
-              paymentInfo && !(reservation.paidAt && paidOnline > 0 && reservation.status !== "cancelled") ? (
+              group ? (
+                <Link href={dossierHref} className="underline underline-offset-2" style={{ color: "var(--admin-primary)" }}>
+                  {payment?.status === "paid" ? "Payé en ligne avec le Dossier" : "Voir le Dossier"}
+                </Link>
+              ) : paymentInfo && !(reservation.paidAt && paidOnline > 0 && reservation.status !== "cancelled") ? (
                 <StatusBadge status={paymentInfo.tone} label={paymentInfo.label} />
               ) : reservation.paidAt ? (
                 <span className="inline-flex items-center gap-2">

@@ -16,6 +16,7 @@ const TABLES = [
   "properties",
   "rooms",
   "bookings",
+  "dossiers",
   "payments",
   "extras",
   "fees",
@@ -64,6 +65,7 @@ test.describe("Cron — reset de l'hôtel démo", () => {
       properties: 1,
       rooms: 4,
       bookings: 18,
+      dossiers: 18, // un Dossier d'une chambre par réservation (ADR-0012)
       payments: 0,
       manual_blocks: 1,
       booking_rules: 1,

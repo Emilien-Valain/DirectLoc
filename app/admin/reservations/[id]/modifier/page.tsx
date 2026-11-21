@@ -9,6 +9,7 @@ import ManualBookingForm from "@/components/admin/ManualBookingForm";
 import { bedLimit } from "@/lib/extras";
 import { getBookingLines, getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant, getTouristTax } from "@/lib/queries/fees";
+import { dossierSizes } from "@/lib/queries/dossiers";
 
 export const metadata = { title: "Modifier la réservation" };
 
@@ -29,7 +30,8 @@ export default async function EditReservationPage({
   // Terminée, annulée, en plein paiement en ligne ou d'un autre tenant : rien à modifier ici.
   if (!editable) notFound();
   const { booking, payment } = editable;
-  const lines = await getBookingLines(id);
+  const [lines, sizes] = await Promise.all([getBookingLines(id), dossierSizes(tenantId, [booking.dossierId])]);
+  const dossierRooms = sizes.get(booking.dossierId) ?? 1;
   const iso = (d: Date) => new Date(d).toISOString().slice(0, 10);
 
   return (
@@ -79,7 +81,10 @@ export default async function EditReservationPage({
           lines: lines.filter((l) => l.kind === "extra"),
           feeLines: lines.filter((l) => l.kind === "fee"),
           taxExempt: lines.some((l) => l.kind === "tax" && l.exempt),
-          paidOnline: payment?.status === "paid" ? parseFloat(payment.amount) : null,
+          // Dossier de plusieurs chambres : le paiement couvre toutes les chambres, l'écart
+          // ne se lit pas chambre par chambre (la fiche du Dossier donne reste à payer / trop-perçu).
+          paidOnline: payment?.status === "paid" && dossierRooms === 1 ? parseFloat(payment.amount) : null,
+          dossierRooms,
         }}
       />
     </div>

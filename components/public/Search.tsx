@@ -5,6 +5,7 @@ import Link from "next/link";
 import { parisToday } from "@/lib/date-windows";
 import { formatEuros } from "@/lib/utils";
 import DateField from "@/components/public/DateField";
+import { noCombinationMessage, partyLabel } from "@/lib/dossier-messages";
 
 type Room = {
   id: string;
@@ -17,6 +18,20 @@ type Room = {
 
 type Status = "idle" | "invalid" | "searching" | "done" | "error";
 
+/** Groupe trop grand pour une chambre : combinaison proposée par /api/rooms/combination. */
+type Group =
+  | {
+      ok: true;
+      totalPrice: number;
+      rooms: { id: string; name: string; capacity: number; adults: number; minors: number }[];
+    }
+  | { ok: false; reason: "insufficient_capacity" | "not_enough_adults" | "invalid_input"; maxCapacity: number };
+
+/** Pas de plafond lié aux chambres : un groupe se loge sur plusieurs chambres. */
+const MAX_ADULTS = 30;
+const MAX_MINORS = 20;
+
+
 function addDay(dateStr: string): string {
   const d = new Date(dateStr + "T00:00:00Z");
   d.setUTCDate(d.getUTCDate() + 1);
@@ -24,13 +39,16 @@ function addDay(dateStr: string): string {
 }
 
 /** Recherche de dates de l'accueil : renvoie les chambres libres, avec lien direct vers la réservation. */
-export default function Search({ maxGuests = 1 }: { maxGuests?: number }) {
+export default function Search() {
   const today = parisToday();
   const [checkIn, setCheckIn] = useState("");
   const [checkOut, setCheckOut] = useState("");
-  const [guests, setGuests] = useState(1);
+  const [adults, setAdults] = useState(1);
+  const [minors, setMinors] = useState(0);
+  const guests = adults + minors;
   const [status, setStatus] = useState<Status>("idle");
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [group, setGroup] = useState<Group | null>(null);
 
   const past = !!checkIn && checkIn < today;
   const valid = !!checkIn && !!checkOut && checkOut > checkIn && !past;
@@ -52,7 +70,17 @@ export default function Search({ maxGuests = 1 }: { maxGuests?: number }) {
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      setRooms(data.rooms ?? []);
+      const found: Room[] = data.rooms ?? [];
+      // Aucune chambre seule pour tout le groupe : plusieurs chambres (une réservation).
+      let combo: Group | null = null;
+      if (found.length === 0 && guests > 1) {
+        const q = new URLSearchParams({ from: checkIn, to: checkOut, adults: String(adults), minors: String(minors) });
+        const r = await fetch(`/api/rooms/combination?${q}`, { cache: "no-store" });
+        if (!r.ok) throw new Error();
+        combo = await r.json();
+      }
+      setRooms(found);
+      setGroup(combo);
       setStatus("done");
     } catch {
       setStatus("error");
@@ -97,22 +125,47 @@ export default function Search({ maxGuests = 1 }: { maxGuests?: number }) {
                 setStatus("idle");
               }}
             />
-            <div className="s-field s-field-guests">
-              <label htmlFor="search-guests">Voyageurs</label>
+            <div className="s-party">
+            <div className="s-field">
+              <label htmlFor="search-adults">Adultes</label>
               <select
-                id="search-guests"
-                value={guests}
+                id="search-adults"
+                value={adults}
                 onChange={(e) => {
-                  setGuests(Number(e.target.value));
+                  setAdults(Number(e.target.value));
                   setStatus("idle");
                 }}
               >
-                {Array.from({ length: Math.max(1, maxGuests) }, (_, i) => i + 1).map((n) => (
+                {Array.from({ length: MAX_ADULTS }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>
-                    {n} pers.
+                    {n}
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="s-field">
+              <label htmlFor="search-minors" title="Moins de 18 ans">
+                Enfants
+              </label>
+              <select
+                id="search-minors"
+                value={minors}
+                aria-describedby="search-minors-hint"
+                onChange={(e) => {
+                  setMinors(Number(e.target.value));
+                  setStatus("idle");
+                }}
+              >
+                {Array.from({ length: MAX_MINORS + 1 }, (_, i) => i).map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              <span id="search-minors-hint" className="s-sr-only">
+                Moins de 18 ans
+              </span>
+            </div>
             </div>
             <button
               type="submit"
@@ -140,12 +193,41 @@ export default function Search({ maxGuests = 1 }: { maxGuests?: number }) {
             La recherche n&apos;a pas abouti. Réessayez dans un instant.
           </p>
         )}
-        {status === "done" && rooms.length === 0 && (
-          <p className="s-note is-bad">
-            {guests > 1
-              ? `Aucune chambre libre pour ${guests} personnes à ces dates. Essayez d'autres dates.`
-              : "Complet pour ces dates. Essayez d'autres dates."}
+        {status === "done" && rooms.length === 0 && !(group?.ok) && (
+          <p className="s-note is-bad" data-testid="search-no-room">
+            {group && !group.ok
+              ? noCombinationMessage(group.reason, guests, adults, group.maxCapacity)
+              : guests > 1
+                ? `Aucune chambre libre pour ${guests} personnes à ces dates. Essayez d'autres dates.`
+                : "Complet pour ces dates. Essayez d'autres dates."}
           </p>
+        )}
+        {status === "done" && rooms.length === 0 && group?.ok && (
+          <div className="s-search-group" data-testid="search-group">
+            <p className="s-note is-good">
+              {group.rooms.length} chambres pour {guests} personnes, {nights} nuit{nights > 1 ? "s" : ""}
+            </p>
+            <ul className="s-search-rooms">
+              {group.rooms.map((r) => (
+                <li key={r.id} className="s-search-room is-static">
+                  <span>{r.name}</span>
+                  <span className="s-search-room-meta">
+                    {partyLabel(r.adults, r.minors)} · {r.capacity} pers. max
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="s-hint">
+              {formatEuros(group.totalPrice)} d&apos;hébergement pour le séjour, options et taxes en plus.
+              Vous pourrez changer de chambres et la répartition à l&apos;étape suivante.
+            </p>
+            <Link
+              href={groupHref(checkIn, checkOut, adults, minors, group.rooms.map((r) => r.id))}
+              className="s-btn s-btn-block"
+            >
+              Réserver ces {group.rooms.length} chambres
+            </Link>
+          </div>
         )}
         {status === "done" && rooms.length > 0 && (
           <>
@@ -162,7 +244,7 @@ export default function Search({ maxGuests = 1 }: { maxGuests?: number }) {
                 return (
                   <li key={r.id}>
                     <Link
-                      href={`/reserver/${r.id}?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}`}
+                      href={`/reserver/${r.id}?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}${minors > 0 ? `&children=${minors}` : ""}`}
                       className="s-search-room"
                     >
                       <span>{r.name}</span>
@@ -175,9 +257,25 @@ export default function Search({ maxGuests = 1 }: { maxGuests?: number }) {
                 );
               })}
             </ul>
+            {guests > 1 && (
+              <Link
+                href={groupHref(checkIn, checkOut, adults, minors)}
+                className="s-link"
+                data-testid="search-several-rooms"
+              >
+                Plutôt plusieurs chambres ?
+              </Link>
+            )}
           </>
         )}
       </div>
     </div>
   );
+}
+
+/** Page de réservation de plusieurs chambres ; sans `rooms`, le serveur propose la combinaison. */
+function groupHref(checkIn: string, checkOut: string, adults: number, minors: number, rooms?: string[]) {
+  const q = new URLSearchParams({ checkIn, checkOut, adults: String(adults), minors: String(minors) });
+  if (rooms) q.set("rooms", rooms.join(","));
+  return `/reserver/chambres?${q}`;
 }

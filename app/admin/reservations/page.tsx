@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { getBookingsByTenant, completeFinishedStays } from "@/lib/queries/bookings";
 import { getRoomsByTenant } from "@/lib/queries/rooms";
+import { dossierSizes } from "@/lib/queries/dossiers";
 import { STATUS_LABELS } from "@/lib/calendar";
 import { viewOfStatus, type BookingStatus, type BookingView } from "@/lib/queries/bookings";
 import {
@@ -10,6 +11,7 @@ import {
   ChannelTag,
   EmptyState,
   GhostButton,
+  GroupTag,
   GuestAvatar,
   PageHeader,
   PrimaryButton,
@@ -47,6 +49,9 @@ export default async function ReservationsPage({
     getBookingsByTenant(tenantId, { view, status, roomId: params.roomId, q, page }),
     getRoomsByTenant(tenantId),
   ]);
+
+  // Dossiers de plusieurs chambres (ADR-0012) : chaque ligne mène aussi à la fiche du Dossier.
+  const groups = await dossierSizes(tenantId, reservations.map((r) => r.dossierId));
 
   // Liens de filtre : on garde le reste, on revient en page 1.
   const href = (over: Partial<Record<"vue" | "status" | "roomId" | "q" | "page", string | undefined>>) => {
@@ -261,6 +266,17 @@ export default async function ReservationsPage({
                       style={{ color: "var(--admin-text)" }}
                     >
                       {r.room?.name ?? "—"}
+                      {(groups.get(r.dossierId) ?? 1) > 1 && (
+                        <Link
+                          href={`/admin/dossiers/${r.dossierId}`}
+                          data-dossier-link
+                          aria-label={`Dossier de ${groups.get(r.dossierId)} chambres de ${r.guestName}`}
+                          // Au-dessus du lien de la ligne entière (after:inset-0).
+                          className="relative z-10 ml-2 inline-flex align-middle hover:opacity-80"
+                        >
+                          <GroupTag rooms={groups.get(r.dossierId)!} />
+                        </Link>
+                      )}
                       <span
                         className="xl:hidden tabular-nums"
                         style={{ color: "var(--admin-text-muted)" }}

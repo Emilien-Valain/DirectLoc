@@ -38,7 +38,6 @@ export default async function HomePage() {
         config={config}
         rooms={featuredRooms}
         totalRooms={allRooms.length}
-        maxGuests={Math.max(1, ...allRooms.map((r) => r.capacity))}
       />
       <HomeStory config={config} />
       <HomeStats config={config} />

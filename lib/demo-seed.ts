@@ -11,6 +11,7 @@ import {
   rooms,
   bookings,
   payments,
+  dossiers,
   extras,
   fees,
   icalSources,
@@ -179,6 +180,7 @@ export async function resetDemoTenant() {
     await tx.delete(extras).where(eq(extras.tenantId, t));
     await tx.delete(fees).where(eq(fees.tenantId, t));
     await tx.delete(bookings).where(eq(bookings.tenantId, t));
+    await tx.delete(dossiers).where(eq(dossiers.tenantId, t));
     await tx.delete(rooms).where(eq(rooms.tenantId, t));
     await tx.delete(properties).where(eq(properties.tenantId, t));
 
@@ -209,23 +211,29 @@ export async function resetDemoTenant() {
       .returning({ id: rooms.id, slug: rooms.slug });
     const roomId = (i: number) => roomRows.find((r) => r.slug === ROOMS[i].slug)!.id;
 
+    // Un Dossier d'une chambre par réservation (ADR-0012) : voyageur et dates recopiés.
+    const stays = BOOKINGS.map(([, from, to, , source, guestName], n) => ({
+      tenantId: t,
+      checkIn: day(from),
+      checkOut: day(to),
+      guestName,
+      guestFirstName: splitName(guestName).first,
+      guestLastName: splitName(guestName).last,
+      guestEmail: `client${n + 1}@example.com`,
+      guestPhone: source === "manual" ? "+33 6 12 34 56 78" : null,
+      createdAt: day(Math.min(from, 0) - 14),
+    }));
+    const dossierRows = await tx.insert(dossiers).values(stays).returning({ id: dossiers.id });
     await tx.insert(bookings).values(
-      BOOKINGS.map(([i, from, to, status, source, guestName], n) => ({
-        tenantId: t,
+      BOOKINGS.map(([i, from, to, status, source], n) => ({
+        ...stays[n],
+        dossierId: dossierRows[n].id,
         roomId: roomId(i),
-        checkIn: day(from),
-        checkOut: day(to),
         totalPrice: ((to - from) * ROOMS[i].price).toFixed(2),
         status,
         source,
-        guestName,
-        guestFirstName: splitName(guestName).first,
-        guestLastName: splitName(guestName).last,
-        guestEmail: `client${n + 1}@example.com`,
-        guestPhone: source === "manual" ? "+33 6 12 34 56 78" : null,
         guestCount: Math.min(2, ROOMS[i].capacity),
         paidAt: source === "manual" && status === "completed" ? day(to) : null,
-        createdAt: day(Math.min(from, 0) - 14),
       })),
     );
 

@@ -121,6 +121,7 @@
   padding: 0; border: 0; opacity: 0; pointer-events: none;
 }
 .s-field-short { max-width: 220px; }
+.s-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .s-field-mid { max-width: 360px; }
 .s-optional { font-weight: 400; color: var(--s-ink-soft); }
 .s-grid-2 { display: grid; gap: 16px; }
@@ -178,7 +179,14 @@
 /* Selon la place réelle du bloc (colonne étroite en Affiche) : « jj/mm/aaaa » ne doit jamais être tronqué. */
 .s-sign-face { container-type: inline-size; }
 @container (min-width: 380px) { .s-search-fields { grid-template-columns: 1fr 1fr; } }
-@container (min-width: 700px) { .s-search-fields { grid-template-columns: 1fr 1fr minmax(104px, 0.6fr) auto; } }
+@container (min-width: 700px) { .s-search-fields { grid-template-columns: 1fr 1fr minmax(160px, 0.7fr) auto; } }
+/* Adultes + enfants côte à côte, quel que soit le nombre de colonnes (pas de plafond : un groupe prend plusieurs chambres). */
+.s-party { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; min-width: 0; }
+.s-party select { padding-right: 30px; font-variant-numeric: tabular-nums; }
+.s-search-group { display: flex; flex-direction: column; gap: 10px; }
+.s-search-room.is-static { grid-template-columns: 1fr; }
+button.s-search-room { width: 100%; font: inherit; font-weight: 700; text-align: left; cursor: pointer; }
+button.s-search-room:hover { border-color: var(--s-accent); }
 .s-search-result { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
 .s-search-result:empty { display: none; }
 .s-search-rooms { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
@@ -307,6 +315,39 @@
   .s-summary { position: sticky; top: 24px; }
 }
 .s-book-main { display: flex; flex-direction: column; gap: 20px; }
+
+/* Plusieurs chambres en une réservation (DossierForm) — structure seulement, couleurs des mondes. */
+.s-dossier-dates { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; margin: 0; }
+.s-dossier-rooms { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.s-dossier-rooms > .s-h3 { margin: 0; }
+.s-dossier-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.s-dossier-room { animation: s-room-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.s-dossier-head { display: flex; align-items: center; gap: 14px; }
+.s-dossier-num {
+  display: grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 50%;
+  font-family: var(--s-display); font-size: 1.35rem; line-height: 1; font-variant-numeric: tabular-nums;
+  color: var(--s-on-accent); background: var(--s-accent);
+}
+.s-dossier-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.s-dossier-name { margin: 0; font-family: var(--s-display); font-size: 1.35rem; line-height: 1.1; overflow-wrap: anywhere; }
+.s-dossier-sub { margin: 0; font-weight: 700; }
+.s-dossier-extras { display: flex; flex-direction: column; gap: 8px; padding-top: 12px; border-top: 1px solid var(--s-line); }
+.s-dossier-actions { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding-top: 12px; border-top: 1px dashed var(--s-line); }
+.s-dossier-actions:empty { display: none; }
+.s-dossier-add { gap: 12px; }
+/* Adultes / enfants : toujours côte à côte, même sur téléphone (deux petits nombres). */
+:is(.s-dossier-party, .s-dossier-room > .s-grid-2) { grid-template-columns: 1fr 1fr; }
+.s-chip-btn {
+  align-self: flex-start; min-height: 44px; padding: 0 16px;
+  font: inherit; font-weight: 700; color: var(--s-ink); background: var(--s-surface);
+  border: 2px solid var(--s-line); border-radius: var(--s-chip-radius, 6px); cursor: pointer;
+}
+.s-chip-btn:hover { border-color: var(--s-accent); }
+.s-chip-btn.is-quiet { padding: 0 4px; color: var(--s-bad); background: none; border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+.s-summary-stay { padding: 10px 0; border-bottom: 1px solid var(--s-line); }
+.s-summary-sub { display: flex; justify-content: space-between; gap: 8px; margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+@keyframes s-room-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .s-dossier-room { animation: none; } }
 .s-group { margin: 0; padding: 24px; border: 0; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .s-group legend { float: left; width: 100%; margin-bottom: 4px; padding: 0; }
 .s-hint-list { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; font-size: 0.9rem; color: var(--s-ink-soft); }

@@ -121,6 +121,23 @@ export function ChannelTag({ channel }: { channel: string }) {
   );
 }
 
+/**
+ * Marque « groupe » : la réservation appartient à un Dossier de plusieurs chambres
+ * (ADR-0012). Même forme qu'une étiquette de canal, teinte forêt (« c'est à vous »).
+ */
+export function GroupTag({ rooms }: { rooms: number }) {
+  return (
+    <span
+      data-group-tag
+      className="inline-flex items-center gap-1 text-[12px] font-semibold rounded-md px-2 py-[2px] whitespace-nowrap"
+      style={{ background: "var(--admin-primary-light)", color: "var(--admin-primary)" }}
+    >
+      <Icon.Group size={12} aria-hidden />
+      Groupe · {rooms} chambres
+    </span>
+  );
+}
+
 export function PrimaryButton({
   children,
   href,

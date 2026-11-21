@@ -1,19 +1,17 @@
 "use client";
 
-import { COUNTRIES, DEFAULT_COUNTRY } from "@/lib/countries";
 import { useActionState, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { createBookingPublic, type PublicBookingState } from "@/lib/actions/bookings-public";
 import RoomPhoto from "@/components/public/RoomPhoto";
+import ExtraOptions from "@/components/public/ExtraOptions";
+import GuestFields from "@/components/public/GuestFields";
 import { parisToday } from "@/lib/date-windows";
 import DateField from "@/components/public/DateField";
 import { formatEuros } from "@/lib/utils";
 import {
-  EXTRA_UNIT_LABELS,
   bedLimit,
   grandTotal,
-  CHOSEN_WORDS,
-  chosenLabel,
   chosenMax,
   resolveChosen,
   priceExtraLine,
@@ -127,7 +125,7 @@ export default function BookingForm({
   });
   const parsedGuests = parseInt(guestInput, 10);
   const guestCount = Number.isNaN(parsedGuests) ? 1 : Math.min(Math.max(1, parsedGuests), room.capacity);
-  const [childInput, setChildInput] = useState(v.childCount ?? "0");
+  const [childInput, setChildInput] = useState(v.childCount ?? searchParams.get("children") ?? "0");
   const parsedChildren = parseInt(childInput, 10);
   const childCount = Number.isNaN(parsedChildren) ? 0 : Math.min(Math.max(0, parsedChildren), guestCount);
   const datesInverted = !!checkIn && !!checkOut && checkOut <= checkIn;
@@ -235,7 +233,6 @@ export default function BookingForm({
   const maxOf = (x: CatalogExtra) => chosenMax(x, stay);
   // null = tout le séjour (affiché comme le maximum) ; même règle que le serveur.
   const chosenOf = (x: CatalogExtra) => resolveChosen(x.unit, maxOf(x), counts[x.id]);
-  const shownOf = (x: CatalogExtra) => chosenOf(x) ?? maxOf(x);
   const priceOf = (x: CatalogExtra) =>
     priceExtraLine({ sourceId: x.id, label: x.label, unit: x.unit, unitPrice: x.price }, stay, chosenOf(x));
   const extraLines = extras.filter((x) => chosenExtras.includes(x.id)).map(priceOf);
@@ -375,137 +372,21 @@ export default function BookingForm({
         {extras.length > 0 && (
           <fieldset className="s-group" data-testid="booking-extras">
             <legend className="s-h3">Options</legend>
-            <ul className="s-extras">
-              {extras.map((x) => {
-                const line = priceOf(x);
-                const checked = chosenExtras.includes(x.id);
-                return (
-                  <li key={x.id}>
-                    <label className="s-extra">
-                      <input
-                        type="checkbox"
-                        name="extraIds"
-                        value={x.id}
-                        checked={checked}
-                        onChange={() =>
-                          setChosenExtras((ids) => (checked ? ids.filter((id) => id !== x.id) : [...ids, x.id]))
-                        }
-                      />
-                      <span className="s-extra-text">
-                        <span className="s-extra-label">{x.label}</span>
-                        <span className="s-hint">
-                          {x.price === 0 ? "Offert, sur demande" : `${fmtCurrency(x.price)} ${EXTRA_UNIT_LABELS[x.unit]}`}
-                          {x.description && <> · {x.description}</>}
-                        </span>
-                      </span>
-                      <span className="s-extra-price" data-testid="booking-extra-price">
-                        {line.total === 0 ? "Offert" : fmtCurrency(line.total)}
-                      </span>
-                    </label>
-                    {checked && maxOf(x) > 1 && (
-                      <div className="s-extra-qty">
-                        <label htmlFor={`extraQty-${x.id}`}>{CHOSEN_WORDS[x.unit].question}</label>
-                        <select
-                          id={`extraQty-${x.id}`}
-                          // Envoyé seulement si le client a choisi ; sinon tout le séjour.
-                          name={counts[x.id] !== undefined ? `extraQty_${x.id}` : undefined}
-                          value={shownOf(x)}
-                          onChange={(e) => setCounts((c) => ({ ...c, [x.id]: Number(e.target.value) }))}
-                        >
-                          {Array.from({ length: maxOf(x) }, (_, i) => i + 1).map((n) => (
-                            <option key={n} value={n}>
-                              {chosenLabel(x.unit, n)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            <ExtraOptions
+              extras={extras}
+              chosen={chosenExtras}
+              counts={counts}
+              stay={stay}
+              onToggle={(id) =>
+                setChosenExtras((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]))
+              }
+              onCount={(id, n) => setCounts((c) => ({ ...c, [id]: n }))}
+              named
+            />
           </fieldset>
         )}
 
-        <fieldset className="s-group">
-          <legend className="s-h3">Pour vous joindre</legend>
-          <div className="s-grid-2">
-            <div className="s-field">
-              <label htmlFor="guestFirstName">Prénom</label>
-              <input
-                id="guestFirstName"
-                type="text"
-                name="guestFirstName"
-                required
-                maxLength={100}
-                autoComplete="given-name"
-                defaultValue={v.guestFirstName}
-                aria-invalid={!!state?.fieldErrors?.guestFirstName || undefined}
-              />
-            </div>
-            <div className="s-field">
-              <label htmlFor="guestLastName">Nom</label>
-              <input
-                id="guestLastName"
-                type="text"
-                name="guestLastName"
-                required
-                maxLength={100}
-                autoComplete="family-name"
-                defaultValue={v.guestLastName}
-                aria-invalid={!!state?.fieldErrors?.guestLastName || undefined}
-              />
-            </div>
-            <div className="s-field">
-              <label htmlFor="guestEmail">Email</label>
-              <input id="guestEmail" type="email" name="guestEmail" required autoComplete="email" defaultValue={v.guestEmail} />
-            </div>
-            <div className="s-field">
-              <label htmlFor="guestPhone">Téléphone</label>
-              <input
-                id="guestPhone"
-                type="tel"
-                name="guestPhone"
-                required
-                autoComplete="tel"
-                defaultValue={v.guestPhone}
-                aria-invalid={!!state?.fieldErrors?.guestPhone || undefined}
-              />
-            </div>
-          </div>
-          <div className="s-field">
-            <label htmlFor="guestAddress">Adresse postale</label>
-            <input
-              id="guestAddress"
-              type="text"
-              name="guestAddress"
-              required
-              minLength={5}
-              maxLength={300}
-              autoComplete="street-address"
-              placeholder="12 rue des Lilas, 84000 Avignon"
-              defaultValue={v.guestAddress}
-              aria-invalid={!!state?.fieldErrors?.guestAddress || undefined}
-            />
-          </div>
-          <div className="s-field">
-            <label htmlFor="guestCountry">Pays de résidence</label>
-            <select
-              id="guestCountry"
-              name="guestCountry"
-              required
-              autoComplete="country"
-              defaultValue={v.guestCountry || DEFAULT_COUNTRY}
-              aria-invalid={!!state?.fieldErrors?.guestCountry || undefined}
-            >
-              {COUNTRIES.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
-        </fieldset>
+        <GuestFields values={v} fieldErrors={state?.fieldErrors} />
 
         {/* Version contractée du récapitulatif, collée en bas d'écran sur téléphone (masquée ≥ 900px). */}
         {hasValidPricing && (

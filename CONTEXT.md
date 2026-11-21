@@ -25,11 +25,25 @@ _Avoid_: client, voyageur, customer
 The human (DirectLoc itself) who creates tenants and runs the platform. Distinct from an _admin_, who is a logged-in user managing one or more tenants.
 _Avoid_: owner, gérant
 
+### Réseau
+
+**Voisin** (_Neighbour_):
+Another [[tenant]] offered to a [[guest]] when the tenant they are visiting cannot host them for the requested stay. Membership in the network is on by default, reciprocal (a tenant that is in both sends and receives guests), and requires the tenant's GPS position — a tenant without one is outside the network. A Voisin is only offered if it can actually admit the stay (same dates, its own booking rules) — for the whole party, or, in a **shared stay**, for the part the full tenant cannot host (at most one Voisin per shared stay).
+_Avoid_: partenaire, recommandation, voisin as a geographic word only
+
+**Renvoi** (_Referral_):
+The act of sending a [[guest]] from a full tenant to a [[voisin|Voisin]], carrying the stay (dates, the head-count still to be housed) and the sending tenant's identity, so a resulting [[dossier]] can be attributed to the network. Every Renvoi is recorded when the guest follows it (no guest data); a Dossier entered by an admin can be marked as coming from a Voisin. A Renvoi never moves money or guest data between tenants: the Voisin's Dossier is a separate reservation on the Voisin's own site.
+_Avoid_: redirection, recommandation
+
 ### Réservation & disponibilité
 
 **Booking**:
 A reservation record — a [[guest]] holding a room for a date interval, with a price and a [[booking-status|status]]. The `[checkIn, checkOut)` interval (the "séjour") is an aspect of the booking, not a separate entity.
 _Avoid_: réservation, résa, séjour, stay
+
+**Dossier**:
+A stay reserved in one go by one [[guest]]: one or more [[booking|Bookings]] (one per room) sharing the same dates, guest and a single payment. Every Booking belongs to exactly one Dossier, even a one-room stay. The guest never sees the word: to them the Dossier is « votre réservation », listing its rooms; the admin sees « Dossier » for the whole and « réservation » for each room. A Dossier is admitted all-or-nothing, but a single room can later be cancelled on its own. Editing one of its Bookings changes the guest of the whole Dossier; its dates cannot diverge from the other rooms' (v1). (See ADR-0012.)
+_Avoid_: groupe, commande, panier, réservation groupée
 
 **Block**:
 A non-booking source of unavailability: either an **iCal block** (imported from an external channel via iCal) or a **manual block** (an admin closing dates). A Block has no guest and no revenue and is never a [[booking]] — iCal feeds from Airbnb/Booking carry no guest or price data, so an imported hold cannot be promoted to a Booking. (See ADR on channel integration.)
@@ -59,6 +73,7 @@ _Avoid_: "confirmed = paid" (false — that conflates the two axes)
 
 **Balance due** (« Reste à payer »):
 What the [[guest]] still owes on a [[booking]]: its total minus what was paid online. Arises when [[extra|Extras]] are added after an online payment. Zero once the admin marks the booking settled offline. Settled on site — never collected through a second online payment.
+For a multi-room [[dossier|Dossier]] the online payment covers every room, so the balance is read on the Dossier, never per room: total of its non-cancelled Bookings minus what was paid online. When the payment exceeds that total (a room cancelled after payment), the difference is a refund the admin makes by hand in Stripe.
 _Avoid_: solde, reliquat
 
 **Night**:

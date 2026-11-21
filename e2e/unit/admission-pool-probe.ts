@@ -17,6 +17,7 @@ async function main() {
   const { admitBooking, RoomUnavailableError } = await import("../../lib/booking-intake");
   const { db } = await import("../../lib/db");
   const { bookings } = await import("../../db/schema");
+  const { createDossier } = await import("../../lib/dossiers");
   const { sql } = await import("drizzle-orm");
 
   const checkIn = new Date("2027-10-04T00:00:00.000Z");
@@ -24,9 +25,10 @@ async function main() {
 
   const admissions = Promise.allSettled(
     Array.from({ length: N }, (_, i) =>
-      admitBooking({ roomId, tenantId, checkIn, checkOut, guestCount: 1 }, { enforceRules: true }, (tx, { breakdown }) =>
+      admitBooking({ roomId, tenantId, checkIn, checkOut, guestCount: 1 }, { enforceRules: true }, async (tx, { breakdown }) =>
         tx.insert(bookings).values({
           tenantId,
+          dossierId: await createDossier(tx, { tenantId, checkIn, checkOut, guestName: `Flood ${i}`, guestEmail: email }),
           roomId,
           checkIn,
           checkOut,

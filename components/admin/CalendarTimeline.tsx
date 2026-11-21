@@ -19,6 +19,9 @@ export type BookingSpan = {
   status: Status;
   checkIn: string;
   checkOut: string;
+  dossierId: string;
+  /** Dossier de plusieurs chambres (ADR-0012) : nombre de chambres, sinon absent. */
+  group?: number;
 };
 
 export type BlockSpan = {
@@ -316,7 +319,7 @@ export default function CalendarTimeline({
                     const width = (bk.endDay - bk.startDay) * dayPct;
                     const colors = STATUS_COLOR_MAP[bk.status];
                     const isSelected = selected === bk.id;
-                    const summary = `${bk.guestName} · ${shortDate(bk.checkIn)} → ${shortDate(bk.checkOut)} · ${STATUS_LABEL[bk.status]}`;
+                    const summary = `${bk.guestName} · ${shortDate(bk.checkIn)} → ${shortDate(bk.checkOut)} · ${STATUS_LABEL[bk.status]}${bk.group ? ` · Groupe de ${bk.group} chambres` : ""}`;
                     return (
                       <button
                         key={bk.id}
@@ -324,6 +327,7 @@ export default function CalendarTimeline({
                         title={summary}
                         aria-label={summary}
                         aria-pressed={isSelected}
+                        data-group={bk.group ?? undefined}
                         onClick={() =>
                           setSelected(isSelected ? null : bk.id)
                         }
@@ -350,15 +354,20 @@ export default function CalendarTimeline({
                           textAlign: "left",
                         }}
                       >
-                        <span
-                          style={{
-                            width: 5,
-                            height: 5,
-                            borderRadius: "50%",
-                            background: colors.border,
-                            flexShrink: 0,
-                          }}
-                        />
+                        {bk.group ? (
+                          // Marque « groupe » : la même icône sur chaque chambre du Dossier.
+                          <Icon.Group size={12} aria-hidden style={{ color: colors.text, flexShrink: 0 }} />
+                        ) : (
+                          <span
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: "50%",
+                              background: colors.border,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
                         <span
                           style={{
                             fontSize: 12,
@@ -446,7 +455,23 @@ export default function CalendarTimeline({
               >
                 {STATUS_LABEL[bk.status]}
               </span>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {bk.group && (
+                  <Link
+                    href={`/admin/dossiers/${bk.dossierId}`}
+                    style={{
+                      background: "var(--admin-primary-light)",
+                      color: "var(--admin-primary)",
+                      borderRadius: 8,
+                      padding: "7px 14px",
+                      fontSize: 13,
+                      fontWeight: 600,
+                      textDecoration: "none",
+                    }}
+                  >
+                    Dossier · {bk.group} chambres
+                  </Link>
+                )}
                 <Link
                   href={`/admin/reservations/${bk.id}`}
                   style={{

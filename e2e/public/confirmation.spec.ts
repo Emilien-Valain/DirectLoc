@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers } from "../helpers/dossier";
 import { test, expect } from "@playwright/test";
 import { fd } from "../helpers/dates";
 
@@ -28,16 +29,17 @@ test.describe("Public — Page de confirmation", () => {
 
   async function insertBooking(tenantId: string, roomId: string, stripeSessionId: string, status = "confirmed") {
     const { rows } = await pool.query(
-      `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-       VALUES ($1, $2, $3, $4, '200.00', $6, $5, 'confirmation@test.com', 1, 'direct')
+      `WITH d AS (INSERT INTO dossiers (tenant_id, check_in, check_out, guest_name, guest_email) VALUES ($1, '2030-01-01', '2030-01-02', 'Dossier Test', 'dossier@example.com') RETURNING id)
+     INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, dossier_id)
+       VALUES ($1, $2, $3, $4, '200.00', $6, $5, 'confirmation@test.com', 1, 'direct', (SELECT id FROM d))
        RETURNING id`,
       [tenantId, roomId, fd("2026-08-17"), fd("2026-08-19"), GUEST_NAME, status],
     );
     const id = rows[0].id as string;
     bookingIds.push(id);
     await pool.query(
-      `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status)
-       VALUES ($1, $2, $3, '200.00', 'eur', 'succeeded')`,
+      `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status)
+       VALUES ($1, (SELECT dossier_id FROM bookings WHERE id = $2), $3, '200.00', 'eur', 'succeeded')`,
       [tenantId, id, stripeSessionId],
     );
     return id;
@@ -50,8 +52,9 @@ test.describe("Public — Page de confirmation", () => {
   });
 
   test.afterAll(async () => {
-    await pool.query("DELETE FROM payments WHERE booking_id = ANY($1::uuid[])", [bookingIds]);
+    await pool.query("DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE id = ANY($1::uuid[]))", [bookingIds]);
     await pool.query("DELETE FROM bookings WHERE id = ANY($1::uuid[])", [bookingIds]);
+    await deleteOrphanDossiers(pool);
     await pool.end();
   });
 

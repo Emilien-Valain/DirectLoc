@@ -159,6 +159,36 @@ export const rooms = pgTable(
   (table) => [uniqueIndex("rooms_slug_tenant_idx").on(table.tenantId, table.slug)],
 );
 
+// ─── DOSSIERS ────────────────────────────────────────────────────────────────
+// Un séjour réservé en une fois : une ou plusieurs réservations (une par chambre),
+// mêmes dates, même voyageur, un seul paiement (ADR-0012). Le voyageur et les dates
+// sont aussi recopiés sur chaque réservation, que lisent listes, emails et PDF.
+
+export const dossiers = pgTable(
+  "dossiers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    checkIn: timestamp("check_in").notNull(),
+    checkOut: timestamp("check_out").notNull(),
+    guestName: text("guest_name").notNull(),
+    guestFirstName: text("guest_first_name").notNull().default(""),
+    guestLastName: text("guest_last_name").notNull().default(""),
+    guestEmail: text("guest_email").notNull(),
+    guestPhone: text("guest_phone"),
+    guestAddress: text("guest_address"),
+    guestCountry: text("guest_country"),
+    // Marqueurs des emails automatiques : un email par Dossier, réservé par UPDATE … WHERE … IS NULL.
+    reminderSentAt: timestamp("reminder_sent_at"),
+    thankYouSentAt: timestamp("thank_you_sent_at"),
+    createdAt: timestamp("created_at").defaultNow(),
+    updatedAt: timestamp("updated_at").defaultNow(),
+  },
+  (table) => [index("dossiers_tenant_idx").on(table.tenantId)],
+);
+
 // ─── BOOKINGS ────────────────────────────────────────────────────────────────
 
 export const bookingStatusEnum = pgEnum("booking_status", [
@@ -175,6 +205,10 @@ export const bookings = pgTable(
     tenantId: uuid("tenant_id")
       .notNull()
       .references(() => tenants.id),
+    // Toute réservation appartient à un Dossier, même seule (ADR-0012).
+    dossierId: uuid("dossier_id")
+      .notNull()
+      .references(() => dossiers.id),
     roomId: uuid("room_id")
       .notNull()
       .references(() => rooms.id),
@@ -212,6 +246,7 @@ export const bookings = pgTable(
       table.checkOut,
     ),
     index("bookings_tenant_idx").on(table.tenantId),
+    index("bookings_dossier_idx").on(table.dossierId),
   ],
 );
 
@@ -304,21 +339,26 @@ export const bookingLines = pgTable(
 
 // ─── PAYMENTS ────────────────────────────────────────────────────────────────
 
-export const payments = pgTable("payments", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  tenantId: uuid("tenant_id")
-    .notNull()
-    .references(() => tenants.id),
-  bookingId: uuid("booking_id")
-    .notNull()
-    .references(() => bookings.id),
-  stripeSessionId: text("stripe_session_id").unique(),
-  stripePaymentId: text("stripe_payment_id").unique(),
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  currency: text("currency").notNull().default("eur"),
-  status: text("status").notNull().default("pending"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// Paiement en ligne d'un Dossier entier (toutes ses chambres, ADR-0012).
+export const payments = pgTable(
+  "payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    dossierId: uuid("dossier_id")
+      .notNull()
+      .references(() => dossiers.id),
+    stripeSessionId: text("stripe_session_id").unique(),
+    stripePaymentId: text("stripe_payment_id").unique(),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    currency: text("currency").notNull().default("eur"),
+    status: text("status").notNull().default("pending"),
+    createdAt: timestamp("created_at").defaultNow(),
+  },
+  (table) => [index("payments_dossier_idx").on(table.dossierId)],
+);
 
 // ─── ICAL SOURCES ────────────────────────────────────────────────────────────
 

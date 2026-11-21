@@ -226,19 +226,114 @@ function renderCustomMessage(
   return `<p style="margin: 24px 0; padding: 20px; background-color: ${data.config?.secondaryColor ?? "#faf8f5"}; border-left: 3px solid ${data.config?.primaryColor ?? "#1c1917"}; font-size: 15px; line-height: 1.6; color: #333;">${nl2br(filled)}</p>`;
 }
 
+// ─── Données d'un Dossier (ADR-0012) : un email pour toutes ses chambres ─────
+
+/** Une chambre du Dossier telle que l'email l'affiche. */
+export type RoomEmailData = MessageContext & {
+  roomName: string;
+  /** Prix de la chambre, options incluses (« 270.00 »). */
+  totalPrice: string;
+  extras?: EmailExtraLine[];
+};
+
+/** Ce qu'un email par Dossier affiche : le séjour commun + une entrée par chambre non annulée. */
+export type DossierEmailData = {
+  guestName: string;
+  guestFirstName?: string;
+  guestEmail: string;
+  checkIn: Date;
+  checkOut: Date;
+  nights: number;
+  hotelName: string;
+  config?: TenantConfig;
+  tenantId: string;
+  rooms: RoomEmailData[];
+  /** Somme des chambres listées. */
+  totalPrice: string;
+};
+
+const stayOf = (d: DossierEmailData) => ({
+  guestName: d.guestName,
+  guestFirstName: d.guestFirstName,
+  checkIn: d.checkIn,
+  checkOut: d.checkOut,
+  nights: d.nights,
+  hotelName: d.hotelName,
+  config: d.config,
+});
+
+/** Contexte des messages généraux de l'hôte : une chambre = comme avant ; plusieurs = noms joints, personnes et lits additionnés. */
+function generalContext(d: DossierEmailData) {
+  if (d.rooms.length === 1) return { ...stayOf(d), ...d.rooms[0] };
+  const sum = (f: (r: RoomEmailData) => number | null | undefined) =>
+    d.rooms.every((r) => f(r) != null) ? d.rooms.reduce((a, r) => a + (f(r) as number), 0) : undefined;
+  // Infos pratiques : pour chaque clé, la première valeur renseignée (les messages de chambre voient les leurs).
+  const roomInfo: Record<string, string> = {};
+  for (const r of d.rooms) for (const [k, v] of Object.entries(r.roomInfo ?? {})) if (v && !roomInfo[k]) roomInfo[k] = v;
+  for (const r of d.rooms) for (const k of Object.keys(r.roomInfo ?? {})) roomInfo[k] ??= "";
+  return {
+    ...stayOf(d),
+    roomName: d.rooms.map((r) => r.roomName).join(", "),
+    guestCount: sum((r) => r.guestCount),
+    roomCapacity: sum((r) => r.roomCapacity),
+    roomBeds: sum((r) => r.roomBeds) ?? null,
+    roomInfo,
+  };
+}
+
+/** Message propre à chaque chambre, avec les variables de CETTE chambre. */
+const renderRoomMessages = (d: DossierEmailData) =>
+  d.rooms.map((r) => renderCustomMessage(r.roomMessage, { ...stayOf(d), ...r })).join("");
+
+const persons = (n?: number) => (n ? ` (${n} pers.)` : "");
+
+/** Récapitulatif avec prix : une chambre = le tableau historique ; plusieurs = une ligne (+ options) par chambre. */
+function renderDossierSummary(d: DossierEmailData, totalLabel = "Total pay&eacute;"): string {
+  if (d.rooms.length === 1) {
+    return renderBookingSummaryTable({ ...stayOf(d), ...d.rooms[0], totalPrice: d.totalPrice }, totalLabel);
+  }
+  const cell = "padding: 10px 0; border-bottom: 1px solid #e5e5e5; font-size: 15px;";
+  return `
+<table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
+  <tr>
+    <td style="${cell} color: #666;">Arriv&eacute;e</td>
+    <td style="${cell} text-align: right;">${formatDate(d.checkIn)}</td>
+  </tr>
+  <tr>
+    <td style="${cell} color: #666;">D&eacute;part</td>
+    <td style="${cell} text-align: right;">${formatDate(d.checkOut)}</td>
+  </tr>
+  <tr>
+    <td style="${cell} color: #666;">Dur&eacute;e</td>
+    <td style="${cell} text-align: right;">${d.nights} nuit${d.nights > 1 ? "s" : ""}</td>
+  </tr>${d.rooms
+    .map(
+      (r) => `
+  <tr>
+    <td style="${cell} font-weight: 600;">${escapeHtml(r.roomName)}${persons(r.guestCount)}</td>
+    <td style="${cell} text-align: right; font-weight: 600;">${escapeHtml(r.totalPrice)} &euro;</td>
+  </tr>${renderExtraRows(r.extras, `${cell} padding-left: 16px;`)}`,
+    )
+    .join("")}
+  <tr>
+    <td style="padding: 10px 0; color: #666; font-weight: 600; font-size: 15px;">${totalLabel}</td>
+    <td style="padding: 10px 0; text-align: right; font-size: 20px; font-weight: 700;">${escapeHtml(d.totalPrice)} &euro;</td>
+  </tr>
+</table>`;
+}
+
 // ─── 1. Confirmation de réservation (client) ────────────────────────────────
 
-export async function sendBookingConfirmation(data: BookingEmailData & { confirmationMessage?: string }) {
+export async function sendBookingConfirmation(data: DossierEmailData & { confirmationMessage?: string }) {
   const { guestName, guestEmail, hotelName, config, confirmationMessage } = data;
 
-  const customMessage =
-    renderCustomMessage(confirmationMessage, data) + renderCustomMessage(data.roomMessage, data);
+  const customMessage = renderCustomMessage(confirmationMessage, generalContext(data)) + renderRoomMessages(data);
 
   const body = `
 <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">R&eacute;servation confirm&eacute;e</h2>
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Votre r&eacute;servation &agrave; <strong>${escapeHtml(hotelName)}</strong> est confirm&eacute;e. Voici le r&eacute;capitulatif :</p>
-${renderBookingSummaryTable(data)}
+${renderDossierSummary(data)}
 ${customMessage}
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Nous avons h&acirc;te de vous accueillir !</p>`;
 
@@ -278,37 +373,52 @@ ${renderBookingSummaryTable(data, "Total du s&eacute;jour")}
 
 // ─── 2. Notification admin ──────────────────────────────────────────────────
 
-type AdminNotificationData = BookingEmailData & {
+type AdminNotificationData = DossierEmailData & {
   guestPhone: string | null;
   adminEmail: string;
 };
 
 export async function sendAdminNotification(data: AdminNotificationData) {
-  const { guestName, guestEmail, guestPhone, roomName, checkIn, checkOut, nights, totalPrice, extras, hotelName, adminEmail, config } = data;
+  const { guestName, guestEmail, guestPhone, checkIn, checkOut, nights, totalPrice, rooms, hotelName, adminEmail, config } = data;
+  const row = "padding: 8px 0; font-size: 15px;";
+  const roomRows =
+    rooms.length === 1
+      ? `<tr>
+    <td style="${row} color: #666;">Chambre</td>
+    <td style="${row} text-align: right;">${escapeHtml(rooms[0].roomName)}</td>
+  </tr>`
+      : "";
 
   const body = `
 <h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #1a1a1a;">Nouvelle r&eacute;servation pay&eacute;e</h2>
 <table style="width: 100%; border-collapse: collapse;">
   <tr>
-    <td style="padding: 8px 0; color: #666; font-size: 15px;">Client</td>
-    <td style="padding: 8px 0; text-align: right; font-weight: 600; font-size: 15px;">${escapeHtml(guestName)}</td>
+    <td style="${row} color: #666;">Client</td>
+    <td style="${row} text-align: right; font-weight: 600;">${escapeHtml(guestName)}</td>
   </tr>
   <tr>
-    <td style="padding: 8px 0; color: #666; font-size: 15px;">Email</td>
-    <td style="padding: 8px 0; text-align: right; font-size: 15px;">${escapeHtml(guestEmail)}</td>
+    <td style="${row} color: #666;">Email</td>
+    <td style="${row} text-align: right;">${escapeHtml(guestEmail)}</td>
   </tr>
-  ${guestPhone ? `<tr><td style="padding: 8px 0; color: #666; font-size: 15px;">T&eacute;l&eacute;phone</td><td style="padding: 8px 0; text-align: right; font-size: 15px;">${escapeHtml(guestPhone)}</td></tr>` : ""}
+  ${guestPhone ? `<tr><td style="${row} color: #666;">T&eacute;l&eacute;phone</td><td style="${row} text-align: right;">${escapeHtml(guestPhone)}</td></tr>` : ""}
+  ${roomRows}
   <tr>
-    <td style="padding: 8px 0; color: #666; font-size: 15px;">Chambre</td>
-    <td style="padding: 8px 0; text-align: right; font-size: 15px;">${escapeHtml(roomName)}</td>
-  </tr>
+    <td style="${row} color: #666;">Dates</td>
+    <td style="${row} text-align: right;">${formatDate(checkIn)} &rarr; ${formatDate(checkOut)} (${nights} nuit${nights > 1 ? "s" : ""})</td>
+  </tr>${rooms
+    .map((r) =>
+      rooms.length === 1
+        ? renderExtraRows(r.extras, row)
+        : `
   <tr>
-    <td style="padding: 8px 0; color: #666; font-size: 15px;">Dates</td>
-    <td style="padding: 8px 0; text-align: right; font-size: 15px;">${formatDate(checkIn)} &rarr; ${formatDate(checkOut)} (${nights} nuit${nights > 1 ? "s" : ""})</td>
-  </tr>${renderExtraRows(extras, "padding: 8px 0; font-size: 15px;")}
+    <td style="${row} font-weight: 600;">${escapeHtml(r.roomName)}${persons(r.guestCount)}</td>
+    <td style="${row} text-align: right;">${escapeHtml(r.totalPrice)} &euro;</td>
+  </tr>${renderExtraRows(r.extras, `${row} padding-left: 16px;`)}`,
+    )
+    .join("")}
   <tr>
-    <td style="padding: 8px 0; color: #666; font-weight: 600; font-size: 15px;">Montant</td>
-    <td style="padding: 8px 0; text-align: right; font-weight: 700; font-size: 18px;">${escapeHtml(totalPrice)} &euro;</td>
+    <td style="${row} color: #666; font-weight: 600;">Montant</td>
+    <td style="${row} text-align: right; font-weight: 700; font-size: 18px;">${escapeHtml(totalPrice)} &euro;</td>
   </tr>
 </table>`;
 
@@ -317,7 +427,7 @@ export async function sendAdminNotification(data: AdminNotificationData) {
   await sendEmail({
     tenantId: data.tenantId ?? null,
     to: adminEmail,
-    subject: `Nouvelle réservation — ${guestName} (${roomName})`,
+    subject: `Nouvelle réservation — ${guestName} (${rooms.map((r) => r.roomName).join(", ")})`,
     html,
     hotelName: `DirectLoc`,
   });
@@ -328,12 +438,29 @@ export async function sendAdminNotification(data: AdminNotificationData) {
 type PaidAfterCancellationData = BookingEmailData & {
   adminEmail: string;
   stripePaymentId: string;
+  /**
+   * Dossier en partie annulé (ADR-0012) : chambres annulées par l'hôte pendant le paiement.
+   * Les autres sont confirmées ; seule la part de ces chambres est à rembourser.
+   */
+  cancelledRooms?: { name: string; total: string }[];
 };
 
 export async function sendPaidAfterCancellationAlert(data: PaidAfterCancellationData) {
-  const { guestName, guestEmail, hotelName, config, adminEmail, stripePaymentId } = data;
+  const { guestName, guestEmail, hotelName, config, adminEmail, stripePaymentId, cancelledRooms } = data;
+  const partial = cancelledRooms && cancelledRooms.length > 0;
 
-  const body = `
+  const body = partial
+    ? `
+<h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #b42318;">Paiement re&ccedil;u : une partie du s&eacute;jour est annul&eacute;e</h2>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
+  ${escapeHtml(guestName)} (${escapeHtml(guestEmail)}) a pay&eacute; tout son s&eacute;jour, mais
+  ${cancelledRooms.map((r) => `<strong>${escapeHtml(r.name)}</strong> (${escapeHtml(r.total)} &euro;)`).join(", ")}
+  ${cancelledRooms.length > 1 ? "avaient &eacute;t&eacute; annul&eacute;es" : "avait &eacute;t&eacute; annul&eacute;e"} entre-temps.
+  Les autres chambres sont confirm&eacute;es. <strong>Remboursement partiel &agrave; faire depuis votre tableau de bord Stripe</strong>
+  (paiement <code>${escapeHtml(stripePaymentId)}</code>).
+</p>
+${renderBookingSummaryTable(data)}`
+    : `
 <h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #b42318;">Paiement re&ccedil;u sur une r&eacute;servation annul&eacute;e</h2>
 <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
   ${escapeHtml(guestName)} (${escapeHtml(guestEmail)}) a pay&eacute; une r&eacute;servation qui avait &eacute;t&eacute; annul&eacute;e entre-temps.
@@ -345,7 +472,9 @@ ${renderBookingSummaryTable(data)}`;
   await sendEmail({
     tenantId: data.tenantId ?? null,
     to: adminEmail,
-    subject: `Paiement reçu sur une réservation annulée — remboursez via Stripe (${guestName})`,
+    subject: partial
+      ? `Paiement reçu, une chambre annulée — remboursement partiel à faire via Stripe (${guestName})`
+      : `Paiement reçu sur une réservation annulée — remboursez via Stripe (${guestName})`,
     html: renderEmailLayout({ hotelName, config }, body),
     hotelName: `DirectLoc`,
   });
@@ -356,7 +485,8 @@ ${renderBookingSummaryTable(data)}`;
 type CancellationEmailData = {
   guestName: string;
   guestEmail: string;
-  roomName: string;
+  /** Chambres annulées (une seule pour une réservation simple). */
+  roomNames: string[];
   checkIn: Date;
   checkOut: Date;
   hotelName: string;
@@ -366,7 +496,7 @@ type CancellationEmailData = {
 };
 
 export async function sendBookingCancellation(data: CancellationEmailData) {
-  const { guestName, guestEmail, roomName, checkIn, checkOut, hotelName, config, reason } = data;
+  const { guestName, guestEmail, roomNames, checkIn, checkOut, hotelName, config, reason } = data;
 
   const reasonText =
     reason === "admin"
@@ -379,8 +509,8 @@ export async function sendBookingCancellation(data: CancellationEmailData) {
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Votre r&eacute;servation &agrave; <strong>${escapeHtml(hotelName)}</strong> a &eacute;t&eacute; annul&eacute;e ${reasonText}.</p>
 <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
   <tr>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">Chambre</td>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; text-align: right; font-size: 15px;">${escapeHtml(roomName)}</td>
+    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">Chambre${roomNames.length > 1 ? "s" : ""}</td>
+    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; text-align: right; font-size: 15px;">${roomNames.map(escapeHtml).join("<br>")}</td>
   </tr>
   <tr>
     <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">Arriv&eacute;e pr&eacute;vue</td>
@@ -405,25 +535,96 @@ export async function sendBookingCancellation(data: CancellationEmailData) {
   });
 }
 
-// ─── 4. Rappel avant l'arrivée (J-2 par défaut, réglable par l'hôte) ─────────
+// ─── 3b. Annulation partielle : une ou plusieurs chambres, le reste est maintenu ─
 
-type ReminderEmailData = MessageContext & {
+type PartialCancellationData = {
   guestName: string;
   guestEmail: string;
-  roomName: string;
   checkIn: Date;
   checkOut: Date;
-  nights: number;
   hotelName: string;
   config?: TenantConfig;
   tenantId: string;
+  cancelledRooms: { name: string; total: string }[];
+  keptRooms: { name: string; total: string }[];
+  /** Somme des chambres maintenues. */
+  newTotal: string;
 };
+
+export async function sendPartialCancellation(data: PartialCancellationData) {
+  const { guestName, guestEmail, checkIn, checkOut, hotelName, config, cancelledRooms, keptRooms, newTotal } = data;
+  const cell = "padding: 8px 0; font-size: 15px;";
+  const list = (rooms: { name: string; total: string }[]) =>
+    rooms
+      .map(
+        (r) => `<tr><td style="${cell}">${escapeHtml(r.name)}</td><td style="${cell} text-align: right;">${escapeHtml(r.total)} &euro;</td></tr>`,
+      )
+      .join("");
+  const many = cancelledRooms.length > 1;
+
+  const body = `
+<h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">Une partie de votre r&eacute;servation est annul&eacute;e</h2>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
+<p style="font-size: 15px; color: #333; line-height: 1.6;"><strong>${escapeHtml(hotelName)}</strong> a annul&eacute; ${many ? "des chambres" : "une chambre"} de votre r&eacute;servation du ${formatDate(checkIn)} au ${formatDate(checkOut)}. Le reste de votre s&eacute;jour est maintenu.</p>
+<p style="margin: 24px 0 4px 0; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: #b42318;">${many ? "Chambres annul&eacute;es" : "Chambre annul&eacute;e"}</p>
+<table style="width: 100%; border-collapse: collapse; border-bottom: 1px solid #e5e5e5;">${list(cancelledRooms)}</table>
+<p style="margin: 24px 0 4px 0; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: #666;">${keptRooms.length > 1 ? "Chambres maintenues" : "Chambre maintenue"}</p>
+<table style="width: 100%; border-collapse: collapse; border-bottom: 1px solid #e5e5e5;">${list(keptRooms)}</table>
+<table style="width: 100%; border-collapse: collapse; margin: 8px 0 24px 0;">
+  <tr>
+    <td style="padding: 10px 0; color: #666; font-weight: 600; font-size: 15px;">Nouveau total</td>
+    <td style="padding: 10px 0; text-align: right; font-size: 20px; font-weight: 700;">${escapeHtml(newTotal)} &euro;</td>
+  </tr>
+</table>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Si vous aviez d&eacute;j&agrave; pay&eacute; ${many ? "ces chambres" : "cette chambre"}, le remboursement est effectu&eacute; directement par l'&eacute;tablissement : n'h&eacute;sitez pas &agrave; le contacter pour toute question.</p>`;
+
+  await sendEmail({
+    tenantId: data.tenantId ?? null,
+    to: guestEmail,
+    subject: `Annulation partielle de votre réservation — ${hotelName}`,
+    html: renderEmailLayout({ hotelName, config }, body),
+    hotelName,
+    replyTo: config?.email,
+  });
+}
+
+// ─── 4. Rappel avant l'arrivée (J-2 par défaut, réglable par l'hôte) ─────────
 
 /** « demain », « dans 7 jours ». */
 const inDays = (n: number) => (n <= 1 ? "demain" : `dans ${n} jours`);
 
-export async function sendCheckInReminder(data: ReminderEmailData & { daysUntil: number }) {
-  const { guestName, guestEmail, roomName, checkIn, checkOut, nights, hotelName, config, daysUntil } = data;
+/** Séjour sans prix (rappel, remerciement) : une chambre = tableau historique ; plusieurs = une ligne par chambre. */
+function renderStayTable(d: DossierEmailData): string {
+  const cell = "padding: 10px 0; border-bottom: 1px solid #e5e5e5; font-size: 15px;";
+  const rooms =
+    d.rooms.length === 1
+      ? `<tr><td style="${cell} color: #666;">Chambre</td><td style="${cell} text-align: right; font-weight: 600;">${escapeHtml(d.rooms[0].roomName)}</td></tr>`
+      : d.rooms
+          .map(
+            (r, i) =>
+              `<tr><td style="${cell} color: #666;">${i === 0 ? "Chambres" : ""}</td><td style="${cell} text-align: right; font-weight: 600;">${escapeHtml(r.roomName)}${persons(r.guestCount)}</td></tr>`,
+          )
+          .join("");
+  return `
+<table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
+  ${rooms}
+  <tr>
+    <td style="${cell} color: #666;">Arriv&eacute;e</td>
+    <td style="${cell} text-align: right;">${formatDate(d.checkIn)}</td>
+  </tr>
+  <tr>
+    <td style="${cell} color: #666;">D&eacute;part</td>
+    <td style="${cell} text-align: right;">${formatDate(d.checkOut)}</td>
+  </tr>
+  <tr>
+    <td style="padding: 10px 0; color: #666; font-size: 15px;">Dur&eacute;e</td>
+    <td style="padding: 10px 0; text-align: right; font-size: 15px;">${d.nights} nuit${d.nights > 1 ? "s" : ""}</td>
+  </tr>
+</table>`;
+}
+
+export async function sendCheckInReminder(data: DossierEmailData & { daysUntil: number }) {
+  const { guestName, guestEmail, hotelName, config, daysUntil } = data;
 
   const addressBlock = config?.address
     ? `<p style="font-size: 15px; color: #333; line-height: 1.6;"><strong>Adresse :</strong> ${escapeHtml(config.address)}</p>`
@@ -433,26 +634,9 @@ export async function sendCheckInReminder(data: ReminderEmailData & { daysUntil:
 <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">Votre s&eacute;jour approche !</h2>
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Nous vous rappelons votre r&eacute;servation &agrave; <strong>${escapeHtml(hotelName)}</strong> ${inDays(daysUntil)}.</p>
-<table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
-  <tr>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">Chambre</td>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; text-align: right; font-weight: 600; font-size: 15px;">${escapeHtml(roomName)}</td>
-  </tr>
-  <tr>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">Arriv&eacute;e</td>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; text-align: right; font-size: 15px;">${formatDate(checkIn)}</td>
-  </tr>
-  <tr>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 15px;">D&eacute;part</td>
-    <td style="padding: 10px 0; border-bottom: 1px solid #e5e5e5; text-align: right; font-size: 15px;">${formatDate(checkOut)}</td>
-  </tr>
-  <tr>
-    <td style="padding: 10px 0; color: #666; font-size: 15px;">Dur&eacute;e</td>
-    <td style="padding: 10px 0; text-align: right; font-size: 15px;">${nights} nuit${nights > 1 ? "s" : ""}</td>
-  </tr>
-</table>
-${renderCustomMessage(config?.reminderMessage, data)}
-${renderCustomMessage(data.roomMessage, data)}
+${renderStayTable(data)}
+${renderCustomMessage(config?.reminderMessage, generalContext(data))}
+${renderRoomMessages(data)}
 ${addressBlock}
 <p style="font-size: 15px; color: #333; line-height: 1.6;">&Agrave; tr&egrave;s bient&ocirc;t !</p>`;
 
@@ -470,22 +654,10 @@ ${addressBlock}
 
 // ─── 5. Remerciement post-séjour ────────────────────────────────────────────
 
-type PostStayEmailData = MessageContext & {
-  guestName: string;
-  guestEmail: string;
-  roomName: string;
-  checkIn: Date;
-  checkOut: Date;
-  nights: number;
-  hotelName: string;
-  config?: TenantConfig;
-  tenantId: string;
-};
-
-export async function sendPostStayThankYou(data: PostStayEmailData) {
+export async function sendPostStayThankYou(data: DossierEmailData) {
   const { guestName, guestEmail, hotelName, config } = data;
 
-  const customMessage = renderCustomMessage(config?.postStayMessage, data);
+  const customMessage = renderCustomMessage(config?.postStayMessage, generalContext(data));
 
   const reviewBlock = config?.reviewUrl
     ? `<p style="text-align: center; margin: 24px 0;">
@@ -499,6 +671,7 @@ export async function sendPostStayThankYou(data: PostStayEmailData) {
 <h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">Merci pour votre s&eacute;jour !</h2>
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Nous esp&eacute;rons que votre s&eacute;jour &agrave; <strong>${escapeHtml(hotelName)}</strong> a &eacute;t&eacute; agr&eacute;able.</p>
+${data.rooms.length > 1 ? `<p style="font-size: 15px; color: #333; line-height: 1.6;">Chambres : ${data.rooms.map((r) => escapeHtml(r.roomName)).join(", ")}.</p>` : ""}
 ${customMessage}
 ${reviewBlock}
 <p style="font-size: 15px; color: #333; line-height: 1.6;">Nous esp&eacute;rons avoir le plaisir de vous revoir bient&ocirc;t.</p>`;

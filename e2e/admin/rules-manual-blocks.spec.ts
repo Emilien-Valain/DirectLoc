@@ -1,8 +1,34 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { fd, fdCalendarQuery, fdFr } from "../helpers/dates";
+import fs from "fs";
+import path from "path";
 import { confirmDialog } from "../helpers/confirm";
+import { cleanRules } from "../helpers/clean-rules";
+
+const { tenantId } = JSON.parse(
+  fs.readFileSync(path.join(process.cwd(), "e2e", ".auth", "test-context.json"), "utf-8"),
+) as { tenantId: string };
+
+/**
+ * Supprime le premier blocage de la liste et ATTEND que la suppression soit faite : sans
+ * cette attente le test se termine, la page se ferme et la server action n'aboutit pas —
+ * un blocage « toutes les chambres » (dont « chaque lundi », ouvert) restait en base et
+ * bloquait les chambres des specs suivantes (ex. stripe-webhook, Dossier sur un lundi).
+ */
+async function deleteFirstBlock(page: Page) {
+  const rows = page.getByTestId("manual-block-row");
+  const before = await rows.count();
+  await page.getByRole("button", { name: "Supprimer" }).first().click();
+  await confirmDialog(page);
+  await expect(rows).toHaveCount(before - 1);
+}
 
 test.describe("Admin — Blocages manuels", () => {
+  // Filet : même un test qui échoue avant son nettoyage ne laisse aucun blocage.
+  test.afterAll(async () => {
+    await cleanRules(tenantId);
+  });
+
   // ─── Happy path ────────────────────────────────────────────────────────────
 
   test("la page Règles est accessible et affiche les 3 onglets", async ({ page }) => {
@@ -59,8 +85,7 @@ test.describe("Admin — Blocages manuels", () => {
     await expect(page.getByTestId("manual-block-row")).toContainText("Toutes les chambres");
 
     // Cleanup
-    await page.getByRole("button", { name: "Supprimer" }).first().click();
-    await confirmDialog(page);
+    await deleteFirstBlock(page);
   });
 
   test("créer un blocage récurrent (tous les lundis)", async ({ page }) => {
@@ -85,8 +110,7 @@ test.describe("Admin — Blocages manuels", () => {
     await expect(page.getByText(/Chaque.*Lun/)).toBeVisible();
 
     // Cleanup
-    await page.getByRole("button", { name: "Supprimer" }).first().click();
-    await confirmDialog(page);
+    await deleteFirstBlock(page);
   });
 
   // ─── Calendrier ────────────────────────────────────────────────────────────
@@ -114,8 +138,7 @@ test.describe("Admin — Blocages manuels", () => {
     // Cleanup
     await page.goto("/admin/regles");
     await page.getByRole("tab", { name: "Blocages manuels" }).click();
-    await page.getByRole("button", { name: "Supprimer" }).first().click();
-    await confirmDialog(page);
+    await deleteFirstBlock(page);
   });
 
   test("blocage ponctuel fin = début ou fin < début : refusé, rien n'est créé (audit 2026-10c/4)", async ({ page }) => {

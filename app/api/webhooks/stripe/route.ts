@@ -4,7 +4,8 @@ import type { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, payments, users, userTenants } from "@/db/schema";
+import { bookings, dossiers, payments, rooms, users, userTenants } from "@/db/schema";
+import { cancelPendingDossier, confirmDossier, getDossierBookingIds } from "@/lib/dossiers";
 import { getStripe, stripeModeAllowed } from "@/lib/stripe";
 import { isDemoTenant } from "@/lib/demo";
 import {
@@ -14,7 +15,7 @@ import {
   sendPaidAfterCancellationAlert,
 } from "@/lib/email";
 import { isUuid } from "@/lib/validation";
-import { loadEmailContext } from "@/lib/queries/bookings";
+import { loadDossierEmailContext, loadEmailContext } from "@/lib/queries/bookings";
 
 /** Emails des admins du tenant (destinataires des notifications hôte). */
 async function tenantAdminEmails(tenantId: string): Promise<string[]> {
@@ -53,59 +54,39 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Signature invalide" }, { status: 400 });
   }
 
-  // La session doit être l'une des nôtres, créée pour CE booking de CE tenant : seul
+  // La session doit être l'une des nôtres, créée pour CE Dossier de CE tenant : seul
   // ce serveur écrit les payments, et Stripe choisit l'id de session. Un autre compte
   // connecté ne peut donc pas agir sur la résa d'un autre hôtel, et une session créée
   // avant une déconnexion/reconnexion Stripe reste reconnue (pas le compte actuel).
-  if (event.type.startsWith("checkout.session.")) {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const { bookingId, tenantId } = session.metadata ?? {};
-    const [ours] = bookingId && tenantId && isUuid(bookingId) && isUuid(tenantId)
-      ? await db
-          .select({ id: payments.id })
-          .from(payments)
-          .where(and(
-            eq(payments.stripeSessionId, session.id),
-            eq(payments.bookingId, bookingId),
-            eq(payments.tenantId, tenantId),
-          ))
-          .limit(1)
-      : [];
-    if (!ours) {
-      console.error(`[stripe] Événement ${event.id} (compte ${event.account ?? "plateforme"}) ignoré : session ${session.id} inconnue pour le booking ${bookingId}`);
-      return NextResponse.json({ received: true });
-    }
-    if (!stripeModeAllowed(event.livemode, await isDemoTenant(tenantId!))) {
-      console.error(`[stripe] Événement ${event.id} (livemode=${event.livemode}) ignoré : mode incompatible avec le tenant ${tenantId}`);
-      return NextResponse.json({ received: true });
-    }
+  if (!event.type.startsWith("checkout.session.")) {
+    return NextResponse.json({ received: true });
+  }
+  const session = event.data.object as Stripe.Checkout.Session;
+  const tenantId = session.metadata?.tenantId;
+  const dossierId = tenantId ? await sessionDossier(session, tenantId) : null;
+  if (!tenantId || !dossierId) {
+    console.error(`[stripe] Événement ${event.id} (compte ${event.account ?? "plateforme"}) ignoré : session ${session.id} inconnue pour ce Dossier`);
+    return NextResponse.json({ received: true });
+  }
+  if (!stripeModeAllowed(event.livemode, await isDemoTenant(tenantId))) {
+    console.error(`[stripe] Événement ${event.id} (livemode=${event.livemode}) ignoré : mode incompatible avec le tenant ${tenantId}`);
+    return NextResponse.json({ received: true });
   }
 
   switch (event.type) {
     case "checkout.session.completed": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const bookingId = session.metadata?.bookingId;
-      const tenantId = session.metadata?.tenantId;
-
-      if (!bookingId || !tenantId) break;
-
-      // Transition légale + idempotence : ne confirmer QUE depuis `pending`.
-      // Stripe livre chaque événement au moins une fois (retries) ; une livraison
-      // dupliquée, ou un événement tardif sur un booking déjà confirmé/annulé,
-      // n'affecte aucune ligne — on n'envoie alors pas d'email en double et on ne
-      // « ressuscite » pas un booking annulé.
-      const confirmed = await db
-        .update(bookings)
-        .set({ status: "confirmed", updatedAt: new Date() })
-        .where(and(eq(bookings.id, bookingId), eq(bookings.status, "pending")))
-        .returning({ id: bookings.id });
+      // Transition légale + idempotence : ne confirmer QUE depuis `pending`, toutes
+      // les chambres du Dossier d'un coup. Stripe livre chaque événement au moins
+      // une fois (retries) ; une livraison dupliquée, ou un événement tardif sur un
+      // Dossier déjà confirmé/annulé, n'affecte aucune ligne — on n'envoie alors pas
+      // d'email en double et on ne « ressuscite » pas une réservation annulée.
+      const confirmed = await confirmDossier(dossierId, tenantId);
 
       if (confirmed.length === 0) {
-        await handlePaidAfterCancellation(session, bookingId, tenantId);
+        await handlePaidAfterCancellation(session, dossierId, tenantId);
         break;
       }
 
-      // Mettre à jour le payment
       await db
         .update(payments)
         .set({
@@ -114,23 +95,23 @@ export async function POST(request: NextRequest) {
         })
         .where(eq(payments.stripeSessionId, session.id));
       captureServer("booking_paid", { surface: "tenant_site", tenant_id: tenantId }, session.metadata?.posthogDistinctId);
+      // Une chambre annulée par l'hôte pendant le paiement : l'argent la couvre aussi.
+      await alertPartialRefund(session, dossierId, tenantId, confirmed[0]);
 
-      // Envoyer les emails (best-effort, ne pas bloquer le webhook)
+      // Envoyer les emails (best-effort, ne pas bloquer le webhook) : un par Dossier,
+      // pour les chambres qui viennent d'être confirmées.
       try {
-        const ctx = await loadEmailContext(bookingId, tenantId);
+        const ctx = await loadDossierEmailContext(confirmed, tenantId);
         if (ctx) {
-          const { booking, emailData } = ctx;
-
-          // Email confirmation client (avec message personnalisé si configuré)
           await sendBookingConfirmation({
-            ...emailData,
-            confirmationMessage: emailData.config.confirmationMessage,
+            ...ctx.emailData,
+            confirmationMessage: ctx.emailData.config.confirmationMessage,
           });
 
           for (const adminEmail of await tenantAdminEmails(tenantId)) {
             await sendAdminNotification({
-              ...emailData,
-              guestPhone: booking.guestPhone,
+              ...ctx.emailData,
+              guestPhone: ctx.guestPhone,
               adminEmail,
             });
           }
@@ -143,38 +124,27 @@ export async function POST(request: NextRequest) {
     }
 
     case "checkout.session.expired": {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const bookingId = session.metadata?.bookingId;
-      const tenantId = session.metadata?.tenantId;
-
-      if (!bookingId) break;
-
       // Transition légale + idempotence : n'annuler QUE depuis `pending`.
-      // Un booking déjà confirmé (paiement abouti) ne doit pas être annulé par un
+      // Un Dossier déjà confirmé (paiement abouti) ne doit pas être annulé par un
       // événement `expired` tardif/dupliqué, et on n'envoie pas un second email
       // d'annulation sur une re-livraison.
-      const cancelled = await db
-        .update(bookings)
-        .set({ status: "cancelled", updatedAt: new Date() })
-        .where(and(eq(bookings.id, bookingId), eq(bookings.status, "pending")))
-        .returning({ id: bookings.id });
+      const cancelled = await cancelPendingDossier(dossierId, tenantId);
 
       if (cancelled.length === 0) break;
 
-      // Mettre à jour le payment
       await db
         .update(payments)
         .set({ status: "expired" })
         .where(eq(payments.stripeSessionId, session.id));
 
-      // Envoyer l'email d'annulation au client (best-effort)
-      if (tenantId) {
-        try {
-          const ctx = await loadEmailContext(bookingId, tenantId);
-          if (ctx) await sendBookingCancellation({ ...ctx.emailData, reason: "payment_expired" });
-        } catch (emailError) {
-          console.error("Erreur envoi email annulation:", emailError);
+      try {
+        const ctx = await loadDossierEmailContext(cancelled, tenantId);
+        if (ctx) {
+          const { rooms, ...stay } = ctx.emailData;
+          await sendBookingCancellation({ ...stay, roomNames: rooms.map((r) => r.roomName), reason: "payment_expired" });
         }
+      } catch (emailError) {
+        console.error("Erreur envoi email annulation:", emailError);
       }
 
       break;
@@ -185,23 +155,46 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Paiement abouti sur un booking annulé entre-temps (annulation admin pendant
- * que le client était sur Stripe Checkout). On ne ressuscite pas le booking,
+ * Dossier de la session, si elle est bien la nôtre pour ce tenant : le payment
+ * (écrit par ce serveur) porte l'id de session choisi par Stripe. La metadata doit
+ * désigner ce Dossier (`dossierId`), ou l'une de ses réservations (`bookingId` :
+ * sessions créées avant les Dossiers). `null` sinon, ou si la metadata est malformée.
+ */
+async function sessionDossier(session: Stripe.Checkout.Session, tenantId: string): Promise<string | null> {
+  const { dossierId, bookingId } = session.metadata ?? {};
+  if (!isUuid(tenantId)) return null;
+  const [payment] = await db
+    .select({ dossierId: payments.dossierId })
+    .from(payments)
+    .innerJoin(dossiers, eq(dossiers.id, payments.dossierId))
+    .where(and(eq(payments.stripeSessionId, session.id), eq(payments.tenantId, tenantId), eq(dossiers.tenantId, tenantId)))
+    .limit(1);
+  if (!payment) return null;
+  if (dossierId) return dossierId === payment.dossierId ? payment.dossierId : null;
+  if (bookingId && isUuid(bookingId)) {
+    const ids = await getDossierBookingIds(payment.dossierId, tenantId);
+    return ids.includes(bookingId) ? payment.dossierId : null;
+  }
+  return null;
+}
+
+/**
+ * Paiement abouti sur un Dossier annulé entre-temps (annulation admin pendant
+ * que le client était sur Stripe Checkout). On ne ressuscite pas les réservations,
  * mais l'argent est bien encaissé : on marque le payment `paid` et on alerte
  * l'hôte pour qu'il rembourse. Pas de remboursement automatique (décision).
  * Idempotent : seul le passage `pending → paid` du payment déclenche l'alerte.
  */
 async function handlePaidAfterCancellation(
   session: Stripe.Checkout.Session,
-  bookingId: string,
+  dossierId: string,
   tenantId: string,
 ) {
-  const [booking] = await db
-    .select({ status: bookings.status })
+  const rows = await db
+    .select({ id: bookings.id, status: bookings.status })
     .from(bookings)
-    .where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, tenantId)))
-    .limit(1);
-  if (booking?.status !== "cancelled") return;
+    .where(and(eq(bookings.dossierId, dossierId), eq(bookings.tenantId, tenantId)));
+  if (rows.length === 0 || rows.some((b) => b.status !== "cancelled")) return;
 
   const stripePaymentId = session.payment_intent as string;
   const paid = await db
@@ -212,16 +205,53 @@ async function handlePaidAfterCancellation(
   if (paid.length === 0) return;
 
   console.error(
-    `[stripe] Paiement reçu sur une réservation annulée — booking ${bookingId}, payment_intent ${stripePaymentId} : remboursement à faire`,
+    `[stripe] Paiement reçu sur un Dossier annulé — dossier ${dossierId}, payment_intent ${stripePaymentId} : remboursement à faire`,
   );
 
   try {
-    const ctx = await loadEmailContext(bookingId, tenantId);
+    const [first] = await getDossierBookingIds(dossierId, tenantId);
+    const ctx = first ? await loadEmailContext(first, tenantId) : null;
     if (!ctx) return;
     for (const adminEmail of await tenantAdminEmails(tenantId)) {
       await sendPaidAfterCancellationAlert({ ...ctx.emailData, adminEmail, stripePaymentId });
     }
   } catch (emailError) {
     console.error("Erreur envoi alerte paiement après annulation:", emailError);
+  }
+}
+
+/**
+ * Paiement abouti alors qu'une partie des chambres du Dossier avait été annulée par
+ * l'hôte (les autres viennent d'être confirmées) : le client a payé ces chambres aussi.
+ * Alerte « remboursement partiel à faire » aux admins ; jamais de remboursement auto.
+ * Appelé seulement quand des chambres viennent d'être confirmées : une re-livraison
+ * Stripe ne confirme plus rien, donc pas d'alerte en double.
+ */
+async function alertPartialRefund(
+  session: Stripe.Checkout.Session,
+  dossierId: string,
+  tenantId: string,
+  confirmedBookingId: string,
+) {
+  const cancelled = await db
+    .select({ name: rooms.name, total: bookings.totalPrice })
+    .from(bookings)
+    .innerJoin(rooms, eq(rooms.id, bookings.roomId))
+    .where(and(eq(bookings.dossierId, dossierId), eq(bookings.tenantId, tenantId), eq(bookings.status, "cancelled")));
+  if (cancelled.length === 0) return;
+
+  const stripePaymentId = session.payment_intent as string;
+  console.error(
+    `[stripe] Paiement reçu sur un Dossier en partie annulé — dossier ${dossierId}, payment_intent ${stripePaymentId} : remboursement partiel à faire`,
+  );
+  try {
+    const ctx = await loadEmailContext(confirmedBookingId, tenantId);
+    if (!ctx) return;
+    const cancelledRooms = cancelled.map((r) => ({ name: r.name, total: parseFloat(r.total).toFixed(2) }));
+    for (const adminEmail of await tenantAdminEmails(tenantId)) {
+      await sendPaidAfterCancellationAlert({ ...ctx.emailData, adminEmail, stripePaymentId, cancelledRooms });
+    }
+  } catch (emailError) {
+    console.error("Erreur envoi alerte remboursement partiel:", emailError);
   }
 }

@@ -7,7 +7,7 @@ import type { AddressInfo } from "net";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { bookings, icalSources, payments } from "../../db/schema";
+import { bookings, dossiers, icalSources, payments } from "../../db/schema";
 import { startPosthogSink } from "../helpers/posthog-sink";
 import { startSmtpSink } from "../helpers/smtp-sink";
 
@@ -110,10 +110,14 @@ test.describe("Admin", () => {
 
   test("annulation → booking_cancelled avec from_status, rattaché à l'hébergeur", async ({ page }) => {
     const day = (n: number) => new Date(Date.UTC(2031, 5, n));
+    const [d] = await db
+      .insert(dossiers)
+      .values({ tenantId: ctx.tenantId, guestName: "PostHog Annul", guestEmail: "ph-annul@example.com", checkIn: day(10), checkOut: day(12) })
+      .returning({ id: dossiers.id });
     const [b] = await db
       .insert(bookings)
       .values({
-        tenantId: ctx.tenantId, roomId: ctx.apiRoomId, guestName: "PostHog Annul", guestEmail: "ph-annul@example.com",
+        tenantId: ctx.tenantId, dossierId: d.id, roomId: ctx.apiRoomId, guestName: "PostHog Annul", guestEmail: "ph-annul@example.com",
         checkIn: day(10), checkOut: day(12), status: "confirmed", totalPrice: "200",
       })
       .returning({ id: bookings.id });
@@ -132,6 +136,7 @@ test.describe("Admin", () => {
       expect(sink.find("booking_cancelled").length).toBe(1);
     } finally {
       await db.delete(bookings).where(eq(bookings.id, b.id));
+      await db.delete(dossiers).where(eq(dossiers.id, d.id));
     }
   });
 
@@ -228,19 +233,23 @@ test.describe("Paiement", () => {
 
   test("webhook checkout.session.completed → booking_paid avec le distinct_id relayé, une seule fois", async ({ request }) => {
     const sessionId = `cs_test_posthog_${Date.now()}`;
+    const [d] = await db
+      .insert(dossiers)
+      .values({ tenantId: ctx.tenantId, guestName: "PostHog Paid", guestEmail: "ph-paid@example.com", checkIn: new Date(Date.UTC(2031, 6, 1)), checkOut: new Date(Date.UTC(2031, 6, 3)) })
+      .returning({ id: dossiers.id });
     const [b] = await db
       .insert(bookings)
       .values({
-        tenantId: ctx.tenantId, roomId: ctx.apiRoomId, guestName: "PostHog Paid", guestEmail: "ph-paid@example.com",
+        tenantId: ctx.tenantId, dossierId: d.id, roomId: ctx.apiRoomId, guestName: "PostHog Paid", guestEmail: "ph-paid@example.com",
         checkIn: new Date(Date.UTC(2031, 6, 1)), checkOut: new Date(Date.UTC(2031, 6, 3)), status: "pending", totalPrice: "300",
       })
       .returning({ id: bookings.id });
-    await db.insert(payments).values({ tenantId: ctx.tenantId, bookingId: b.id, stripeSessionId: sessionId, amount: "300", currency: "eur", status: "pending" });
+    await db.insert(payments).values({ tenantId: ctx.tenantId, dossierId: d.id, stripeSessionId: sessionId, amount: "300", currency: "eur", status: "pending" });
     try {
       const payload = JSON.stringify({
         id: `evt_test_ph_${Date.now()}`,
         type: "checkout.session.completed",
-        data: { object: { id: sessionId, payment_intent: "pi_test_ph", metadata: { bookingId: b.id, tenantId: ctx.tenantId, posthogDistinctId: "visiteur-123" } } },
+        data: { object: { id: sessionId, payment_intent: "pi_test_ph", metadata: { dossierId: d.id, tenantId: ctx.tenantId, posthogDistinctId: "visiteur-123" } } },
       });
       const post = () => request.post(`${SITE}/api/webhooks/stripe`, {
         data: payload,
@@ -257,8 +266,9 @@ test.describe("Paiement", () => {
       await new Promise((r) => setTimeout(r, 1000));
       expect(sink.find("booking_paid").length).toBe(before + 1);
     } finally {
-      await db.delete(payments).where(eq(payments.bookingId, b.id));
+      await db.delete(payments).where(eq(payments.dossierId, d.id));
       await db.delete(bookings).where(eq(bookings.id, b.id));
+      await db.delete(dossiers).where(eq(dossiers.id, d.id));
     }
   });
 });

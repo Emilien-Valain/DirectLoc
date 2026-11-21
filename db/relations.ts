@@ -5,6 +5,7 @@ import {
   userTenants,
   properties,
   rooms,
+  dossiers,
   bookings,
   payments,
   icalSources,
@@ -19,6 +20,7 @@ export const tenantsRelations = relations(tenants, ({ many }) => ({
   userTenants: many(userTenants),
   properties: many(properties),
   rooms: many(rooms),
+  dossiers: many(dossiers),
   bookings: many(bookings),
   manualBlocks: many(manualBlocks),
   bookingRules: many(bookingRules),
@@ -47,16 +49,22 @@ export const roomsRelations = relations(rooms, ({ one, many }) => ({
   icalBlocks: many(icalBlocks),
 }));
 
+export const dossiersRelations = relations(dossiers, ({ one, many }) => ({
+  tenant: one(tenants, { fields: [dossiers.tenantId], references: [tenants.id] }),
+  bookings: many(bookings),
+  payments: many(payments),
+}));
+
 export const bookingsRelations = relations(bookings, ({ one, many }) => ({
   tenant: one(tenants, { fields: [bookings.tenantId], references: [tenants.id] }),
+  dossier: one(dossiers, { fields: [bookings.dossierId], references: [dossiers.id] }),
   lines: many(bookingLines),
   room: one(rooms, { fields: [bookings.roomId], references: [rooms.id] }),
-  payment: one(payments, { fields: [bookings.id], references: [payments.bookingId] }),
 }));
 
 export const paymentsRelations = relations(payments, ({ one }) => ({
   tenant: one(tenants, { fields: [payments.tenantId], references: [tenants.id] }),
-  booking: one(bookings, { fields: [payments.bookingId], references: [bookings.id] }),
+  dossier: one(dossiers, { fields: [payments.dossierId], references: [dossiers.id] }),
 }));
 
 export const icalSourcesRelations = relations(icalSources, ({ one, many }) => ({

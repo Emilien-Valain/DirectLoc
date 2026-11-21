@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers, insertDossier } from "../helpers/dossier";
 
 /**
  * Adresse et pays du client (site public) : affichés échappés dans la fiche réservation et
@@ -17,14 +18,15 @@ const EMAIL = `adresse-${Date.now()}@example.com`;
 
 test.afterAll(async () => {
   await pool.query("DELETE FROM bookings WHERE guest_email = $1", [EMAIL]);
+  await deleteOrphanDossiers(pool);
   await pool.end();
 });
 
 async function insert(address: string | null, extra: { country?: string; first?: string; last?: string } = {}) {
   const { rows } = await pool.query(
-    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_first_name, guest_last_name, guest_email, guest_phone, guest_address, guest_country, guest_count, source)
-     VALUES ($1, $2, '2033-03-01', '2033-03-03', '200.00', 'confirmed', 'Marie Curie', $5, $6, $3, '0601020304', $4, $7, 1, 'direct') RETURNING id`,
-    [ctx.tenantId, ctx.apiRoomId, EMAIL, address, extra.first ?? "", extra.last ?? "", extra.country ?? null],
+    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_first_name, guest_last_name, guest_email, guest_phone, guest_address, guest_country, guest_count, source, dossier_id)
+     VALUES ($1, $2, '2033-03-01', '2033-03-03', '200.00', 'confirmed', 'Marie Curie', $5, $6, $3, '0601020304', $4, $7, 1, 'direct', $8) RETURNING id`,
+    [ctx.tenantId, ctx.apiRoomId, EMAIL, address, extra.first ?? "", extra.last ?? "", extra.country ?? null, await insertDossier(pool, ctx.tenantId)],
   );
   return rows[0].id as string;
 }

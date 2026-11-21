@@ -2,13 +2,17 @@
 
 import { useState } from "react";
 
-export default function ReservationPdfActions({
-  bookingId,
-}: {
-  bookingId: string;
-}) {
+/** Réservation seule (`bookingId`) ou Dossier entier (`dossierId`, ADR-0012). */
+export default function ReservationPdfActions(
+  props: { bookingId: string; dossierId?: undefined } | { dossierId: string; bookingId?: undefined },
+) {
   const [loading, setLoading] = useState(false);
-  const pdfUrl = `/api/admin/reservations/${bookingId}/pdf`;
+  const pdfUrl = props.dossierId
+    ? `/api/admin/dossiers/${props.dossierId}/pdf`
+    : `/api/admin/reservations/${props.bookingId}/pdf`;
+  const fileName = props.dossierId
+    ? `dossier-${props.dossierId.slice(0, 8)}.pdf`
+    : `reservation-${props.bookingId!.slice(0, 8)}.pdf`;
 
   async function handlePrint() {
     setLoading(true);
@@ -50,16 +54,16 @@ export default function ReservationPdfActions({
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <a
         href={pdfUrl}
-        download={`reservation-${bookingId.slice(0, 8)}.pdf`}
+        download={fileName}
         style={buttonStyle}
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
         </svg>
-        Télécharger PDF
+        {props.dossierId ? "PDF du Dossier" : "Télécharger PDF"}
       </a>
       <button
         type="button"

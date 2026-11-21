@@ -150,6 +150,13 @@ export const Icon = {
       <circle cx="12" cy="12" r="3" />
     </svg>
   ),
+  /** Dossier de plusieurs chambres (« groupe ») : chambres empilées. */
+  Group: (p: IconProps) => (
+    <svg {...base(p)}>
+      <rect x="3" y="9" width="12" height="11" rx="2" />
+      <path d="M8 9V6a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-4" />
+    </svg>
+  ),
 } as const;
 
 export type IconName = keyof typeof Icon;

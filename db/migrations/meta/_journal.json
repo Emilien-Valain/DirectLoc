@@ -169,6 +169,27 @@
       "when": 1795206889937,
       "tag": "0023_extras_room_ids",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795217806016,
+      "tag": "0024_dossiers",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795217817754,
+      "tag": "0025_payments_drop_booking_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1795225447880,
+      "tag": "0026_dossier_email_markers",
+      "breakpoints": true
     }
   ]
 }

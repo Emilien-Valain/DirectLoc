@@ -3,10 +3,10 @@
  * Insertion de booking-rules et nettoyage des bookings créés via l'UI admin.
  */
 
-import { and, eq, like } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { Pool } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { bookingRules, bookings, pricingRules, rooms } from "../../db/schema";
+import { bookingRules, bookings, dossiers, pricingRules, rooms } from "../../db/schema";
 
 function getDb() {
   const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL! });
@@ -90,12 +90,16 @@ export async function deletePricingRule(id: string): Promise<void> {
   await pool.end();
 }
 
-/** Supprime les bookings d'un tenant pour un email donné (cleanup UI). */
+/** Supprime les bookings d'un tenant pour un email donné, avec leurs Dossiers (cleanup UI). */
 export async function deleteBookingsByEmail(tenantId: string, email: string): Promise<void> {
   const { db, pool } = getDb();
-  await db
+  const gone = await db
     .delete(bookings)
-    .where(and(eq(bookings.tenantId, tenantId), eq(bookings.guestEmail, email)));
+    .where(and(eq(bookings.tenantId, tenantId), eq(bookings.guestEmail, email)))
+    .returning({ dossierId: bookings.dossierId });
+  if (gone.length > 0) {
+    await db.delete(dossiers).where(inArray(dossiers.id, gone.map((g) => g.dossierId)));
+  }
   await pool.end();
 }
 
@@ -175,7 +179,14 @@ export async function insertBookings(
   }[],
 ): Promise<void> {
   const { db, pool } = getDb();
-  await db.insert(bookings).values(rows.map((r) => ({ ...r, totalPrice: "200" })));
+  for (const r of rows) {
+    const { tenantId, guestName, guestEmail, checkIn, checkOut } = r;
+    const [d] = await db
+      .insert(dossiers)
+      .values({ tenantId, guestName, guestEmail, checkIn, checkOut })
+      .returning({ id: dossiers.id });
+    await db.insert(bookings).values({ ...r, dossierId: d.id, totalPrice: "200" });
+  }
   await pool.end();
 }
 

@@ -71,12 +71,13 @@ test.describe("Public — recherche par nombre de voyageurs", () => {
     expect(body).not.toContain("emailMessage");
   });
 
-  test("accueil : champ Voyageurs jusqu'à la plus grande capacité ; 3 pers. → seule la familiale, lien pré-rempli", async ({ page }) => {
+  test("accueil : adultes + enfants sans plafond lié aux chambres ; 3 pers. → seule la familiale, lien pré-rempli", async ({ page }) => {
     await page.goto("/");
-    const guests = page.getByLabel("Voyageurs");
+    const guests = page.getByLabel("Adultes");
     await expect(guests).toHaveValue("1");
-    await expect(guests.locator("option").last()).toHaveText(/\d+ pers\./);
-    expect(Number(await guests.locator("option").last().getAttribute("value"))).toBeGreaterThanOrEqual(4);
+    await expect(page.getByLabel("Enfants")).toHaveValue("0");
+    // Plus de plafond à la plus grande chambre (4 ici) : un groupe se loge sur plusieurs chambres.
+    expect(Number(await guests.locator("option").last().getAttribute("value"))).toBeGreaterThanOrEqual(30);
 
     await expect(async () => {
       await page.fill("#search-checkin", FROM);
@@ -106,7 +107,8 @@ test.describe("Public — recherche par nombre de voyageurs", () => {
   test("téléphone : le formulaire de recherche tient dans l'écran (pas de défilement horizontal)", async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 740 });
     await page.goto("/");
-    await expect(page.getByLabel("Voyageurs")).toBeVisible();
+    await expect(page.getByLabel("Adultes")).toBeVisible();
+    await expect(page.getByLabel("Enfants")).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);
   });

@@ -88,7 +88,7 @@ export async function getBookingByIdAndTenant(id: string, tenantId: string) {
   });
 }
 
-/** Dernier paiement en ligne d'une réservation (aucun pour une saisie manuelle). */
+/** Dernier paiement en ligne du Dossier de la réservation (aucun pour une saisie manuelle). */
 export async function getLatestPayment(bookingId: string, tenantId: string) {
   // Même garde que getBookingByIdAndTenant : un id mal formé ferait échouer Postgres (500 au lieu de 404).
   if (!isUuid(bookingId)) return undefined;
@@ -100,7 +100,8 @@ export async function getLatestPayment(bookingId: string, tenantId: string) {
       createdAt: payments.createdAt,
     })
     .from(payments)
-    .where(and(eq(payments.bookingId, bookingId), eq(payments.tenantId, tenantId)))
+    .innerJoin(bookings, eq(bookings.dossierId, payments.dossierId))
+    .where(and(eq(bookings.id, bookingId), eq(bookings.tenantId, tenantId), eq(payments.tenantId, tenantId)))
     .orderBy(desc(payments.createdAt))
     .limit(1);
   return payment;
@@ -154,7 +155,7 @@ export async function cancelOrphanPending() {
         eq(bookings.status, "pending"),
         eq(bookings.source, "direct"),
         sql`${bookings.createdAt} < now() - interval '1 hour'`,
-        sql`not exists (select 1 from ${payments} where ${payments.bookingId} = ${bookings.id})`,
+        sql`not exists (select 1 from ${payments} where ${payments.dossierId} = ${bookings.dossierId})`,
       ),
     )
     .returning({ id: bookings.id });
@@ -176,6 +177,7 @@ export async function getActiveBookingsForCalendar(
     ),
     columns: {
       id: true,
+      dossierId: true,
       roomId: true,
       checkIn: true,
       checkOut: true,
@@ -240,6 +242,49 @@ export async function loadEmailContext(bookingId: string, tenantId: string) {
       hotelName: tenant?.name ?? "Hôtel",
       config,
       tenantId,
+    },
+  };
+}
+
+/**
+ * Données d'un email PAR DOSSIER (ADR-0012) pour les réservations données (toutes du
+ * même Dossier) : le séjour commun, l'identité du voyageur (celle de la première
+ * réservation, comme avant les Dossiers) et une entrée par chambre. Total = somme des
+ * chambres listées. `null` si aucune n'est trouvée.
+ */
+export async function loadDossierEmailContext(bookingIds: string[], tenantId: string) {
+  const ctxs = (await Promise.all(bookingIds.map((id) => loadEmailContext(id, tenantId)))).filter(
+    (c): c is NonNullable<typeof c> => c !== null,
+  );
+  if (ctxs.length === 0) return null;
+  ctxs.sort((a, b) => (a.booking.createdAt?.getTime() ?? 0) - (b.booking.createdAt?.getTime() ?? 0) || a.booking.id.localeCompare(b.booking.id));
+  const first = ctxs[0].emailData;
+  const rooms = ctxs.map(({ emailData: e }) => ({
+    roomName: e.roomName,
+    guestCount: e.guestCount,
+    roomCapacity: e.roomCapacity,
+    roomBeds: e.roomBeds,
+    roomMessage: e.roomMessage,
+    roomInfo: e.roomInfo,
+    totalPrice: e.totalPrice,
+    extras: e.extras,
+  }));
+  const total = ctxs.reduce((sum, c) => sum + parseFloat(c.booking.totalPrice), 0);
+  return {
+    bookings: ctxs.map((c) => c.booking),
+    guestPhone: ctxs[0].booking.guestPhone,
+    emailData: {
+      guestName: first.guestName,
+      guestFirstName: first.guestFirstName,
+      guestEmail: first.guestEmail,
+      checkIn: first.checkIn,
+      checkOut: first.checkOut,
+      nights: first.nights,
+      hotelName: first.hotelName,
+      config: first.config,
+      tenantId,
+      rooms,
+      totalPrice: total.toFixed(2),
     },
   };
 }

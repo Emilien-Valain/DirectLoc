@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers, insertDossier } from "../helpers/dossier";
 
 /**
  * Spécification : Tests de non-régression > Cron > Emails automatiques
@@ -53,10 +54,11 @@ test.describe("Cron — cancelOrphanPending n'annule que les vrais orphelins", (
   test("A (direct, 2h, sans paiement) annulé ; B (avec paiement), C (10 min), D (manuel) restent pending, E (confirmé) intact", async ({ request }) => {
     const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
     const insert = async (label: string, checkIn: string, source: string, age: string, status = "pending") => {
+      const dossierId = await insertDossier(pool, ctx.tenantId);
       const { rows } = await pool.query(
-        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, created_at)
-         VALUES ($1, $2, $3::date, $3::date + 2, '200.00', $8, $4, $5, 1, $6, now() - $7::interval) RETURNING id`,
-        [ctx.tenantId, ctx.apiRoomId, checkIn, label, `${tag}-${label}@example.com`, source, age, status],
+        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, created_at, dossier_id)
+         VALUES ($1, $2, $3::date, $3::date + 2, '200.00', $8, $4, $5, 1, $6, now() - $7::interval, $9) RETURNING id`,
+        [ctx.tenantId, ctx.apiRoomId, checkIn, label, `${tag}-${label}@example.com`, source, age, status, dossierId],
       );
       return rows[0].id as string;
     };
@@ -67,7 +69,7 @@ test.describe("Cron — cancelOrphanPending n'annule que les vrais orphelins", (
       const d = await insert("D", "2032-01-20", "manual", "2 hours");
       const e = await insert("E", "2032-01-25", "direct", "2 hours", "confirmed");
       await pool.query(
-        "INSERT INTO payments (tenant_id, booking_id, amount, status) VALUES ($1, $2, '200.00', 'pending')",
+        "INSERT INTO payments (tenant_id, dossier_id, amount, status) SELECT $1::uuid, dossier_id, '200.00', 'pending' FROM bookings WHERE id = $2",
         [ctx.tenantId, b],
       );
 
@@ -80,8 +82,9 @@ test.describe("Cron — cancelOrphanPending n'annule que les vrais orphelins", (
       const status = Object.fromEntries(rows.map((r) => [r.id, r.status]));
       expect(status).toEqual({ [a]: "cancelled", [b]: "pending", [c]: "pending", [d]: "pending", [e]: "confirmed" });
     } finally {
-      await pool.query("DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE guest_email LIKE $1)", [`${tag}-%`]);
+      await pool.query("DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE guest_email LIKE $1)", [`${tag}-%`]);
       await pool.query("DELETE FROM bookings WHERE guest_email LIKE $1", [`${tag}-%`]);
+      await deleteOrphanDossiers(pool);
       await pool.end();
     }
   });

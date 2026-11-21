@@ -10,33 +10,40 @@ export default function Confirmation({
   isPaid,
   guestName,
   guestEmail,
-  roomName,
+  rooms,
   checkIn,
   checkOut,
   nights,
   totalPrice,
-  extras = [],
   reference,
   config,
 }: {
   isPaid: boolean;
   guestName: string;
   guestEmail: string;
-  roomName: string | null;
+  /** Chambres de la réservation (une seule : affichage historique, ligne « Chambre »). */
+  rooms: { name: string | null; guests: number; total: string; extras: { label: string; total: number }[] }[];
   checkIn: Date;
   checkOut: Date;
   nights: number;
   totalPrice: string;
-  extras?: { label: string; total: number }[];
   reference: string;
   config: TenantConfig;
 }) {
+  const single = rooms.length === 1;
+  const lines = (r: (typeof rooms)[number], indent = "") =>
+    r.extras.map((x): [string, string] => [indent + x.label, x.total === 0 ? "Offert" : formatEuros(x.total)]);
   const rows: [string, string][] = [
-    ["Chambre", roomName ?? "—"],
+    ...(single ? [["Chambre", rooms[0].name ?? "—"] as [string, string]] : []),
     ["Arrivée", formatDate(checkIn) + (config.checkInTime ? `, ${config.checkInTime}` : "")],
     ["Départ", formatDate(checkOut) + (config.checkOutTime ? `, ${config.checkOutTime}` : "")],
     ["Durée", `${nights} nuit${nights > 1 ? "s" : ""}`],
-    ...extras.map((x): [string, string] => [x.label, x.total === 0 ? "Offert" : formatEuros(x.total)]),
+    ...(single
+      ? lines(rooms[0])
+      : rooms.flatMap((r): [string, string][] => [
+          [`${r.name ?? "Chambre"} · ${r.guests} pers.`, formatEuros(r.total)],
+          ...lines(r, "— "),
+        ])),
     ["Total", formatEuros(totalPrice)],
   ];
 
@@ -60,7 +67,8 @@ export default function Confirmation({
         <h1 className="s-h1">{isPaid ? `Merci, ${guestName} !` : "Encore un instant"}</h1>
         {isPaid ? (
           <p className="s-prose">
-            Votre séjour est réservé. La confirmation vient d&apos;être envoyée à <strong>{guestEmail}</strong>.
+            {single ? "Votre séjour est réservé" : `Vos ${rooms.length} chambres sont réservées`}. La confirmation vient
+            d&apos;être envoyée à <strong>{guestEmail}</strong>.
           </p>
         ) : (
           <PendingRefresh guestEmail={guestEmail} phone={config.phone} />

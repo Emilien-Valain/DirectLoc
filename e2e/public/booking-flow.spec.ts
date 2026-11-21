@@ -112,7 +112,7 @@ test.describe("Public — Parcours de réservation", () => {
     // Nettoyer toute réservation existante pour ces dates de test
     const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
     await pool.query(
-      "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1 AND check_in = $2 AND check_out = $3)",
+      "DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE room_id = $1 AND check_in = $2 AND check_out = $3)",
       [apiRoomId, BOOKING_TEST_CHECKIN + " 00:00:00", BOOKING_TEST_CHECKOUT + " 00:00:00"],
     );
     await pool.query(
@@ -220,8 +220,9 @@ test.describe("Public — Parcours de réservation", () => {
 
       // Un autre client prend ces nuits pendant que celui-ci remplit le formulaire.
       const { rows } = await pool.query(
-        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-         VALUES ($1, $2, $3, $4, '300.00', 'pending', 'Plus Rapide', 'rapide@example.com', 1, 'direct') RETURNING id`,
+        `WITH d AS (INSERT INTO dossiers (tenant_id, check_in, check_out, guest_name, guest_email) VALUES ($1, '2030-01-01', '2030-01-02', 'Dossier Test', 'dossier@example.com') RETURNING id)
+     INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, dossier_id)
+         VALUES ($1, $2, $3, $4, '300.00', 'pending', 'Plus Rapide', 'rapide@example.com', 1, 'direct', (SELECT id FROM d)) RETURNING id`,
         [tenantId, apiRoomId, REFUSAL_IN, REFUSAL_OUT],
       );
       rivalId = rows[0].id;

@@ -118,21 +118,26 @@ const requiredPhone = z
 const personName = (label: string) =>
   z.string().trim().min(1, `${label} obligatoire`).max(100, `${label} : 100 caractères max`);
 
+/** Voyageur du site public : saisi une fois, pour une chambre comme pour plusieurs. */
+const publicGuestFields = {
+  guestFirstName: personName("Prénom"),
+  guestLastName: personName("Nom"),
+  guestEmail: email,
+  guestPhone: requiredPhone,
+  guestAddress: z
+    .string()
+    .trim()
+    .min(5, "Adresse obligatoire (rue, code postal, ville)")
+    .max(300, "Adresse trop longue (300 caractères max)"),
+  guestCountry: z.string().trim().toUpperCase().refine(isCountryCode, "Choisissez un pays dans la liste"),
+};
+
 export const bookingPublicSchema = z
   .object({
     roomId: roomIdString,
     checkIn: dateString,
     checkOut: dateString,
-    guestFirstName: personName("Prénom"),
-    guestLastName: personName("Nom"),
-    guestEmail: email,
-    guestPhone: requiredPhone,
-    guestAddress: z
-      .string()
-      .trim()
-      .min(5, "Adresse obligatoire (rue, code postal, ville)")
-      .max(300, "Adresse trop longue (300 caractères max)"),
-    guestCountry: z.string().trim().toUpperCase().refine(isCountryCode, "Choisissez un pays dans la liste"),
+    ...publicGuestFields,
     guestCount: positiveInt,
     childCount,
   })
@@ -147,6 +152,50 @@ export const bookingPublicSchema = z
     message: "La date d'arrivée est déjà passée",
     path: ["checkIn"],
   });
+
+/** Une chambre d'une réservation multi-chambres : répartition et options (montants jamais lus). */
+const dossierRoomPlan = z.object({
+  roomId: z.string().uuid("Chambre inconnue"),
+  // Bornes larges : la cohérence (capacité, adulte par chambre…) est dite par validateCombination.
+  guests: z.number().int().min(0).max(99),
+  minors: z.number().int().min(0).max(99),
+  extraIds: z.array(z.string()).max(50).default([]),
+  extraQuantities: z.record(z.string(), z.number()).default({}),
+});
+
+/** Plafond de personnes d'une réservation en ligne (même borne que la recherche). */
+export const MAX_PARTY = 50;
+
+/** Réservation de plusieurs chambres sur le site public (Dossier, ADR-0012). */
+export const dossierPublicSchema = z
+  .object({
+    checkIn: dateString,
+    checkOut: dateString,
+    ...publicGuestFields,
+    adults: z.coerce.number({ message: "Nombre d'adultes invalide" }).int("Nombre d'adultes invalide").min(1, "Au moins un adulte"),
+    minors: z.coerce.number({ message: "Nombre d'enfants invalide" }).int("Nombre d'enfants invalide").min(0, "Nombre d'enfants invalide").default(0),
+    plan: z.preprocess(
+      (v) => {
+        if (typeof v !== "string") return v;
+        try {
+          return JSON.parse(v);
+        } catch {
+          return undefined;
+        }
+      },
+      z.array(dossierRoomPlan, { message: "Choisissez vos chambres" }).min(1, "Choisissez au moins une chambre").max(30, "Trop de chambres"),
+    ),
+  })
+  .refine((d) => d.adults + d.minors <= MAX_PARTY, {
+    message: `${MAX_PARTY} personnes maximum par réservation en ligne`,
+    path: ["adults"],
+  })
+  .refine(
+    (d) => new Date(d.checkOut + "T00:00:00Z") > new Date(d.checkIn + "T00:00:00Z"),
+    { message: "La date de départ doit être après la date d'arrivée", path: ["checkOut"] },
+  )
+  .refine(stayNotTooLong, { message: STAY_TOO_LONG_MESSAGE, path: ["checkOut"] })
+  .refine((d) => d.checkIn >= parisToday(), { message: "La date d'arrivée est déjà passée", path: ["checkIn"] });
 
 export const bookingManualSchema = z
   .object({
@@ -186,6 +235,34 @@ export const bookingManualSchema = z
     { message: "La date de départ doit être après la date d'arrivée", path: ["checkOut"] },
   )
   .refine(stayNotTooLong, { message: STAY_TOO_LONG_MESSAGE, path: ["checkOut"] });
+
+/**
+ * Chambres supplémentaires d'un Dossier saisi par l'hôte (ADR-0012) : champ caché `moreRooms`
+ * (JSON). Mêmes dates et même voyageur que la chambre principale ; vide = une seule chambre.
+ */
+export const manualMoreRoomsSchema = z.preprocess(
+  (v) => {
+    if (v === null || v === undefined || v === "") return [];
+    if (typeof v !== "string") return v;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return undefined;
+    }
+  },
+  z
+    .array(
+      z
+        .object({
+          roomId: roomIdString,
+          guestCount: positiveInt.refine((n) => n <= MAX_PARTY, `${MAX_PARTY} personnes maximum`),
+          childCount,
+        })
+        .refine(...childrenWithinGuests),
+      { message: "Chambres supplémentaires invalides" },
+    )
+    .max(29, "30 chambres maximum par Dossier"),
+);
 
 export const roomSchema = z.object({
   nom: safeName,

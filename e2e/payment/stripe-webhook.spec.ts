@@ -4,6 +4,8 @@ import crypto from "crypto";
 import { Pool } from "pg";
 import { test, expect } from "@playwright/test";
 import { startSmtpSink } from "../helpers/smtp-sink";
+import { mailBody, mailSubject } from "../helpers/mail-body";
+import { insertDossier } from "../helpers/dossier";
 
 /**
  * Spécification : Tests de non-régression > Paiement > Webhook Stripe
@@ -21,6 +23,8 @@ function loadTestContext() {
   return JSON.parse(fs.readFileSync(contextPath, "utf-8")) as {
     tenantId: string;
     apiRoomId: string;
+    rivalTenantId: string;
+    rivalRoomId: string;
   };
 }
 
@@ -39,7 +43,9 @@ function generateStripeSignature(payload: string, secret: string): string {
 }
 
 /**
- * Crée un booking + payment de test en DB et retourne les IDs.
+ * Crée un Dossier d'une chambre (booking pending) + son payment et retourne l'id du booking.
+ * Les tests historiques envoient `metadata.bookingId` : sessions créées avant les Dossiers,
+ * toujours reconnues. Les sessions actuelles portent `metadata.dossierId` (cf. tests Dossier).
  */
 async function createTestBookingWithPayment(
   pool: Pool,
@@ -47,21 +53,35 @@ async function createTestBookingWithPayment(
   roomId: string,
   stripeSessionId: string,
 ) {
+  const dossierId = await insertDossier(pool, tenantId, { checkIn: "2026-09-01", checkOut: "2026-09-05" });
   const bookingResult = await pool.query(
-    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-     VALUES ($1, $2, '2026-09-01', '2026-09-05', '400.00', 'pending', 'Test Webhook', 'webhook@test.com', 2, 'direct')
+    `INSERT INTO bookings (tenant_id, dossier_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
+     VALUES ($1, $3, $2, '2026-09-01', '2026-09-05', '400.00', 'pending', 'Test Webhook', 'webhook@test.com', 2, 'direct')
      RETURNING id`,
-    [tenantId, roomId],
+    [tenantId, roomId, dossierId],
   );
   const bookingId = bookingResult.rows[0].id;
 
   await pool.query(
-    `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status)
+    `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status)
      VALUES ($1, $2, $3, '400.00', 'eur', 'pending')`,
-    [tenantId, bookingId, stripeSessionId],
+    [tenantId, dossierId, stripeSessionId],
   );
 
   return bookingId;
+}
+
+/** Supprime le Dossier d'un booking : payments, bookings, puis le Dossier. */
+async function deleteDossierOf(pool: Pool, bookingId: string) {
+  const { rows } = await pool.query("SELECT dossier_id FROM bookings WHERE id = $1", [bookingId]);
+  if (rows.length === 0) return;
+  await deleteDossier(pool, rows[0].dossier_id);
+}
+
+async function deleteDossier(pool: Pool, dossierId: string) {
+  await pool.query("DELETE FROM payments WHERE dossier_id = $1", [dossierId]);
+  await pool.query("DELETE FROM bookings WHERE dossier_id = $1", [dossierId]);
+  await pool.query("DELETE FROM dossiers WHERE id = $1", [dossierId]);
 }
 
 test.describe("Paiement — Webhook Stripe", () => {
@@ -131,8 +151,7 @@ test.describe("Paiement — Webhook Stripe", () => {
       expect(paymentResult.rows[0].stripe_payment_id).toBeTruthy();
     } finally {
       // Nettoyage
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -187,8 +206,7 @@ test.describe("Paiement — Webhook Stripe", () => {
       );
       expect(paymentResult.rows[0].status).toBe("expired");
     } finally {
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -252,8 +270,7 @@ test.describe("Paiement — Webhook Stripe", () => {
         firstUpdatedAt,
       );
     } finally {
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -301,8 +318,7 @@ test.describe("Paiement — Webhook Stripe", () => {
       // cancelled → confirmed est illégale : le booking reste cancelled.
       expect(result.rows[0].status).toBe("cancelled");
     } finally {
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -359,8 +375,7 @@ test.describe("Paiement — Webhook Stripe", () => {
       expect(sink.mails).toHaveLength(admins.length);
     } finally {
       await sink.stop();
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -405,8 +420,7 @@ test.describe("Paiement — Webhook Stripe", () => {
       expect(b.rows[0].status).toBe("confirmed");
     } finally {
       await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [tenantId, rows[0].stripe_account_id]);
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -427,14 +441,12 @@ test.describe("Paiement — Webhook Stripe", () => {
       expect((await postConnectEvent(request, "acct_intrus", sessionId, { bookingId: other, tenantId })).status()).toBe(200);
       const o = await pool.query("SELECT status FROM bookings WHERE id = $1", [other]);
       expect(o.rows[0].status).toBe("pending");
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [other]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [other]);
+      await deleteDossierOf(pool, other);
 
       const b = await pool.query("SELECT status FROM bookings WHERE id = $1", [bookingId]);
       expect(b.rows[0].status).toBe("pending");
     } finally {
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -451,8 +463,7 @@ test.describe("Paiement — Webhook Stripe", () => {
       expect(b.rows[0].status).toBe("confirmed");
     } finally {
       await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [tenantId, rows[0].stripe_account_id]);
-      await pool.query("DELETE FROM payments WHERE booking_id = $1", [bookingId]);
-      await pool.query("DELETE FROM bookings WHERE id = $1", [bookingId]);
+      await deleteDossierOf(pool, bookingId);
     }
   });
 
@@ -528,5 +539,210 @@ test.describe("Paiement — Webhook Stripe", () => {
 
     // Le webhook doit toujours répondre 200 (Stripe réessaie sinon)
     expect(response.status()).toBe(200);
+  });
+});
+
+/**
+ * Dossier (ADR-0012) : une session Stripe paie toutes les chambres du Dossier.
+ * Les sessions actuelles portent `metadata.dossierId`.
+ */
+test.describe("Paiement — Webhook Stripe sur un Dossier de plusieurs chambres", () => {
+  let pool: Pool;
+  let firstRoomId: string;
+  let secondRoomId: string;
+  const CHECK_IN = "2034-02-06";
+  const CHECK_OUT = "2034-02-09";
+
+  test.beforeAll(async () => {
+    pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    const { tenantId, apiRoomId } = loadTestContext();
+    // Deux chambres dédiées : apiRoom est partagée (règles, holds) par d'autres specs en parallèle.
+    const insertRoom = async (n: number) =>
+      (
+        await pool.query(
+          `INSERT INTO rooms (tenant_id, property_id, name, slug, price_per_night, capacity)
+           SELECT tenant_id, property_id, $3, $2, '90.00', 2 FROM rooms WHERE id = $1
+           RETURNING id`,
+          [apiRoomId, `chambre-dossier-test-${n}-${Date.now()}`, `Chambre Dossier Test ${n}`],
+        )
+      ).rows[0].id as string;
+    firstRoomId = await insertRoom(1);
+    secondRoomId = await insertRoom(2);
+    expect(tenantId).toBeTruthy();
+  });
+
+  test.afterAll(async () => {
+    await pool.query("DELETE FROM rooms WHERE id = ANY($1::uuid[])", [[firstRoomId, secondRoomId]]);
+    await pool.end();
+  });
+
+  /** Dossier de 2 chambres (pending) + son payment ; ids du Dossier et de ses réservations. */
+  async function createTwoRoomDossier(tenantId: string, roomIds: string[], sessionId: string) {
+    const dossierId = await insertDossier(pool, tenantId, { checkIn: CHECK_IN, checkOut: CHECK_OUT, guestName: "Famille Dossier" });
+    const bookingIds: string[] = [];
+    for (const roomId of roomIds) {
+      const { rows } = await pool.query(
+        `INSERT INTO bookings (tenant_id, dossier_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
+         VALUES ($1, $2, $3, $4, $5, '270.00', 'pending', 'Famille Dossier', 'dossier@example.com', 2, 'direct') RETURNING id`,
+        [tenantId, dossierId, roomId, CHECK_IN, CHECK_OUT],
+      );
+      bookingIds.push(rows[0].id);
+    }
+    await pool.query(
+      `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status)
+       VALUES ($1, $2, $3, '540.00', 'eur', 'pending')`,
+      [tenantId, dossierId, sessionId],
+    );
+    return { dossierId, bookingIds };
+  }
+
+  function post(
+    request: import("@playwright/test").APIRequestContext,
+    type: "checkout.session.completed" | "checkout.session.expired",
+    sessionId: string,
+    metadata: Record<string, string>,
+  ) {
+    const payload = JSON.stringify({
+      id: `evt_dossier_${Date.now()}_${Math.random()}`,
+      type,
+      data: { object: { id: sessionId, payment_intent: `pi_dossier_${sessionId}`, metadata } },
+    });
+    return request.post(`${BASE_URL}/api/webhooks/stripe`, {
+      data: payload,
+      headers: {
+        "content-type": "application/json",
+        "stripe-signature": generateStripeSignature(payload, WEBHOOK_SECRET),
+      },
+    });
+  }
+
+  const statuses = async (ids: string[]) =>
+    (await pool.query("SELECT status FROM bookings WHERE id = ANY($1::uuid[]) ORDER BY status", [ids])).rows.map(
+      (r) => r.status as string,
+    );
+  const paymentStatus = async (sessionId: string) =>
+    (await pool.query("SELECT status FROM payments WHERE stripe_session_id = $1", [sessionId])).rows[0]?.status;
+
+  test("completed → les 2 réservations confirmed, payment paid ; re-livraison sans effet", async ({ request }) => {
+    const { tenantId } = loadTestContext();
+    const sessionId = `cs_test_dossier_ok_${Date.now()}`;
+    const { dossierId, bookingIds } = await createTwoRoomDossier(tenantId, [firstRoomId, secondRoomId], sessionId);
+    try {
+      expect((await post(request, "checkout.session.completed", sessionId, { dossierId, tenantId })).status()).toBe(200);
+      expect(await statuses(bookingIds)).toEqual(["confirmed", "confirmed"]);
+      expect(await paymentStatus(sessionId)).toBe("paid");
+
+      const before = (await pool.query("SELECT max(updated_at) AS t FROM bookings WHERE dossier_id = $1", [dossierId])).rows[0].t;
+      expect((await post(request, "checkout.session.completed", sessionId, { dossierId, tenantId })).status()).toBe(200);
+      // Un expired tardif n'annule pas un Dossier payé.
+      expect((await post(request, "checkout.session.expired", sessionId, { dossierId, tenantId })).status()).toBe(200);
+      expect(await statuses(bookingIds)).toEqual(["confirmed", "confirmed"]);
+      const after = (await pool.query("SELECT max(updated_at) AS t FROM bookings WHERE dossier_id = $1", [dossierId])).rows[0].t;
+      expect(new Date(after).getTime()).toBe(new Date(before).getTime());
+    } finally {
+      await deleteDossier(pool, dossierId);
+    }
+  });
+
+  test("expired → les 2 réservations cancelled, payment expired, chambres de nouveau libres", async ({ request }) => {
+    const { tenantId } = loadTestContext();
+    const sessionId = `cs_test_dossier_exp_${Date.now()}`;
+    const { dossierId, bookingIds } = await createTwoRoomDossier(tenantId, [firstRoomId, secondRoomId], sessionId);
+    const blocked = async (roomId: string) => {
+      const res = await request.get(`${BASE_URL}/api/availability?roomId=${roomId}&from=${CHECK_IN}&to=${CHECK_OUT}`);
+      expect(res.status()).toBe(200);
+      return ((await res.json()) as { blockedDates: string[] }).blockedDates;
+    };
+    try {
+      // Le Dossier pending retient les deux chambres.
+      expect(await blocked(firstRoomId)).toContain(CHECK_IN);
+      expect(await blocked(secondRoomId)).toContain(CHECK_IN);
+
+      expect((await post(request, "checkout.session.expired", sessionId, { dossierId, tenantId })).status()).toBe(200);
+      expect(await statuses(bookingIds)).toEqual(["cancelled", "cancelled"]);
+      expect(await paymentStatus(sessionId)).toBe("expired");
+      expect(await blocked(firstRoomId)).toEqual([]);
+      expect(await blocked(secondRoomId)).toEqual([]);
+
+      // Paiement tardif sur un Dossier expiré : rien n'est ressuscité.
+      expect((await post(request, "checkout.session.completed", sessionId, { dossierId, tenantId })).status()).toBe(200);
+      expect(await statuses(bookingIds)).toEqual(["cancelled", "cancelled"]);
+    } finally {
+      await deleteDossier(pool, dossierId);
+    }
+  });
+
+  test("une chambre annulée avant le paiement reste annulée, l'autre est confirmée ; admins alertés « remboursement partiel » une fois", async ({ request }) => {
+    const { tenantId } = loadTestContext();
+    const sessionId = `cs_test_dossier_partial_${Date.now()}`;
+    const { dossierId, bookingIds } = await createTwoRoomDossier(tenantId, [firstRoomId, secondRoomId], sessionId);
+    const admins = (
+      await pool.query(
+        "SELECT u.email FROM user_tenants ut JOIN users u ON u.id = ut.user_id WHERE ut.tenant_id = $1",
+        [tenantId],
+      )
+    ).rows.map((r) => r.email as string);
+    const sink = await startSmtpSink();
+    try {
+      await pool.query("UPDATE bookings SET status = 'cancelled' WHERE id = $1", [bookingIds[1]]);
+      expect((await post(request, "checkout.session.completed", sessionId, { dossierId, tenantId })).status()).toBe(200);
+      const rows = (await pool.query("SELECT id, status FROM bookings WHERE dossier_id = $1", [dossierId])).rows;
+      expect(Object.fromEntries(rows.map((r) => [r.id, r.status]))).toEqual({
+        [bookingIds[0]]: "confirmed",
+        [bookingIds[1]]: "cancelled",
+      });
+      expect(await paymentStatus(sessionId)).toBe("paid");
+
+      // Alerte « remboursement partiel » : une par admin, nommant la chambre annulée.
+      const alerts = () => sink.mails.filter((m) => mailSubject(m).includes("remboursement partiel"));
+      await expect.poll(() => alerts().length).toBe(admins.length);
+      expect(alerts().flatMap((m) => m.to).sort()).toEqual([...admins].sort());
+      expect(mailBody(alerts()[0])).toContain("<strong>Chambre Dossier Test 2</strong> (270.00 &euro;)");
+
+      // Re-livraison : plus rien à confirmer, pas d'alerte en double.
+      expect((await post(request, "checkout.session.completed", sessionId, { dossierId, tenantId })).status()).toBe(200);
+      expect(alerts()).toHaveLength(admins.length);
+    } finally {
+      await sink.stop();
+      await deleteDossier(pool, dossierId);
+    }
+  });
+
+  test("isolation : metadata désignant un autre Dossier ou un autre tenant → ignoré, rien ne bouge", async ({ request }) => {
+    const ctx = loadTestContext();
+    const { tenantId } = ctx;
+    const stamp = Date.now();
+    const ours = await createTwoRoomDossier(tenantId, [firstRoomId, secondRoomId], `cs_test_dossier_ours_${stamp}`);
+    const rival = await createTwoRoomDossier(ctx.rivalTenantId, [ctx.rivalRoomId], `cs_test_dossier_rival_${stamp}`);
+    try {
+      // Notre session, mais metadata pointant le Dossier du rival (avec notre tenant ou le sien).
+      const attempts: Record<string, string>[] = [
+        { dossierId: rival.dossierId, tenantId },
+        { dossierId: rival.dossierId, tenantId: ctx.rivalTenantId },
+        { dossierId: ours.dossierId, tenantId: ctx.rivalTenantId },
+        { dossierId: "pas-un-uuid", tenantId },
+        { dossierId: ours.dossierId, tenantId: "pas-un-uuid" },
+        { tenantId },
+      ];
+      for (const metadata of attempts) {
+        expect((await post(request, "checkout.session.completed", `cs_test_dossier_ours_${stamp}`, metadata)).status()).toBe(200);
+      }
+      // Session du rival, metadata d'un de nos Dossiers : ignoré aussi.
+      expect(
+        (await post(request, "checkout.session.expired", `cs_test_dossier_rival_${stamp}`, { dossierId: ours.dossierId, tenantId })).status(),
+      ).toBe(200);
+      // Session inconnue avec un vrai Dossier.
+      expect(
+        (await post(request, "checkout.session.completed", `cs_test_dossier_inconnue_${stamp}`, { dossierId: ours.dossierId, tenantId })).status(),
+      ).toBe(200);
+
+      expect(await statuses(ours.bookingIds)).toEqual(["pending", "pending"]);
+      expect(await statuses(rival.bookingIds)).toEqual(["pending"]);
+      expect(await paymentStatus(`cs_test_dossier_ours_${stamp}`)).toBe("pending");
+      expect(await paymentStatus(`cs_test_dossier_rival_${stamp}`)).toBe("pending");
+    } finally {
+      await deleteDossier(pool, ours.dossierId);
+      await deleteDossier(pool, rival.dossierId);
+    }
   });
 });

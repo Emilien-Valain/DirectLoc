@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers, insertDossier } from "../helpers/dossier";
 import { startSmtpSink } from "../helpers/smtp-sink";
 import { mailBody } from "../helpers/mail-body";
 import { deleteRoomsByName, insertHiddenRoom } from "../helpers/intake";
@@ -49,6 +50,7 @@ test.describe("Chambres — infos pratiques", () => {
   test.afterEach(async () => {
     await pool.query("UPDATE rooms SET info = '[]', email_message = NULL, active = false WHERE id = ANY($1)", [[roomId, otherId]]);
     await pool.query("DELETE FROM bookings WHERE guest_email LIKE $1", [`${TAG}-%`]);
+    await deleteOrphanDossiers(pool);
   });
   test.afterAll(async () => {
     await deleteRoomsByName(ctx.tenantId, ROOM);
@@ -150,9 +152,9 @@ test.describe("Chambres — infos pratiques", () => {
     ]);
     const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris" }).format(new Date());
     await pool.query(
-      `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, created_at)
-       VALUES ($1, $2, $3::date + 2, $3::date + 4, '200.00', 'confirmed', 'Client Infos', $4, 2, 'manual', now() - interval '30 days')`,
-      [ctx.tenantId, roomId, today, `${TAG}-due@example.com`],
+      `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, created_at, dossier_id)
+       VALUES ($1, $2, $3::date + 2, $3::date + 4, '200.00', 'confirmed', 'Client Infos', $4, 2, 'manual', now() - interval '30 days', $5)`,
+      [ctx.tenantId, roomId, today, `${TAG}-due@example.com`, await insertDossier(pool, ctx.tenantId)],
     );
 
     const sink = await startSmtpSink();

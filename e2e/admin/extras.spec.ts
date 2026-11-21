@@ -4,6 +4,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers } from "../helpers/dossier";
 import { confirmDialog, SAVED_BOOKING_URL } from "../helpers/confirm";
 import { startSmtpSink } from "../helpers/smtp-sink";
 
@@ -46,8 +47,9 @@ async function insertBooking(opts: {
   guests?: number;
 }) {
   const { rows } = await pool.query(
-    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+    `WITH d AS (INSERT INTO dossiers (tenant_id, check_in, check_out, guest_name, guest_email) VALUES ($1, '2030-01-01', '2030-01-02', 'Dossier Test', 'dossier@example.com') RETURNING id)
+     INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, dossier_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, (SELECT id FROM d)) RETURNING id`,
     [
       ctx.tenantId,
       ctx.apiRoomId,
@@ -79,11 +81,12 @@ async function totalOf(bookingId: string) {
 
 async function cleanup() {
   await pool.query(
-    "DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE guest_email LIKE $1)",
+    "DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE guest_email LIKE $1)",
     [`%@${DOMAIN}`],
   );
   // booking_lines suit en cascade.
   await pool.query("DELETE FROM bookings WHERE guest_email LIKE $1", [`%@${DOMAIN}`]);
+  await deleteOrphanDossiers(pool);
   await pool.query("DELETE FROM extras WHERE label LIKE $1", [`%${TAG}%`]);
 }
 
@@ -401,8 +404,8 @@ test.describe("Admin — Reste à payer", () => {
     await insertExtra({ label: "Late checkout", price: "30", unit: "per_stay" });
     const id = await insertBooking({ name: "Payé", checkIn: day(760), checkOut: day(762), total: "200.00", source: "direct" });
     await pool.query(
-      `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status, created_at)
-       VALUES ($1, $2, $3, '200.00', 'eur', 'paid', now() - interval '2 hours')`,
+      `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status, created_at)
+       VALUES ($1, (SELECT dossier_id FROM bookings WHERE id = $2), $3, '200.00', 'eur', 'paid', now() - interval '2 hours')`,
       [ctx.tenantId, id, `cs_extras_${id}`],
     );
 
@@ -422,7 +425,7 @@ test.describe("Admin — Reste à payer", () => {
     await expect(page.locator("[data-balance-due]")).toHaveCount(0);
     await expect(page.getByText(/Réglé le/)).toBeVisible();
 
-    const { rows } = await pool.query("SELECT status, amount FROM payments WHERE booking_id = $1", [id]);
+    const { rows } = await pool.query("SELECT status, amount FROM payments WHERE dossier_id = (SELECT dossier_id FROM bookings WHERE id = $1)", [id]);
     expect(rows).toEqual([{ status: "paid", amount: "200.00" }]);
   });
 
@@ -477,8 +480,8 @@ test.describe("Admin — Extras dans le PDF et les emails", () => {
     await addLine(id, `Cleaning ${TAG}`, { kind: "fee", unit: "per_stay", unitPrice: "25.00", quantity: 1, total: "25.00" });
     const sessionId = `cs_extras_mail_${id}`;
     await pool.query(
-      `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status)
-       VALUES ($1, $2, $3, '236.00', 'eur', 'pending')`,
+      `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status)
+       VALUES ($1, (SELECT dossier_id FROM bookings WHERE id = $2), $3, '236.00', 'eur', 'pending')`,
       [ctx.tenantId, id, sessionId],
     );
 

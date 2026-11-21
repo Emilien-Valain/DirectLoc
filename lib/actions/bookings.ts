@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/session";
 import { captureServer } from "@/lib/analytics";
 import { db } from "@/lib/db";
-import { bookings, icalBlocks, rooms } from "@/db/schema";
+import { bookings, dossiers, extras, fees, icalBlocks, rooms } from "@/db/schema";
 import {
   admitBooking,
   CapacityError,
@@ -17,11 +17,14 @@ import {
   RoomUnavailableError,
   saveLines,
 } from "@/lib/booking-intake";
-import { extraQuantitiesFrom, grandTotal, type StayLine } from "@/lib/extras";
+import { admitRoomsInTx, createDossier, RoomRefused } from "@/lib/dossiers";
+import { extraQuantitiesFrom, grandTotal, matchesRoom, type StayLine } from "@/lib/extras";
 import { getBookingLines } from "@/lib/queries/extras";
-import { bookingManualSchema, frDateToIso, isStayTooLong, isUuid, safeParseFormData } from "@/lib/validation";
-import { sendBookingCancellation, sendBookingModification } from "@/lib/email";
+import { bookingManualSchema, frDateToIso, isStayTooLong, isUuid, manualMoreRoomsSchema, safeParseFormData } from "@/lib/validation";
+import { sendBookingModification } from "@/lib/email";
+import { notifyHostCancellation } from "@/lib/dossier-cancellation";
 import { loadEditableBooking, loadEmailContext, type BookingStatus } from "@/lib/queries/bookings";
+import { dossierSizes } from "@/lib/queries/dossiers";
 
 async function requireTenantId() {
   const { tenantId } = await requireSession();
@@ -70,7 +73,7 @@ export async function confirmBooking(id: string) {
 export async function cancelBooking(id: string) {
   const { session, tenantId } = await requireSession();
   const [before] = await db
-    .select({ status: bookings.status })
+    .select({ status: bookings.status, dossierId: bookings.dossierId })
     .from(bookings)
     .where(and(eq(bookings.id, id), eq(bookings.tenantId, tenantId)));
   const transitioned = await updateStatus(id, tenantId, "cancelled", [
@@ -80,27 +83,90 @@ export async function cancelBooking(id: string) {
 
   // N'envoyer l'email d'annulation que si l'annulation a réellement eu lieu
   // (évite un second email si le booking était déjà annulé ou terminé).
-  if (!transitioned) return;
+  if (!transitioned || !before) return;
   captureServer(
     "booking_cancelled",
-    { surface: "admin", tenant_id: tenantId, from_status: before?.status },
+    { surface: "admin", tenant_id: tenantId, from_status: before.status },
     session.user.id,
   );
+  revalidatePath(`/admin/dossiers/${before.dossierId}`);
 
-  // Envoyer l'email d'annulation au client (best-effort) ; l'hôte est prévenu
-  // s'il n'est pas parti, pour qu'il contacte le client lui-même.
-  let emailSent = false;
-  try {
-    const ctx = await loadEmailContext(id, tenantId);
-    if (ctx) {
-      await sendBookingCancellation({ ...ctx.emailData, reason: "admin" });
-      emailSent = true;
-    }
-  } catch (emailError) {
-    console.error("Erreur envoi email annulation:", emailError);
-  }
-
+  // Email au client (best-effort) ; l'hôte est prévenu s'il n'est pas parti, pour
+  // qu'il contacte le client lui-même. Une chambre d'un Dossier = annulation partielle.
+  const emailSent = await notifyHostCancellation(tenantId, before.dossierId, [id]);
   redirect(`/admin/reservations/${id}?annulee=${emailSent ? "1" : "sans-email"}`);
+}
+
+/** Annule les réservations actives (pending|confirmed) d'un Dossier du tenant ; `only` = une chambre. */
+async function cancelInDossier(dossierId: string, tenantId: string, only?: string) {
+  const rows = await db
+    .update(bookings)
+    .set({ status: "cancelled", updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookings.dossierId, dossierId),
+        eq(bookings.tenantId, tenantId),
+        inArray(bookings.status, ["pending", "confirmed"]),
+        only ? eq(bookings.id, only) : undefined,
+      ),
+    )
+    .returning({ id: bookings.id });
+  if (rows.length === 0) return [];
+  revalidatePath("/admin");
+  revalidatePath("/admin/reservations");
+  revalidatePath("/admin/calendrier");
+  revalidatePath(`/admin/dossiers/${dossierId}`);
+  for (const r of rows) revalidatePath(`/admin/reservations/${r.id}`);
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Annuler UNE chambre d'un Dossier depuis sa fiche (ADR-0012) : les autres restent,
+ * la chambre est libérée. Pas de remboursement automatique (la fiche dit combien rendre).
+ */
+export async function cancelDossierBooking(dossierId: string, bookingId: string) {
+  const { session, tenantId } = await requireSession();
+  if (!isUuid(dossierId) || !isUuid(bookingId)) return;
+  const cancelled = await cancelInDossier(dossierId, tenantId, bookingId);
+  if (cancelled.length === 0) return;
+  captureServer("booking_cancelled", { surface: "admin", tenant_id: tenantId, scope: "room" }, session.user.id);
+  const emailSent = await notifyHostCancellation(tenantId, dossierId, cancelled);
+  redirect(`/admin/dossiers/${dossierId}?chambre-annulee=${emailSent ? "1" : "sans-email"}`);
+}
+
+/** Annuler tout le Dossier : chaque chambre encore active passe `cancelled` (transitions gardées). */
+export async function cancelDossier(dossierId: string) {
+  const { session, tenantId } = await requireSession();
+  if (!isUuid(dossierId)) return;
+  const cancelled = await cancelInDossier(dossierId, tenantId);
+  if (cancelled.length === 0) return;
+  captureServer(
+    "booking_cancelled",
+    { surface: "admin", tenant_id: tenantId, scope: "dossier", rooms: cancelled.length },
+    session.user.id,
+  );
+  const emailSent = await notifyHostCancellation(tenantId, dossierId, cancelled);
+  redirect(`/admin/dossiers/${dossierId}?annule=${emailSent ? "1" : "sans-email"}`);
+}
+
+/** Règlement hors ligne de tout le Dossier : chaque chambre non annulée (voir `setBookingPaid`). */
+export async function setDossierPaid(dossierId: string, paid: boolean) {
+  const tenantId = await requireTenantId();
+  if (!isUuid(dossierId)) return;
+  const rows = await db
+    .update(bookings)
+    .set({ paidAt: paid ? new Date() : null, updatedAt: new Date() })
+    .where(
+      and(
+        eq(bookings.dossierId, dossierId),
+        eq(bookings.tenantId, tenantId),
+        inArray(bookings.status, ["pending", "confirmed", "completed"]),
+      ),
+    )
+    .returning({ id: bookings.id });
+  revalidatePath(`/admin/dossiers/${dossierId}`);
+  revalidatePath("/admin/reservations");
+  for (const r of rows) revalidatePath(`/admin/reservations/${r.id}`);
 }
 
 /**
@@ -240,6 +306,15 @@ export async function createBookingManual(
   const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
   const notes = data.notes || null;
 
+  // Plusieurs chambres : un Dossier (ADR-0012), mêmes dates et même voyageur.
+  const more = manualMoreRoomsSchema.safeParse(formData.get("moreRooms"));
+  if (!more.success) {
+    return { error: more.error.issues[0]?.message ?? "Chambres supplémentaires invalides", values };
+  }
+  if (more.data.length > 0) {
+    return createDossierManual(formData, values, data, more.data);
+  }
+
   // Admission : résout+autorise la chambre, calcule le prix et insère sous verrou.
   // Les booking-rules ne s'appliquent pas au manuel ; la dispo est contrôlée sauf
   // override (« Forcer »).
@@ -262,19 +337,18 @@ export async function createBookingManual(
       },
       { allowOverlap: data.force },
       async (tx, { lines, total }) => {
+        const guest = { guestName, guestFirstName, guestLastName, guestEmail, guestPhone };
+        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest });
         const [row] = await tx
           .insert(bookings)
           .values({
             tenantId,
+            dossierId,
             roomId,
             checkIn,
             checkOut,
             totalPrice: total.toFixed(2),
-            guestName,
-            guestFirstName,
-            guestLastName,
-            guestEmail,
-            guestPhone,
+            ...guest,
             guestCount,
             childCount,
             notes,
@@ -295,6 +369,128 @@ export async function createBookingManual(
   revalidatePath("/admin/reservations");
   revalidatePath("/admin/calendrier");
   redirect(`/admin/reservations/${bookingId}?enregistree=1`);
+}
+
+type ManualData = Extract<ReturnType<typeof bookingManualSchema.safeParse>, { success: true }>["data"];
+type MoreRoom = { roomId: string; guestCount: number; childCount: number };
+
+/**
+ * Saisie manuelle d'un Dossier de plusieurs chambres (mêmes dates, même voyageur).
+ * Même gate que la chambre seule (ADR-0008), chaque chambre admise dans UNE transaction,
+ * tout ou rien ; « Forcer » vaut pour toutes les chambres. Options et frais cochés
+ * s'appliquent à chaque chambre qui les propose. Pas de prix convenu (par chambre,
+ * via « Modifier » ensuite).
+ */
+async function createDossierManual(
+  formData: FormData,
+  values: Record<string, string>,
+  data: ManualData,
+  more: MoreRoom[],
+): Promise<ManualBookingState> {
+  const tenantId = await requireTenantId();
+  const plan: MoreRoom[] = [{ roomId: data.roomId, guestCount: data.guestCount, childCount: data.childCount }, ...more];
+  if (new Set(plan.map((p) => p.roomId)).size !== plan.length) {
+    return { error: "La même chambre est choisie deux fois.", values };
+  }
+  if (data.agreedPrice) {
+    return {
+      error: "Le prix convenu ne vaut que pour une chambre seule : enregistrez, puis modifiez le prix de chaque chambre.",
+      fieldErrors: { agreedPrice: "Une chambre seule" },
+      values,
+    };
+  }
+  const checkIn = new Date(data.checkIn + "T00:00:00.000Z");
+  const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
+  const guest = {
+    guestName: fullName(data.guestFirstName, data.guestLastName),
+    guestFirstName: data.guestFirstName,
+    guestLastName: data.guestLastName,
+    guestEmail: data.guestEmail,
+    guestPhone: data.guestPhone || null,
+  };
+  // Options et frais réservés à certaines chambres : chaque chambre ne reçoit que les siens.
+  // Un id inconnu passe tel quel : le gate le refuse (ExtraUnavailableError / FeeUnavailableError).
+  const [extraScopes, feeScopes, roomNames] = await Promise.all([
+    db.select({ id: extras.id, roomIds: extras.roomIds }).from(extras).where(eq(extras.tenantId, tenantId)),
+    db.select({ id: fees.id, roomIds: fees.roomIds }).from(fees).where(eq(fees.tenantId, tenantId)),
+    db
+      .select({ id: rooms.id, name: rooms.name })
+      .from(rooms)
+      .where(and(eq(rooms.tenantId, tenantId), inArray(rooms.id, plan.map((p) => p.roomId)))),
+  ]);
+  const forRoom = (ids: string[], scopes: { id: string; roomIds: string[] }[], roomId: string) =>
+    ids.filter((id) => {
+      const scope = scopes.find((x) => x.id === id);
+      return !scope || matchesRoom(scope, roomId);
+    });
+  const extraIds = formIds(formData, "extraIds");
+  const feeIds = formIds(formData, "feeIds");
+  const extraQuantities = extraQuantitiesFrom(formData.entries());
+
+  let dossierId: string;
+  try {
+    dossierId = await db.transaction(async (tx) => {
+      const admitted = await admitRoomsInTx(
+        tx,
+        plan,
+        (p) => ({
+          roomId: p.roomId,
+          tenantId,
+          checkIn,
+          checkOut,
+          guestCount: p.guestCount,
+          childCount: p.childCount,
+          extraIds: forRoom(extraIds, extraScopes, p.roomId),
+          extraQuantities,
+          feeIds: forRoom(feeIds, feeScopes, p.roomId),
+          waiveTax: data.waiveTax,
+        }),
+        { allowOverlap: data.force },
+      );
+      const id = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest });
+      for (const p of plan) {
+        const { lines, total } = admitted.get(p.roomId)!;
+        const [row] = await tx
+          .insert(bookings)
+          .values({
+            tenantId,
+            dossierId: id,
+            roomId: p.roomId,
+            checkIn,
+            checkOut,
+            totalPrice: total.toFixed(2),
+            ...guest,
+            guestCount: p.guestCount,
+            childCount: p.childCount,
+            notes: data.notes || null,
+            status: "confirmed",
+            source: "manual",
+          })
+          .returning({ id: bookings.id });
+        await saveLines(tx, row.id, lines);
+      }
+      return id;
+    });
+  } catch (e) {
+    if (!(e instanceof RoomRefused)) throw e;
+    const state = await admissionErrorState(e.reason, { tenantId, roomId: e.roomId, checkIn, checkOut }, values);
+    if (!state) throw e.reason;
+    // Nommer la chambre refusée : l'hôte en a saisi plusieurs.
+    const name = roomNames.find((r) => r.id === e.roomId)?.name;
+    const index = plan.findIndex((p) => p.roomId === e.roomId);
+    const fieldErrors = { ...state.fieldErrors };
+    for (const key of ["guestCount", "roomId"] as const) {
+      if (index > 0 && fieldErrors[key]) {
+        fieldErrors[`more${key[0].toUpperCase()}${key.slice(1)}_${index - 1}`] = fieldErrors[key];
+        delete fieldErrors[key];
+      }
+    }
+    return { ...state, error: name ? `${name} : ${state.error}` : state.error, fieldErrors };
+  }
+
+  revalidatePath("/admin/reservations");
+  revalidatePath("/admin/calendrier");
+  redirect(`/admin/dossiers/${dossierId}?enregistre=1`);
 }
 
 /**
@@ -397,6 +593,17 @@ export async function updateBookingManual(
   const guestName = fullName(guestFirstName, guestLastName);
   const checkIn = new Date(data.checkIn + "T00:00:00.000Z");
   const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
+  // Dossier de plusieurs chambres (ADR-0012, v1) : toutes les chambres gardent les mêmes dates.
+  // Une chambre ne s'en écarte pas seule ; le voyageur, lui, vaut pour tout le Dossier.
+  const dossierSize = (await dossierSizes(tenantId, [editable.booking.dossierId])).get(editable.booking.dossierId) ?? 1;
+  if (
+    dossierSize > 1 &&
+    (checkIn.getTime() !== new Date(editable.booking.checkIn).getTime() ||
+      checkOut.getTime() !== new Date(editable.booking.checkOut).getTime())
+  ) {
+    const message = `Les ${dossierSize} chambres de ce Dossier ont les mêmes dates : elles ne se changent pas pour une seule chambre. Annulez cette chambre et saisissez-la à nouveau, ou annulez le Dossier.`;
+    return { error: message, fieldErrors: { checkIn: "Dates du Dossier" }, values };
+  }
   // Hébergement : prix convenu saisi > ancien hébergement gardé > nouveau calcul ; les Extras s'y ajoutent.
   const keepPrice = formData.get("keepPrice") === "on";
   const notifyGuest = formData.get("notifyGuest") === "on";
@@ -447,8 +654,20 @@ export async function updateBookingManual(
               inArray(bookings.status, ["pending", "confirmed"]),
             ),
           )
-          .returning({ id: bookings.id });
+          .returning({ dossierId: bookings.dossierId });
         if (updated.length === 0) throw new BookingNoLongerEditableError();
+        // Le Dossier suit (dates : identiques pour toutes ses chambres, vérifié plus haut).
+        // Le voyageur est celui de tout le Dossier : ses autres réservations le reprennent.
+        const { dossierId } = updated[0];
+        const guest = { guestName, guestFirstName, guestLastName, guestEmail, guestPhone: data.guestPhone || null };
+        await tx
+          .update(dossiers)
+          .set({ checkIn, checkOut, ...guest, updatedAt: new Date() })
+          .where(and(eq(dossiers.id, dossierId), eq(dossiers.tenantId, tenantId)));
+        await tx
+          .update(bookings)
+          .set({ ...guest, updatedAt: new Date() })
+          .where(and(eq(bookings.dossierId, dossierId), eq(bookings.tenantId, tenantId), ne(bookings.id, id)));
         await saveLines(tx, id, lines);
       },
     );

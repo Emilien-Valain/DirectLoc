@@ -3,6 +3,7 @@ import { fillAdminGuestName } from "../helpers/guest";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers, insertDossier } from "../helpers/dossier";
 import { confirmDialog, SAVED_BOOKING_URL } from "../helpers/confirm";
 
 /**
@@ -72,6 +73,7 @@ async function cleanup() {
   await pool.query("DELETE FROM fees WHERE tenant_id = $1 OR label LIKE $2", [ctx.tenantId, `%${TAG}%`]);
   await pool.query("DELETE FROM bookings WHERE room_id IN (SELECT id FROM rooms WHERE tenant_id = $1 AND slug ~ '-ft[0-9a-z]{6}$')", [ctx.tenantId]);
   await pool.query("DELETE FROM rooms WHERE tenant_id = $1 AND slug ~ '-ft[0-9a-z]{6}$'", [ctx.tenantId]);
+  await deleteOrphanDossiers(pool);
   await setTax(null);
 }
 
@@ -437,8 +439,8 @@ async function insertStay(opts: {
   roomId?: string;
 }) {
   const { rows } = await pool.query(
-    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, child_count, source)
-     VALUES ($1, $2, $3, $4, '100.00', $5, $6, $7, $8, $9, 'manual') RETURNING id`,
+    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, child_count, source, dossier_id)
+     VALUES ($1, $2, $3, $4, '100.00', $5, $6, $7, $8, $9, 'manual', $10) RETURNING id`,
     [
       opts.tenantId ?? ctx.tenantId,
       opts.roomId ?? familyRoomId,
@@ -449,6 +451,7 @@ async function insertStay(opts: {
       `${RUN_ID}@${DOMAIN}`,
       opts.guests ?? 2,
       opts.children ?? 0,
+      await insertDossier(pool, opts.tenantId ?? ctx.tenantId),
     ],
   );
   if (opts.tax) {

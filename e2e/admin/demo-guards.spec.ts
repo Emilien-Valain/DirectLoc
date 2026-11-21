@@ -1,6 +1,7 @@
 import { test, expect, type Browser, type Page } from "@playwright/test";
 import crypto from "crypto";
 import { Pool } from "pg";
+import { deleteOrphanDossiers, insertDossier } from "../helpers/dossier";
 import { hashPassword } from "better-auth/crypto";
 import { startSmtpSink } from "../helpers/smtp-sink";
 
@@ -77,8 +78,9 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await pool.query("DELETE FROM payments WHERE booking_id IN (SELECT id FROM bookings WHERE room_id = $1)", [roomId]);
+  await pool.query("DELETE FROM payments WHERE dossier_id IN (SELECT dossier_id FROM bookings WHERE room_id = $1)", [roomId]);
   await pool.query("DELETE FROM bookings WHERE room_id = $1", [roomId]);
+  await deleteOrphanDossiers(pool);
   await pool.query("DELETE FROM rooms WHERE id = $1", [roomId]);
   await pool.query("DELETE FROM properties WHERE id = $1", [propertyId]);
   await pool.query("DELETE FROM users WHERE id = $1", [userId]); // cascade : sessions, accounts, user_tenants
@@ -128,18 +130,19 @@ test.describe("Démo — refus serveur", () => {
 
   test("réservation payée : confirmée, payment paid, aucun email (client ni admin)", async ({ request }) => {
     const sessionId = `cs_test_demo_${Date.now()}`;
+    const dossierId = await insertDossier(pool, demoTenantId);
     const bookingId = (
       await pool.query(
-        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source)
-         VALUES ($1, $2, '2033-03-01', '2033-03-03', '200.00', 'pending', 'Client Démo', 'client-demo@example.com', 2, 'direct')
+        `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, dossier_id)
+         VALUES ($1, $2, '2033-03-01', '2033-03-03', '200.00', 'pending', 'Client Démo', 'client-demo@example.com', 2, 'direct', $3)
          RETURNING id`,
-        [demoTenantId, roomId],
+        [demoTenantId, roomId, dossierId],
       )
     ).rows[0].id;
     await pool.query(
-      `INSERT INTO payments (tenant_id, booking_id, stripe_session_id, amount, currency, status)
+      `INSERT INTO payments (tenant_id, dossier_id, stripe_session_id, amount, currency, status)
        VALUES ($1, $2, $3, '200.00', 'eur', 'pending')`,
-      [demoTenantId, bookingId, sessionId],
+      [demoTenantId, dossierId, sessionId],
     );
 
     const sink = await startSmtpSink();
@@ -148,7 +151,7 @@ test.describe("Démo — refus serveur", () => {
         id: `evt_test_demo_${Date.now()}`,
         type: "checkout.session.completed",
         livemode: false,
-        data: { object: { id: sessionId, payment_intent: `pi_test_demo_${Date.now()}`, metadata: { bookingId, tenantId: demoTenantId } } },
+        data: { object: { id: sessionId, payment_intent: `pi_test_demo_${Date.now()}`, metadata: { dossierId, tenantId: demoTenantId } } },
       });
       const res = await request.post("/api/webhooks/stripe", {
         data: payload,
@@ -158,7 +161,7 @@ test.describe("Démo — refus serveur", () => {
 
       const booking = await pool.query("SELECT status FROM bookings WHERE id = $1", [bookingId]);
       expect(booking.rows[0].status).toBe("confirmed");
-      const payment = await pool.query("SELECT status FROM payments WHERE booking_id = $1", [bookingId]);
+      const payment = await pool.query("SELECT status FROM payments WHERE dossier_id = $1", [dossierId]);
       expect(payment.rows[0].status).toBe("paid");
       // Le webhook attend les envois avant de répondre : la boîte est déjà dans son état final.
       expect(sink.mails).toHaveLength(0);

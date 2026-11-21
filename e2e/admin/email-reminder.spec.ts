@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 import { Pool } from "pg";
+import { deleteOrphanDossiers, insertDossier } from "../helpers/dossier";
 import { startSmtpSink } from "../helpers/smtp-sink";
 import { mailBody, mailSubject } from "../helpers/mail-body";
 import { deleteRoomsByName, insertHiddenRoom } from "../helpers/intake";
@@ -39,9 +40,9 @@ async function resetConfig() {
 
 async function insertBooking(label: string, checkIn: string, createdAgo: string) {
   const { rows } = await pool.query(
-    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, created_at)
-     VALUES ($1, $2, $3::date, $3::date + 2, '200.00', 'confirmed', $4, $5, 3, 'manual', now() - $6::interval) RETURNING id`,
-    [ctx.tenantId, roomId, checkIn, `Client ${label}`, `${TAG}-${label}@example.com`, createdAgo],
+    `INSERT INTO bookings (tenant_id, room_id, check_in, check_out, total_price, status, guest_name, guest_email, guest_count, source, created_at, dossier_id)
+     VALUES ($1, $2, $3::date, $3::date + 2, '200.00', 'confirmed', $4, $5, 3, 'manual', now() - $6::interval, $7) RETURNING id`,
+    [ctx.tenantId, roomId, checkIn, `Client ${label}`, `${TAG}-${label}@example.com`, createdAgo, await insertDossier(pool, ctx.tenantId)],
   );
   return rows[0].id as string;
 }
@@ -62,6 +63,7 @@ test.describe("Emails — rappel avant l'arrivée et message par chambre", () =>
   });
   test.afterEach(async () => {
     await pool.query("DELETE FROM bookings WHERE guest_email LIKE $1", [`${TAG}-%`]);
+    await deleteOrphanDossiers(pool);
     await resetConfig();
   });
   test.afterAll(async () => {
@@ -146,7 +148,13 @@ test.describe("Emails — rappel avant l'arrivée et message par chambre", () =>
     await setConfig({ reminderDaysBefore: 7, reminderMessage: "Hâte de vous voir, {client} ({voyageurs} pers.) <script>x</script>" });
     await pool.query("UPDATE rooms SET beds = 3, email_message = 'Chambre {chambre} : {lits} lits' WHERE id = $1", [roomId]);
     await insertBooking("due", inDays(7), "30 days");
-    await insertBooking("late", inDays(7), "1 hour"); // réservée après le moment du rappel
+    const lateId = await insertBooking("late", inDays(7), "1 hour"); // réservée après le moment du rappel
+    // Entre minuit Paris et minuit UTC, « il y a 1 h » tombe encore avant le moment du rappel
+    // (check_in − 7 j, minuit UTC) : on force created_at juste après ce moment.
+    await pool.query(
+      "UPDATE bookings SET created_at = GREATEST(created_at, check_in - interval '7 days' + interval '1 minute') WHERE id = $1",
+      [lateId],
+    );
     await insertBooking("far", inDays(8), "30 days"); // pas encore
 
     const sink = await startSmtpSink();

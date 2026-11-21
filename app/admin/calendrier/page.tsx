@@ -16,7 +16,8 @@ import {
   formatMonthLabel,
 } from "@/lib/calendar";
 import { Icon } from "@/components/admin/icons";
-import { EmptyState, PrimaryButton } from "@/components/admin/ui";
+import { EmptyState, GroupTag, PrimaryButton } from "@/components/admin/ui";
+import { dossierSizes } from "@/lib/queries/dossiers";
 
 const VALID_STATUSES = ["pending", "confirmed", "completed", "cancelled"] as const;
 type Status = (typeof VALID_STATUSES)[number];
@@ -68,6 +69,13 @@ export default async function CalendrierPage({
     ),
   );
 
+  // Dossiers de plusieurs chambres (ADR-0012) : marque « groupe » sur leurs réservations.
+  const groups = await dossierSizes(tenantId, bookings.map((b) => b.dossierId));
+  const groupOf = (dossierId: string) => {
+    const n = groups.get(dossierId) ?? 1;
+    return n > 1 ? n : undefined;
+  };
+
   // ── Build booking spans (clipped to current month) ───────────────────
   const bookingSpans: BookingSpan[] = [];
   for (const b of bookings) {
@@ -89,6 +97,8 @@ export default async function CalendrierPage({
       status: b.status as Status,
       checkIn: checkIn.toISOString(),
       checkOut: checkOut.toISOString(),
+      dossierId: b.dossierId,
+      group: groupOf(b.dossierId),
     });
   }
 
@@ -297,6 +307,12 @@ export default async function CalendrierPage({
         <LegendItem color="#94A3B8" label="Terminée" />
         <LegendItem color="#DC2626" label="Annulée" />
         <span className="flex items-center gap-1.5">
+          <Icon.Group size={12} aria-hidden style={{ color: "var(--admin-primary)" }} />
+          <span className="text-[12px] font-medium" style={{ color: "var(--admin-text-muted)" }}>
+            Groupe (plusieurs chambres)
+          </span>
+        </span>
+        <span className="flex items-center gap-1.5">
           <span
             style={{
               width: 10,
@@ -432,6 +448,11 @@ export default async function CalendrierPage({
                             >
                               {b.guestName}
                             </p>
+                            {groupOf(b.dossierId) && (
+                              <span className="inline-block mt-0.5">
+                                <GroupTag rooms={groupOf(b.dossierId)!} />
+                              </span>
+                            )}
                             <p
                               className="text-[12px]"
                               style={{ color: "var(--admin-text-muted)" }}
