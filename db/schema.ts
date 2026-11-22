@@ -207,10 +207,67 @@ export const dossiers = pgTable(
     acceptedCancellationText: text("accepted_cancellation_text"),
     acceptedCgvText: text("accepted_cgv_text"),
     termsAcceptedAt: timestamp("terms_accepted_at"),
+    // Voisin qui a renvoyé ce voyageur (Réseau des Voisins, ADR-0013) ; NULL = réservation directe.
+    referredByTenantId: uuid("referred_by_tenant_id").references(() => tenants.id),
+    // Emails du réseau (Voisin + envoyeur) envoyés pour ce Dossier attribué : une seule fois,
+    // réservé par UPDATE … WHERE network_notified_at IS NULL (webhook rejoué, saisie admin).
+    networkNotifiedAt: timestamp("network_notified_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
   (table) => [index("dossiers_tenant_idx").on(table.tenantId)],
+);
+
+// ─── REFERRALS (Renvois du Réseau des Voisins) ───────────────────────────────
+// Un clic « aller chez ce Voisin » : aucune donnée voyageur, seulement le séjour cherché.
+
+export const referralKindEnum = pgEnum("referral_kind", ["full", "shared"]);
+
+export const referrals = pgTable(
+  "referrals",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    fromTenantId: uuid("from_tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    toTenantId: uuid("to_tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    checkIn: timestamp("check_in").notNull(),
+    checkOut: timestamp("check_out").notNull(),
+    guestCount: integer("guest_count").notNull(),
+    kind: referralKindEnum("kind").notNull(),
+    // Partage d'un groupe : le Dossier de l'hôte qui envoie (vérifié par /voisin : même tenant,
+    // mêmes dates) et celui du Voisin, relié à sa confirmation. Ids internes, jamais affichés à
+    // l'autre tenant. `shareNotifiedAt` : échange nom + téléphone des deux hôtes, une seule fois.
+    fromDossierId: uuid("from_dossier_id").references(() => dossiers.id, { onDelete: "set null" }),
+    toDossierId: uuid("to_dossier_id").references(() => dossiers.id, { onDelete: "set null" }),
+    shareNotifiedAt: timestamp("share_notified_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => [
+    index("referrals_from_idx").on(table.fromTenantId),
+    index("referrals_to_idx").on(table.toTenantId),
+    // Un Dossier du Voisin est relié à un seul Renvoi partagé.
+    uniqueIndex("referrals_to_dossier_uniq").on(table.toDossierId),
+  ],
+);
+
+/**
+ * Bilan mensuel du réseau (issue reseau-voisins/05) : une ligne par tenant et par mois envoyé
+ * (`month` = "YYYY-MM"). Réservée par INSERT … ON CONFLICT DO NOTHING avant l'envoi : un cron rejoué n'envoie pas deux fois.
+ */
+export const networkReports = pgTable(
+  "network_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    month: text("month").notNull(),
+    sentAt: timestamp("sent_at").defaultNow().notNull(),
+  },
+  (table) => [uniqueIndex("network_reports_tenant_month_uniq").on(table.tenantId, table.month)],
 );
 
 // ─── BOOKINGS ────────────────────────────────────────────────────────────────

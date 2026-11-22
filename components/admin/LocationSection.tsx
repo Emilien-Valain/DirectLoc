@@ -11,6 +11,7 @@ import {
 } from "@/components/admin/ui";
 
 type LocationSectionProps = {
+  city?: string;
   googleMapsUrl?: string;
   latitude?: number;
   longitude?: number;
@@ -27,6 +28,7 @@ function parseCoordinates(raw: string): { lat: string; lng: string } | null {
 }
 
 export default function LocationSection({
+  city,
   googleMapsUrl,
   latitude,
   longitude,
@@ -68,6 +70,20 @@ export default function LocationSection({
       <form
         onSubmit={form.onSubmit}
       >
+        <Field
+          label="Commune"
+          error={form.fieldError("city")}
+          hint="Affichée aux voyageurs qu'un établissement voisin vous renvoie, à côté de la distance."
+        >
+          <AdminInput
+            id="loc-city"
+            name="city"
+            maxLength={100}
+            defaultValue={city ?? ""}
+            placeholder="ex : Les Épesses"
+          />
+        </Field>
+
         <Field
           label="Lien Google Maps"
           error={form.fieldError("googleMapsUrl")}
@@ -141,6 +157,14 @@ export default function LocationSection({
             />
           </Field>
         </div>
+
+        {!hasLocation && (
+          <div data-testid="network-gps-warning" className="mt-3">
+            <StatusBanner variant="warning">
+              Sans position GPS, votre établissement n&apos;apparaît pas dans le réseau des voisins.
+            </StatusBanner>
+          </div>
+        )}
 
         {hasLocation && (
           <div

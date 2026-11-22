@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ComponentProps } from "react";
 import { tenantIcons } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
@@ -10,6 +11,8 @@ import { db } from "@/lib/db";
 import { bookings, payments, rooms } from "@/db/schema";
 import { getDossierBookingIds } from "@/lib/dossiers";
 import type { TenantConfig } from "@/lib/tenant-context";
+import { parseShare } from "@/lib/network-geo";
+import { recheckShare } from "@/lib/network";
 import { getBookingLines } from "@/lib/queries/extras";
 
 // Tunnel de réservation : rien à indexer.
@@ -21,9 +24,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function ConfirmationPage({
   searchParams,
 }: {
-  searchParams: Promise<{ session_id?: string }>;
+  searchParams: Promise<{ session_id?: string; share?: string }>;
 }) {
-  const { session_id } = await searchParams;
+  const { session_id, share } = await searchParams;
 
   const headersList = await headers();
   const tenantId = headersList.get("x-tenant-id");
@@ -85,6 +88,37 @@ export default async function ConfirmationPage({
   // Référence courte basée sur l'id de la 1re réservation (6 derniers caractères hex)
   const reference = `${tenant.slug.slice(0, 2).toUpperCase()}-${booking.id.slice(-6).toUpperCase()}`;
 
+  // Partage de groupe : le reste du groupe, revérifié en direct (jamais cru sur parole : l'URL ne
+  // donne que le nombre de personnes et le Voisin préféré, les dates viennent de la réservation).
+  const sharePart = parseShare(share);
+  let shareFollowUp: ComponentProps<typeof Confirmation>["share"];
+  if (sharePart) {
+    const { voisin, other } = await recheckShare(
+      { originTenantId: tenantId, checkIn, checkOut, adults: sharePart.adults, minors: sharePart.minors },
+      sharePart.slug,
+    );
+    const day = (d: Date) => d.toISOString().slice(0, 10);
+    shareFollowUp = {
+      guests: sharePart.adults + sharePart.minors,
+      other,
+      voisin: voisin && {
+        name: voisin.name,
+        city: voisin.city,
+        distanceKm: voisin.distanceKm,
+        href: `/voisin/${voisin.slug}?${new URLSearchParams({
+          checkIn: day(checkIn),
+          checkOut: day(checkOut),
+          adults: String(sharePart.adults),
+          minors: String(sharePart.minors),
+          kind: "shared",
+          // Le Dossier de l'hôte : relu par /voisin (même domaine) pour relier les deux Dossiers
+          // du groupe ; il ne quitte jamais ce site (absent de la redirection vers le Voisin).
+          dossier: payment.dossierId,
+        })}`,
+      },
+    };
+  }
+
   return (
     <PublicLayout>
       <Confirmation
@@ -98,6 +132,7 @@ export default async function ConfirmationPage({
         totalPrice={totalPrice}
         reference={reference}
         config={config}
+        share={shareFollowUp}
       />
     </PublicLayout>
   );

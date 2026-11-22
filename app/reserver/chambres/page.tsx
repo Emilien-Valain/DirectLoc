@@ -140,6 +140,8 @@ export default async function ReserverChambresPage({ searchParams }: { searchPar
           terms: paymentTerms(tenant),
         }}
         demo={demo}
+        via={typeof sp.via === "string" ? sp.via.slice(0, 63) : ""}
+        share={typeof sp.share === "string" ? sp.share.slice(0, 80) : ""}
       />
     </Shell>
   );

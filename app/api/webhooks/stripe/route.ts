@@ -17,6 +17,7 @@ import {
 import { REFUND_EVENT_TYPES, handleRefundEvent, tenantAdminEmails } from "@/lib/refund-sync";
 import { DISPUTE_EVENT_TYPES, handleDisputeEvent } from "@/lib/dispute-sync";
 import { isUuid } from "@/lib/validation";
+import { notifyNetworkConfirmation } from "@/lib/network-notify";
 import { loadDossierEmailContext, loadEmailContext } from "@/lib/queries/bookings";
 
 export async function POST(request: NextRequest) {
@@ -131,6 +132,9 @@ export async function POST(request: NextRequest) {
       } catch (emailError) {
         console.error("Erreur envoi email après paiement:", emailError);
       }
+      // Réseau des Voisins : Voisin + envoyeur (Dossier attribué), contacts d'un groupe partagé.
+      // Une seule fois (marqueur réservé) ; une re-livraison n'arrive jamais ici (rien confirmé).
+      await notifyNetworkConfirmation(dossierId, tenantId);
 
       break;
     }

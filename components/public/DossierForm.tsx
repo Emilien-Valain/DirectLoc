@@ -72,6 +72,8 @@ export default function DossierForm({
   touristTax,
   host = {},
   demo = false,
+  via = "",
+  share = "",
 }: {
   checkIn: string;
   checkOut: string;
@@ -89,6 +91,10 @@ export default function DossierForm({
   touristTax?: TouristTax;
   host?: Host;
   demo?: boolean;
+  /** Slug du Voisin qui a renvoyé le voyageur ; le serveur le revérifie. */
+  via?: string;
+  /** Partage de groupe (`slug:adultes:mineurs`) ; le serveur le revalide. */
+  share?: string;
 }) {
   const [state, action, submitting] = useActionState<DossierBookingState, FormData>(createDossierPublic, null);
   const v = state?.values ?? {};
@@ -194,6 +200,8 @@ export default function DossierForm({
 
   return (
     <form action={action} key={JSON.stringify(v)} className="s-book s-dossier">
+      {via && <input type="hidden" name="via" value={via} />}
+      {share && <input type="hidden" name="share" value={share} />}
       <input type="hidden" name="checkIn" value={checkIn} />
       <input type="hidden" name="checkOut" value={checkOut} />
       <input type="hidden" name="adults" value={party.adults} />

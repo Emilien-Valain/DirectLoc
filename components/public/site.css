@@ -198,6 +198,27 @@ button.s-search-room:hover { border-color: var(--s-accent); }
 .s-search-room-meta { grid-column: 1; font-weight: 400; color: var(--s-ink-soft); font-size: 0.95rem; }
 .s-search-room-go { grid-column: 2; grid-row: 1 / span 2; color: var(--s-accent-ink); }
 
+/* Complet : dates proches et Voisins (ADR-0013) — un bordereau, aux couleurs du template */
+.s-full-slip {
+  display: flex; flex-direction: column; gap: 8px; padding: 18px 20px;
+  background: color-mix(in oklch, var(--s-accent) 8%, var(--s-surface));
+  border: 2px solid var(--s-ink); border-radius: var(--s-chip-radius, 6px);
+  animation: s-full-in 0.45s ease-out both;
+}
+.s-full-slip p { margin: 0; }
+.s-full-title { font-family: var(--s-display); font-weight: 900; font-size: 1.5rem; line-height: 1; text-transform: uppercase; color: var(--s-bad); }
+.s-full-lead { margin-top: 6px !important; color: var(--s-ink-soft); }
+.s-full-list { list-style: none; margin: 0; padding: 0; }
+.s-full-list li { display: flex; justify-content: space-between; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--s-line); }
+.s-full-list li span { color: var(--s-ink-soft); font-size: 0.95rem; }
+.s-full-pick { font: inherit; font-weight: 700; color: var(--s-accent-ink); text-decoration: underline; text-underline-offset: 4px; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.s-full-pick:hover { text-decoration-thickness: 2px; }
+.s-full-share { margin-top: 6px !important; font-weight: 700; }
+.s-full-mention { color: var(--s-ink-soft); font-size: 0.95rem; }
+.s-full-go { align-self: flex-start; margin-top: 6px; }
+@keyframes s-full-in { from { opacity: 0; transform: translateY(6px) rotate(0.6deg); } }
+@media (prefers-reduced-motion: reduce) { .s-full-slip { animation: none; } }
+
 /* Room items (accueil) */
 .s-room-list { display: flex; flex-direction: column; gap: 12px; }
 .s-room { display: flex; align-items: center; gap: 16px; min-height: 64px; text-decoration: none; }
@@ -409,6 +430,8 @@ button.s-search-room:hover { border-color: var(--s-accent); }
 .s-confirm-card .s-rows { width: 100%; }
 .s-arrival { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 20px; border-top: 1px solid var(--s-line); }
 .s-arrival .s-prose { margin: 0; }
+.s-share { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 20px; border-top: 1px solid var(--s-line); }
+.s-share .s-prose { margin: 0; }
 .s-arrival-links { display: flex; flex-wrap: wrap; gap: 0 20px; margin: 0; }
 .s-arrival-links a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; color: inherit; }
 .s-host-note { padding-left: 14px; border-left: 1px solid var(--s-line); }

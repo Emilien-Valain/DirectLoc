@@ -511,6 +511,114 @@ ${renderBookingSummaryTable(data)}`;
   });
 }
 
+// ─── 2c. Réseau des Voisins (ADR-0013) ──────────────────────────────────────
+
+/** Contact de l'autre hôte d'un groupe partagé : faits publics de l'établissement. */
+export type NetworkPartner = { name: string; phone: string | null };
+
+type NetworkNoticeData = {
+  adminEmail: string;
+  /** Tenant destinataire (son nom et sa config habillent l'email). */
+  tenantId: string;
+  hotelName: string;
+  config?: TenantConfig;
+  /**
+   * receiver : le Voisin qui a obtenu la réservation ; sender : l'hôte qui a orienté le voyageur ;
+   * partner : groupe partagé, les deux Dossiers viennent d'être confirmés (échange des contacts).
+   */
+  role: "receiver" | "sender" | "partner";
+  /** L'autre établissement (nom saisi par son hôte : toujours échappé). */
+  otherName: string;
+  checkIn: Date;
+  checkOut: Date;
+  /** Groupe partagé entre les deux établissements. */
+  shared: boolean;
+  /** Nom + téléphone de l'autre hôte (groupe partagé, les deux Dossiers confirmés). */
+  partner?: NetworkPartner | null;
+};
+
+/**
+ * Notification du réseau à un hôte. Jamais de donnée voyageur : l'envoyeur n'apprend que les dates
+ * et le Voisin ; le Voisin a déjà le Dossier dans son admin.
+ */
+export async function sendNetworkNotice(d: NetworkNoticeData) {
+  const other = escapeHtml(d.otherName);
+  const stay = `du ${formatDate(d.checkIn)} au ${formatDate(d.checkOut)}`;
+  const p = (html: string) => `<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">${html}</p>`;
+  const partner = d.partner
+    ? `<table style="width: 100%; border-collapse: collapse; margin-top: 8px;" data-network-partner>
+  <tr><td style="padding: 8px 0; font-size: 15px; color: #666;">Groupe partag&eacute; avec</td><td style="padding: 8px 0; font-size: 15px; text-align: right; font-weight: 600;">${escapeHtml(d.partner.name)}</td></tr>
+  <tr><td style="padding: 8px 0; font-size: 15px; color: #666;">T&eacute;l&eacute;phone</td><td style="padding: 8px 0; font-size: 15px; text-align: right;">${d.partner.phone ? escapeHtml(d.partner.phone) : "non renseign&eacute;"}</td></tr>
+</table>
+${p("Les deux r&eacute;servations sont confirm&eacute;es : vous pouvez vous coordonner pour l&rsquo;accueil du groupe.")}`
+    : "";
+
+  let subject: string;
+  let body: string;
+  if (d.role === "receiver") {
+    subject = `Réservation obtenue grâce à ${d.otherName} (réseau DirectLoc)`;
+    body = `
+<h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #1a1a1a;">R&eacute;servation obtenue gr&acirc;ce &agrave; ${other} (r&eacute;seau DirectLoc)</h2>
+${p(`${d.shared ? "Une partie d&rsquo;un groupe" : "Un voyageur"} orient&eacute;${d.shared ? "e" : ""} par <strong>${other}</strong> a r&eacute;serv&eacute; chez vous ${stay}. Le Dossier est dans votre espace DirectLoc.`)}
+${partner}`;
+  } else if (d.role === "sender") {
+    subject = `Réseau DirectLoc : le voyageur orienté vers ${d.otherName} y a réservé`;
+    body = `
+<h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #1a1a1a;">Votre voyageur a r&eacute;serv&eacute; chez ${other}</h2>
+${p(
+  d.shared
+    ? `Votre &eacute;tablissement ne pouvait pas loger tout le groupe ${stay} : la partie du groupe que vous avez orient&eacute;e vers <strong>${other}</strong> y a r&eacute;serv&eacute;.`
+    : `Votre &eacute;tablissement &eacute;tait complet ${stay} : le voyageur que vous avez orient&eacute; vers <strong>${other}</strong> y a r&eacute;serv&eacute;.`,
+)}
+${p("Le r&eacute;seau DirectLoc garde vos voyageurs chez des h&ocirc;tes ind&eacute;pendants plut&ocirc;t que sur les plateformes.")}
+${partner}`;
+  } else {
+    subject = `Groupe partagé avec ${d.otherName} : les deux réservations sont confirmées`;
+    body = `
+<h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #1a1a1a;">Groupe partag&eacute; avec ${other}</h2>
+${p(`Le groupe ${stay} est r&eacute;parti entre votre &eacute;tablissement et <strong>${other}</strong> (r&eacute;seau DirectLoc).`)}
+${partner}`;
+  }
+
+  await sendEmail({
+    tenantId: d.tenantId,
+    to: d.adminEmail,
+    subject,
+    html: renderEmailLayout({ hotelName: d.hotelName, config: d.config }, body),
+    hotelName: "DirectLoc",
+  });
+}
+
+/** Bilan mensuel du réseau : les seuls chiffres du tenant, jamais de total du réseau ni de donnée voyageur. */
+export async function sendNetworkMonthlyReport(d: {
+  adminEmail: string;
+  tenantId: string;
+  hotelName: string;
+  config?: TenantConfig;
+  /** Libellé du mois, ex. « octobre 2026 ». */
+  monthLabel: string;
+  sent: number;
+  received: number;
+  bookings: number;
+}) {
+  const li = (n: number, one: string, many: string) => `<li style="margin: 0 0 6px 0;"><strong>${n}</strong> ${n > 1 ? many : one}</li>`;
+  const body = `
+<h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #1a1a1a;">Bilan du r&eacute;seau DirectLoc &mdash; ${escapeHtml(d.monthLabel)}</h2>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">Voici l&rsquo;activit&eacute; de <strong>${escapeHtml(d.hotelName)}</strong> dans le r&eacute;seau des voisins le mois dernier.</p>
+<ul data-network-report style="margin: 0 0 16px 0; padding-left: 20px; font-size: 15px; line-height: 1.6;">
+${li(d.sent, "voyageur orient&eacute; vers un voisin", "voyageurs orient&eacute;s vers un voisin")}
+${li(d.received, "voyageur re&ccedil;u d&rsquo;un voisin", "voyageurs re&ccedil;us de voisins")}
+${li(d.bookings, "r&eacute;servation confirm&eacute;e gr&acirc;ce au r&eacute;seau", "r&eacute;servations confirm&eacute;es gr&acirc;ce au r&eacute;seau")}
+</ul>`;
+  await sendEmail({
+    tenantId: d.tenantId,
+    to: d.adminEmail,
+    subject: `Réseau DirectLoc : votre bilan de ${d.monthLabel}`,
+    html: renderEmailLayout({ hotelName: d.hotelName, config: d.config }, body),
+    hotelName: "DirectLoc",
+  });
+}
+
 // ─── 3. Annulation de réservation (client) ──────────────────────────────────
 
 type CancellationEmailData = {

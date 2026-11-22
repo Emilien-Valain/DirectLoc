@@ -23,6 +23,7 @@ import type { CatalogExtra } from "@/lib/queries/extras";
 import type { CatalogFee } from "@/lib/queries/fees";
 
 type RoomOption = { id: string; name: string; pricePerNight: string; maxBeds?: number };
+type VoisinOption = { id: string; name: string; city: string | null; distanceKm: number };
 
 /** Modification d'un séjour existant : valeurs actuelles, ancien total, montant déjà payé en ligne. */
 export type BookingEdit = {
@@ -67,8 +68,11 @@ export default function ManualBookingForm({
   extras = [],
   fees = [],
   taxEnabled = false,
+  voisins = [],
 }: {
   rooms: RoomOption[];
+  /** Voisins membres du réseau de l'hôtel (création) : case « Venu par le réseau ». */
+  voisins?: VoisinOption[];
   /** Catalogue actif. */
   extras?: CatalogExtra[];
   /** Fees actifs (toutes chambres ; filtrés selon la chambre choisie). */
@@ -466,6 +470,8 @@ export default function ManualBookingForm({
         <AdminTextarea name="notes" rows={2} defaultValue={v.notes} />
       </Field>
 
+      {!edit && voisins.length > 0 && <NetworkReferralField voisins={voisins} values={v} error={fe.networkVoisin} />}
+
       {/* « Forcer » n'apparaît qu'après un vrai conflit : c'est un override, pas un réglage. */}
 
       {edit && (
@@ -510,5 +516,48 @@ export default function ManualBookingForm({
         </Link>
       </div>
     </form>
+  );
+}
+
+/**
+ * « Venu par le réseau : [Voisin] » : le voyageur a été orienté par un Voisin (appel, message…).
+ * Attribue le Dossier comme un Renvoi en ligne et prévient les deux hôtes à l'enregistrement.
+ */
+function NetworkReferralField({ voisins, values, error }: { voisins: VoisinOption[]; values: Record<string, string>; error?: string }) {
+  const [on, setOn] = useState(values.network === "on");
+  return (
+    <div className="mb-3.5" data-testid="network-referral">
+      <label className="flex items-start gap-2.5 cursor-pointer" style={{ color: "var(--admin-text)" }}>
+        <input
+          type="checkbox"
+          name="network"
+          className="mt-0.5"
+          style={{ accentColor: "var(--admin-primary)" }}
+          checked={on}
+          onChange={(e) => setOn(e.target.checked)}
+        />
+        <span className="text-[13px] leading-snug">
+          Venu par le réseau
+          <span className="block text-[12px]" style={{ color: "var(--admin-text-muted)" }}>
+            Un hôte voisin DirectLoc vous a envoyé ce voyageur : il sera prévenu de la réservation, sans les coordonnées du voyageur.
+          </span>
+        </span>
+      </label>
+      {on && (
+        <div className="mt-2.5">
+          <Field label="Voisin *" error={error}>
+            <AdminSelect name="networkVoisin" required defaultValue={values.networkVoisin ?? ""}>
+              <option value="">Sélectionner…</option>
+              {voisins.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                  {x.city ? ` — ${x.city}` : ""} ({x.distanceKm.toLocaleString("fr-FR")} km)
+                </option>
+              ))}
+            </AdminSelect>
+          </Field>
+        </div>
+      )}
+    </div>
   );
 }

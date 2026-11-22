@@ -46,6 +46,8 @@ import {
 import { dossierSizes } from "@/lib/queries/dossiers";
 import { parseRefundAmount } from "@/lib/refund-amounts";
 import { notifyGuestRefund } from "@/lib/refunds";
+import { resolveVoisinId } from "@/lib/network";
+import { notifyNetworkConfirmation } from "@/lib/network-notify";
 
 async function requireTenantId() {
   const { tenantId } = await requireSession();
@@ -88,7 +90,10 @@ async function updateStatus(
 
 export async function confirmBooking(id: string) {
   const tenantId = await requireTenantId();
-  await updateStatus(id, tenantId, "confirmed", ["pending"]);
+  if (await updateStatus(id, tenantId, "confirmed", ["pending"])) {
+    const [b] = await db.select({ dossierId: bookings.dossierId }).from(bookings).where(and(eq(bookings.id, id), eq(bookings.tenantId, tenantId)));
+    if (b) await notifyNetworkConfirmation(b.dossierId, tenantId);
+  }
 }
 
 export async function cancelBooking(id: string, form?: FormData) {
@@ -514,16 +519,24 @@ export async function createBookingManual(
   if (!more.success) {
     return { error: more.error.issues[0]?.message ?? "Chambres supplémentaires invalides", values };
   }
+  // « Venu par le réseau » : le Voisin choisi doit être membre du réseau de CET hôtel.
+  const network = await networkReferralFrom(formData, tenantId);
+  if (network === "invalid") {
+    return { error: "Ce Voisin n'est pas dans votre réseau.", fieldErrors: { networkVoisin: "Choisissez un Voisin de la liste" }, values };
+  }
+  const referredByTenantId = network;
+
   if (more.data.length > 0) {
-    return createDossierManual(formData, values, data, more.data);
+    return createDossierManual(formData, values, data, more.data, referredByTenantId);
   }
 
   // Admission : résout+autorise la chambre, calcule le prix et insère sous verrou.
   // Les booking-rules ne s'appliquent pas au manuel ; la dispo est contrôlée sauf
   // override (« Forcer »).
   let bookingId: string;
+  let dossierId: string;
   try {
-    bookingId = await admitBooking(
+    ({ bookingId, dossierId } = await admitBooking(
       {
         roomId,
         tenantId,
@@ -541,7 +554,7 @@ export async function createBookingManual(
       { allowOverlap: data.force },
       async (tx, { lines, total }) => {
         const guest = { guestName, guestFirstName, guestLastName, guestEmail, guestPhone };
-        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest });
+        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, referredByTenantId });
         const [row] = await tx
           .insert(bookings)
           .values({
@@ -560,18 +573,29 @@ export async function createBookingManual(
           })
           .returning({ id: bookings.id });
         await saveLines(tx, row.id, lines);
-        return row.id;
+        return { bookingId: row.id, dossierId };
       },
-    );
+    ));
   } catch (e) {
     const state = await admissionErrorState(e, { tenantId, roomId, checkIn, checkOut }, values);
     if (state) return state;
     throw e;
   }
 
+  await notifyNetworkConfirmation(dossierId, tenantId);
   revalidatePath("/admin/reservations");
   revalidatePath("/admin/calendrier");
   redirect(`/admin/reservations/${bookingId}?enregistree=1`);
+}
+
+/**
+ * Case « Venu par le réseau : [Voisin] » de la saisie manuelle : null si décochée, l'id du Voisin
+ * s'il est membre du réseau de l'hôtel (seul le module réseau en juge), "invalid" sinon (id d'un
+ * autre tenant, hors réseau, forgé).
+ */
+async function networkReferralFrom(formData: FormData, tenantId: string): Promise<string | null | "invalid"> {
+  if (formData.get("network") !== "on") return null;
+  return (await resolveVoisinId(formData.get("networkVoisin"), tenantId)) ?? "invalid";
 }
 
 type ManualData = Extract<ReturnType<typeof bookingManualSchema.safeParse>, { success: true }>["data"];
@@ -589,6 +613,7 @@ async function createDossierManual(
   values: Record<string, string>,
   data: ManualData,
   more: MoreRoom[],
+  referredByTenantId: string | null,
 ): Promise<ManualBookingState> {
   const tenantId = await requireTenantId();
   const plan: MoreRoom[] = [{ roomId: data.roomId, guestCount: data.guestCount, childCount: data.childCount }, ...more];
@@ -650,7 +675,7 @@ async function createDossierManual(
         }),
         { allowOverlap: data.force },
       );
-      const id = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest });
+      const id = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, referredByTenantId });
       for (const p of plan) {
         const { lines, total } = admitted.get(p.roomId)!;
         const [row] = await tx
@@ -691,6 +716,7 @@ async function createDossierManual(
     return { ...state, error: name ? `${name} : ${state.error}` : state.error, fieldErrors };
   }
 
+  await notifyNetworkConfirmation(dossierId, tenantId);
   revalidatePath("/admin/reservations");
   revalidatePath("/admin/calendrier");
   redirect(`/admin/dossiers/${dossierId}?enregistre=1`);

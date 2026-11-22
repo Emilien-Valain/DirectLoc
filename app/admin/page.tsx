@@ -3,7 +3,8 @@ import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { completeFinishedStays } from "@/lib/queries/bookings";
 import { getDashboardData, WEEK_DAYS } from "@/lib/queries/dashboard";
-import { HOTEL_TIME_ZONE, parisToday, todayStart } from "@/lib/date-windows";
+import { HOTEL_TIME_ZONE, parisToday, startOfMonth, todayStart } from "@/lib/date-windows";
+import { networkCounts, networkStatus } from "@/lib/network";
 import { cookies } from "next/headers";
 import { Icon } from "@/components/admin/icons";
 import { dismissIcalNudge } from "@/lib/actions/ical-sources";
@@ -32,6 +33,11 @@ export default async function AdminDashboard() {
   await completeFinishedStays(tenantId);
   const { today: movements, week, pendingSoon, channels, occupancy, monthRevenue, setup } =
     await getDashboardData(tenantId);
+  const [networkMonth, networkTotal, network] = await Promise.all([
+    networkCounts(tenantId, startOfMonth(), null),
+    networkCounts(tenantId, null, null),
+    networkStatus(tenantId),
+  ]);
   const showIcalNudge =
     setup.done && !setup.ical && (await cookies()).get("admin-ical-nudge")?.value !== "dismissed";
 
@@ -59,6 +65,8 @@ export default async function AdminDashboard() {
           )
         }
       />
+
+      <NetworkCounter month={networkMonth} total={networkTotal} status={network} />
 
       {/* Tant que le site n'a ni chambre ni dates réelles, des KPI à zéro n'apprennent rien : on guide. */}
       {!setup.done ? (
@@ -115,6 +123,48 @@ export default async function AdminDashboard() {
         </>
       )}
     </div>
+  );
+}
+
+// Réseau des Voisins : SES chiffres seulement (envoyés / reçus / réservations), ce mois-ci et au total.
+function NetworkCounter({
+  month,
+  total,
+  status,
+}: {
+  month: { sent: number; received: number; bookings: number };
+  total: { sent: number; received: number; bookings: number };
+  status: { member: boolean; missingGps: boolean; disabled: boolean };
+}) {
+  const line = (c: typeof month) =>
+    `${c.sent} voyageur${c.sent > 1 ? "s" : ""} envoyé${c.sent > 1 ? "s" : ""} · ${c.received} reçu${c.received > 1 ? "s" : ""} · ${c.bookings} réservation${c.bookings > 1 ? "s" : ""}`;
+  return (
+    <section
+      aria-label="Réseau des voisins"
+      data-network-counter
+      className="px-5 py-3.5 rounded-[var(--admin-radius)] space-y-1"
+      style={{ background: "var(--admin-surface, #fff)", border: "1px solid var(--admin-border-light)" }}
+    >
+      <p className="text-[13.5px]" style={{ color: "var(--admin-text)" }}>
+        <strong>Réseau</strong> : <span data-network-month>{line(month)}</span> <span style={{ color: "var(--admin-text-muted)" }}>ce mois-ci</span>
+      </p>
+      <p className="text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
+        Au total : <span data-network-total>{line(total)}</span>
+      </p>
+      {status.missingGps && (
+        <p data-testid="network-counter-gps-warning" className="text-[12.5px] font-semibold" style={{ color: "var(--admin-primary)" }}>
+          Sans position GPS, votre établissement n&apos;apparaît pas dans le réseau.{" "}
+          <Link href="/admin/parametres?tab=localisation" className="underline underline-offset-4">
+            Renseigner ma position
+          </Link>
+        </p>
+      )}
+      {status.disabled && (
+        <p data-network-disabled className="text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
+          Votre établissement est actuellement hors du réseau.
+        </p>
+      )}
+    </section>
   );
 }
 

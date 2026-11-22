@@ -85,6 +85,10 @@ export type TenantConfig = {
   googleMapsUrl?: string;
   latitude?: number;
   longitude?: number;
+  /** Commune affichée aux Voisins du réseau (ADR-0013). */
+  city?: string;
+  /** Réseau des Voisins : absent = activé ; `false` posé par l'opérateur uniquement (aucune UI hôte). */
+  networkEnabled?: boolean;
   confirmationMessage?: string;
   postStayMessage?: string;
   /** Rappel avant l'arrivée : jours avant (absent = 2, 0 = désactivé) et message. */

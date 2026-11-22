@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { parisToday } from "@/lib/date-windows";
 import { formatEuros } from "@/lib/utils";
 import DateField from "@/components/public/DateField";
@@ -32,6 +33,25 @@ type Group =
       rules?: string[];
     };
 
+/** Bloc « Complet » : créneaux proches chez l'hôte et Voisins du réseau (ADR-0013). */
+type FullOffer = {
+  slots: { checkIn: string; checkOut: string }[];
+  voisins: { name: string; city: string | null; distanceKm: number; slug: string }[];
+  /** Partage : l'hôte loge `host`, un seul Voisin loge `rest` (ADR-0013). */
+  share?: {
+    voisin: { name: string; city: string | null; distanceKm: number; slug: string };
+    host: { adults: number; minors: number };
+    rest: { adults: number; minors: number };
+  } | null;
+};
+
+const isoOk = (v: string | null): v is string =>
+  !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && new Date(v + "T00:00:00Z").toISOString().startsWith(v);
+
+const dayMonth = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
+const shortDay = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("fr-FR", { day: "numeric", month: "short", timeZone: "UTC" });
+const km = (n: number) => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km`;
+
 /** Pas de plafond lié aux chambres : un groupe se loge sur plusieurs chambres. */
 const MAX_ADULTS = 30;
 const MAX_MINORS = 20;
@@ -46,10 +66,30 @@ function addDay(dateStr: string): string {
 /** Recherche de dates de l'accueil : renvoie les chambres libres, avec lien direct vers la réservation. */
 export default function Search() {
   const today = parisToday();
-  const [checkIn, setCheckIn] = useState("");
-  const [checkOut, setCheckOut] = useState("");
-  const [adults, setAdults] = useState(1);
-  const [minors, setMinors] = useState(0);
+  // Recherche pré-remplie par l'URL (Renvoi d'un Voisin) ; `via` suit jusqu'à la réservation, sans cookie.
+  const sp = useSearchParams();
+  const pre = (() => {
+    const ci = sp.get("checkIn");
+    const co = sp.get("checkOut");
+    const a = Number(sp.get("adults"));
+    const m = Number(sp.get("minors") ?? "0");
+    if (!isoOk(ci) || !isoOk(co) || co <= ci || ci < today) return null;
+    if (!Number.isInteger(a) || a < 1 || a > MAX_ADULTS || !Number.isInteger(m) || m < 0 || m > MAX_MINORS) return null;
+    return { checkIn: ci, checkOut: co, adults: a, minors: m };
+  })();
+  const viaRaw = sp.get("via");
+  const via = viaRaw && /^[a-z0-9-]{1,63}$/.test(viaRaw) ? viaRaw : null;
+  const viaQ = via ? `&via=${via}` : "";
+  // Partage de groupe : suit l'URL jusqu'au paiement (le serveur revalide), sans cookie.
+  const shareRaw = sp.get("share");
+  const share = shareRaw && /^[a-z0-9-]{1,63}:\d{1,2}:\d{1,2}$/.test(shareRaw) ? shareRaw : null;
+  const shareQ = share ? `&share=${encodeURIComponent(share)}` : "";
+  const [checkIn, setCheckIn] = useState(pre?.checkIn ?? "");
+  const [checkOut, setCheckOut] = useState(pre?.checkOut ?? "");
+  const [adults, setAdults] = useState(pre?.adults ?? 1);
+  const [minors, setMinors] = useState(pre?.minors ?? 0);
+  const [offer, setOffer] = useState<FullOffer | null>(null);
+  const [asked, setAsked] = useState<{ checkIn: string; checkOut: string; adults: number; minors: number } | null>(null);
   const guests = adults + minors;
   const [status, setStatus] = useState<Status>("idle");
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -61,13 +101,28 @@ export default function Search() {
     ? Math.round((Date.parse(checkOut) - Date.parse(checkIn)) / 86_400_000)
     : 0;
 
-  async function search(e: React.FormEvent) {
+  function search(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) {
       setStatus("invalid");
       return;
     }
+    return run(checkIn, checkOut);
+  }
+
+  // Arrivée par un Renvoi : la recherche part toute seule.
+  const auto = useRef(false);
+  useEffect(() => {
+    if (pre && !auto.current) {
+      auto.current = true;
+      void run(pre.checkIn, pre.checkOut);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function run(checkIn: string, checkOut: string) {
     setStatus("searching");
+    setOffer(null);
     try {
       const params = new URLSearchParams({ from: checkIn, to: checkOut, guests: String(guests) });
       const res = await fetch(`/api/rooms/available?${params}`, {
@@ -86,6 +141,15 @@ export default function Search() {
       }
       setRooms(found);
       setGroup(combo);
+      setAsked({ checkIn, checkOut, adults, minors });
+      // Complet : jamais bloquant, rien d'affiché si le réseau n'a rien à proposer.
+      if (found.length === 0 && !combo?.ok) {
+        try {
+          const q = new URLSearchParams({ from: checkIn, to: checkOut, adults: String(adults), minors: String(minors) });
+          const r = await fetch(`/api/network/full?${q}`, { cache: "no-store" });
+          if (r.ok) setOffer(await r.json());
+        } catch {}
+      }
       setStatus("done");
     } catch {
       setStatus("error");
@@ -207,6 +271,82 @@ export default function Search() {
                 : "Complet pour ces dates. Essayez d'autres dates."}
           </p>
         )}
+        {status === "done" && rooms.length === 0 && !group?.ok && asked && offer && (offer.slots.length > 0 || offer.voisins.length > 0 || !!offer.share) && (
+          <div className="s-full-slip" data-testid="full-slip">
+            <p className="s-full-title">
+              Complet du {dayMonth(asked.checkIn)} au {dayMonth(asked.checkOut)}
+            </p>
+            {offer.slots.length > 0 && (
+              <>
+                <p className="s-full-lead">Chez nous, ces dates proches sont libres :</p>
+                <ul className="s-full-list" data-testid="full-slots">
+                  {offer.slots.map((sl) => (
+                    <li key={sl.checkIn}>
+                      <button
+                        type="button"
+                        className="s-full-pick"
+                        onClick={() => {
+                          setCheckIn(sl.checkIn);
+                          setCheckOut(sl.checkOut);
+                          void run(sl.checkIn, sl.checkOut);
+                        }}
+                      >
+                        Du {shortDay(sl.checkIn)} au {shortDay(sl.checkOut)}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {offer.voisins.length > 0 && (
+              <>
+                <p className="s-full-lead">Ces hébergements voisins peuvent accueillir tout votre groupe à ces dates :</p>
+                <ul className="s-full-list" data-testid="full-voisins">
+                  {offer.voisins.map((v) => (
+                    <li key={v.slug}>
+                      <a
+                        className="s-full-pick"
+                        href={`/voisin/${v.slug}?${new URLSearchParams({ checkIn: asked.checkIn, checkOut: asked.checkOut, adults: String(asked.adults), minors: String(asked.minors) })}`}
+                      >
+                        {v.name}
+                      </a>
+                      <span>
+                        {v.city ? `${v.city} · ` : ""}
+                        {km(v.distanceKm)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {offer.share && (
+              <>
+                <p className="s-full-lead">Aucun hébergement ne loge tout votre groupe, mais vous pouvez le répartir :</p>
+                <p className="s-full-share" data-testid="full-share">
+                  Nous logeons {offer.share.host.adults + offer.share.host.minors} personnes ici, {offer.share.voisin.name}
+                  {offer.share.voisin.city ? ` (${offer.share.voisin.city})` : ""} ({km(offer.share.voisin.distanceKm)}) peut loger les{" "}
+                  {offer.share.rest.adults + offer.share.rest.minors} autres.
+                </p>
+                <p className="s-full-mention" data-testid="full-share-mention">
+                  Votre groupe sera réparti sur 2 hébergements à {km(offer.share.voisin.distanceKm)}, avec 2 réservations et 2 paiements séparés.
+                </p>
+                <a
+                  className="s-btn s-full-go"
+                  data-testid="full-share-go"
+                  href={`/?${new URLSearchParams({
+                    checkIn: asked.checkIn,
+                    checkOut: asked.checkOut,
+                    adults: String(offer.share.host.adults),
+                    minors: String(offer.share.host.minors),
+                    share: `${offer.share.voisin.slug}:${offer.share.rest.adults}:${offer.share.rest.minors}`,
+                  })}#dates`}
+                >
+                  Réserver nos {offer.share.host.adults + offer.share.host.minors} places d&apos;abord
+                </a>
+              </>
+            )}
+          </div>
+        )}
         {status === "done" && rooms.length === 0 && group?.ok && (
           <div className="s-search-group" data-testid="search-group">
             <p className="s-note is-good">
@@ -227,7 +367,7 @@ export default function Search() {
               Vous pourrez changer de chambres et la répartition à l&apos;étape suivante.
             </p>
             <Link
-              href={groupHref(checkIn, checkOut, adults, minors, group.rooms.map((r) => r.id))}
+              href={groupHref(checkIn, checkOut, adults, minors, group.rooms.map((r) => r.id), via, share)}
               className="s-btn s-btn-block"
             >
               Réserver ces {group.rooms.length} chambres
@@ -249,7 +389,7 @@ export default function Search() {
                 return (
                   <li key={r.id}>
                     <Link
-                      href={`/reserver/${r.id}?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}${minors > 0 ? `&children=${minors}` : ""}`}
+                      href={`/reserver/${r.id}?checkIn=${checkIn}&checkOut=${checkOut}&guests=${guests}${minors > 0 ? `&children=${minors}` : ""}${viaQ}${shareQ}`}
                       className="s-search-room"
                     >
                       <span>{r.name}</span>
@@ -264,7 +404,7 @@ export default function Search() {
             </ul>
             {guests > 1 && (
               <Link
-                href={groupHref(checkIn, checkOut, adults, minors)}
+                href={groupHref(checkIn, checkOut, adults, minors, undefined, via, share)}
                 className="s-link"
                 data-testid="search-several-rooms"
               >
@@ -279,8 +419,10 @@ export default function Search() {
 }
 
 /** Page de réservation de plusieurs chambres ; sans `rooms`, le serveur propose la combinaison. */
-function groupHref(checkIn: string, checkOut: string, adults: number, minors: number, rooms?: string[]) {
+function groupHref(checkIn: string, checkOut: string, adults: number, minors: number, rooms?: string[], via?: string | null, share?: string | null) {
   const q = new URLSearchParams({ checkIn, checkOut, adults: String(adults), minors: String(minors) });
   if (rooms) q.set("rooms", rooms.join(","));
+  if (via) q.set("via", via);
+  if (share) q.set("share", share);
   return `/reserver/chambres?${q}`;
 }

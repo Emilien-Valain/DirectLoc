@@ -6,6 +6,7 @@ import ManualBookingForm from "@/components/admin/ManualBookingForm";
 import { bedLimit } from "@/lib/extras";
 import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant, getTouristTax } from "@/lib/queries/fees";
+import { listNetworkVoisins } from "@/lib/network";
 
 export const metadata = { title: "Nouvelle réservation" };
 
@@ -15,12 +16,13 @@ export default async function NewReservationPage({
   searchParams: Promise<{ roomId?: string; checkIn?: string; checkOut?: string }>;
 }) {
   const { tenantId } = await requireSession();
-  const [chambres, params, catalog, feeCatalog, touristTax] = await Promise.all([
+  const [chambres, params, catalog, feeCatalog, touristTax, voisins] = await Promise.all([
     getRoomsByTenant(tenantId),
     searchParams,
     getExtrasByTenant(tenantId, { activeOnly: true }),
     getFeesByTenant(tenantId, { activeOnly: true }),
     getTouristTax(tenantId),
+    listNetworkVoisins(tenantId),
   ]);
 
   // Pré-remplissage depuis le calendrier (?roomId=…&checkIn=AAAA-MM-JJ[&checkOut=…]) ;
@@ -71,6 +73,7 @@ export default async function NewReservationPage({
         today={today}
         tomorrow={tomorrow}
         defaultRoomId={defaultRoomId}
+        voisins={voisins}
       />
     </div>
   );

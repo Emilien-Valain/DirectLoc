@@ -263,6 +263,8 @@ export default function BookingForm({
   return (
     // Remonte le formulaire à chaque réponse : les defaultValue reprennent la saisie.
     <form action={action} key={JSON.stringify(v)} className="s-book">
+      {searchParams.get("share") && <input type="hidden" name="share" value={searchParams.get("share")!} />}
+      {searchParams.get("via") && <input type="hidden" name="via" value={searchParams.get("via")!} />}
       <input type="hidden" name="roomId" value={room.id} />
 
       <div className="s-book-main">

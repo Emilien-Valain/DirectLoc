@@ -140,6 +140,7 @@ export default function SettingsPageClient({
           <>
             <GeneralTab tenant={tenant} config={config} />
             <LocationSection
+              city={config.city}
               googleMapsUrl={config.googleMapsUrl}
               latitude={config.latitude}
               longitude={config.longitude}

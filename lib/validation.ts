@@ -434,6 +434,7 @@ export const pricingRuleSchema = z
   .refine(...periodInOrder);
 
 export const locationSchema = z.object({
+  city: z.string().max(100, "Commune trop longue (100 caractères max)").optional(),
   googleMapsUrl: z
     .string()
     .max(2000, "URL trop longue")

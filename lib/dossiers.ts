@@ -27,6 +27,8 @@ export type DossierValues = {
   acceptedCancellationText?: string | null;
   acceptedCgvText?: string | null;
   termsAcceptedAt?: Date | null;
+  /** Voisin qui a renvoyé le voyageur (déjà vérifié par `resolveVia`), sinon null. */
+  referredByTenantId?: string | null;
 };
 
 /** Crée le Dossier (à appeler dans la transaction d'admission, avant d'insérer ses réservations). */

@@ -17,6 +17,7 @@ export default function Confirmation({
   totalPrice,
   reference,
   config,
+  share,
 }: {
   isPaid: boolean;
   guestName: string;
@@ -29,6 +30,12 @@ export default function Confirmation({
   totalPrice: string;
   reference: string;
   config: TenantConfig;
+  /** Partage de groupe : reste du groupe à loger ailleurs (Voisin revérifié, sinon téléphone de l'hôte). */
+  share?: {
+    guests: number;
+    other: boolean;
+    voisin: { name: string; city: string | null; distanceKm: number; href: string } | null;
+  };
 }) {
   const single = rooms.length === 1;
   const lines = (r: (typeof rooms)[number], indent = "") =>
@@ -84,6 +91,34 @@ export default function Confirmation({
             </div>
           ))}
         </dl>
+        {share && (
+          <div className="s-share" data-testid="share-followup">
+            <h2 className="s-h3">Et le reste de votre groupe ?</h2>
+            {share.voisin ? (
+              <>
+                <p className="s-prose">
+                  {share.other ? "Un autre hébergement voisin" : "Notre voisin"} <strong>{share.voisin.name}</strong>
+                  {share.voisin.city ? ` (${share.voisin.city})` : ""}, à {share.voisin.distanceKm.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} km, peut loger
+                  les {share.guests} autres personnes. Vous réservez chez lui séparément : 2 réservations et 2 paiements séparés.
+                </p>
+                <a href={share.voisin.href} className="s-btn" data-testid="share-voisin-link">
+                  Loger les {share.guests} autres chez {share.voisin.name}
+                </a>
+              </>
+            ) : (
+              <p className="s-prose" data-testid="share-phone">
+                Nous n&apos;avons plus de voisin disponible pour les {share.guests} autres personnes aux mêmes dates.{" "}
+                {config.phone ? (
+                  <>
+                    Appelez-nous, nous chercherons avec vous : <a href={`tel:${config.phone}`}>{config.phone}</a>.
+                  </>
+                ) : (
+                  "Contactez-nous, nous chercherons avec vous."
+                )}
+              </p>
+            )}
+          </div>
+        )}
         {config.confirmationMessage && <p className="s-prose s-host-note">{config.confirmationMessage}</p>}
         {hasArrival && (
           <div className="s-arrival" data-testid="confirmation-arrival">

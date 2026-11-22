@@ -32,3 +32,18 @@ export function mailSubject(mail: CapturedMail): string {
     )
     .trim();
 }
+
+const NAMED: Record<string, string> = {
+  eacute: "é", egrave: "è", ecirc: "ê", agrave: "à", acirc: "â", ocirc: "ô", ccedil: "ç", rsquo: "’", laquo: "«", raquo: "»", nbsp: " ", rarr: "→", middot: "·", euro: "€",
+};
+
+/**
+ * Corps HTML seul (sans les en-têtes : le sujet est du texte brut, pas du HTML), entités d'accent
+ * (&eacute;…) remplacées pour chercher du texte français. Laisse &lt; &gt; &amp; &quot; &#039;
+ * tels quels : les tests d'échappement les lisent encore.
+ */
+export function mailText(mail: CapturedMail): string {
+  const full = mailBody(mail);
+  const start = full.indexOf("\r\n\r\n");
+  return (start === -1 ? full : full.slice(start + 4)).replace(/&([a-z]+);/g, (m, name: string) => NAMED[name] ?? m);
+}

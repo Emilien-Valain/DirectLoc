@@ -15,6 +15,8 @@ import {
   saveLines,
 } from "@/lib/booking-intake";
 import { createDossier } from "@/lib/dossiers";
+import { resolveVia } from "@/lib/network";
+import { formatShare, parseShare } from "@/lib/network-geo";
 import { acceptedTermsFor } from "@/lib/legal-settings";
 import { CHECKOUT_TTL_MINUTES } from "@/lib/checkout-window";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -77,6 +79,12 @@ export async function createBookingPublic(
   const extraIds = formData.getAll("extraIds").filter((v): v is string => typeof v === "string");
   const extraQuantities = extraQuantitiesFrom(formData.entries());
 
+  // Renvoi d'un Voisin : `via` falsifié, inconnu ou hors réseau est ignoré (réservation normale).
+  const referredByTenantId = await resolveVia(formData.get("via"), tenantId);
+  // Partage de groupe : revalidé ici, la page de confirmation le revérifie encore.
+  const shareParsed = parseShare(formData.get("share"));
+  const shareQuery = shareParsed ? `&share=${encodeURIComponent(formatShare(shareParsed))}` : "";
+
   const checkIn = new Date(data.checkIn + "T00:00:00.000Z");
   const checkOut = new Date(data.checkOut + "T00:00:00.000Z");
 
@@ -94,7 +102,7 @@ export async function createBookingPublic(
         const guest = { guestName, guestFirstName, guestLastName, guestEmail, guestPhone, guestAddress, guestCountry };
         // En payant, le voyageur accepte les conditions publiées : leur texte exact est gardé sur le Dossier.
         const terms = await acceptedTermsFor(tx, tenantId);
-        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, ...terms });
+        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, ...terms, referredByTenantId });
         const [row] = await tx
           .insert(bookings)
           .values({
@@ -187,7 +195,7 @@ export async function createBookingPublic(
       tenantId,
       ...(distinctId && { posthogDistinctId: distinctId }),
     },
-    success_url: `${origin}/reserver/confirmation?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${origin}/reserver/confirmation?session_id={CHECKOUT_SESSION_ID}${shareQuery}`,
     cancel_url: `${origin}/reserver/${roomId}?cancelled=true`,
     expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_TTL_MINUTES * 60,
   };

@@ -211,6 +211,27 @@
       "when": 1795342601143,
       "tag": "0029_disputes",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1795351630072,
+      "tag": "0030_referrals",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1795361023616,
+      "tag": "0031_network_notifications",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795362158078,
+      "tag": "0032_network_reports",
+      "breakpoints": true
     }
   ]
 }

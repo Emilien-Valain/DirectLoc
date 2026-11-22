@@ -23,6 +23,8 @@ import { combinationErrorMessage, noCombinationMessage } from "@/lib/dossier-mes
 import { grandTotal } from "@/lib/extras";
 import { MAX_STRIPE_LINE_ITEMS, openCheckoutOrRollback, roomLineItems } from "@/lib/checkout-lines";
 import { CHECKOUT_TTL_MINUTES } from "@/lib/checkout-window";
+import { resolveVia } from "@/lib/network";
+import { formatShare, parseShare } from "@/lib/network-geo";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { amountBucket, browserDistinctId, captureServer } from "@/lib/analytics";
 import { dossierPublicSchema, safeParseFormData } from "@/lib/validation";
@@ -89,6 +91,12 @@ export async function createDossierPublic(
     guestCountry: data.guestCountry,
   };
 
+  // Renvoi d'un Voisin : `via` falsifié, inconnu ou hors réseau est ignoré (réservation normale).
+  const referredByTenantId = await resolveVia(formData.get("via"), tenantId);
+  // Partage de groupe : revalidé ici, la page de confirmation le revérifie encore.
+  const shareParsed = parseShare(formData.get("share"));
+  const shareQuery = shareParsed ? `&share=${encodeURIComponent(formatShare(shareParsed))}` : "";
+
   // 1. La combinaison (chambres libres du tenant, capacités, un adulte par chambre, totaux).
   const candidates = await loadRoomCandidates(tenantId, checkIn, checkOut);
   const nameOf = (id: string) => candidates.find((c) => c.id === id)?.name ?? "Une chambre";
@@ -131,7 +139,7 @@ export async function createDossierPublic(
 
       // En payant, le voyageur accepte les conditions publiées : leur texte exact est gardé sur le Dossier.
       const terms = await acceptedTermsFor(tx, tenantId);
-      const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, ...terms });
+      const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, ...terms, referredByTenantId });
       for (const { plan: p, admission } of admitted) {
         const [row] = await tx
           .insert(bookings)
@@ -226,7 +234,7 @@ export async function createDossierPublic(
     customer_email: guest.guestEmail,
     line_items: lineItems,
     metadata: { dossierId, tenantId, ...(distinctId && { posthogDistinctId: distinctId }) },
-    success_url: `${origin}/reserver/confirmation?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${origin}/reserver/confirmation?session_id={CHECKOUT_SESSION_ID}${shareQuery}`,
     cancel_url: `${origin}/reserver/chambres?${back}`,
     expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_TTL_MINUTES * 60,
   };

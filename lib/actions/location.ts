@@ -20,6 +20,7 @@ export async function updateLocation(formData: FormData): Promise<FormResult> {
     .update(tenants)
     .set({
       config: mergeTenantConfig({
+        city: data.city?.trim() || undefined,
         googleMapsUrl: data.googleMapsUrl || undefined,
         latitude: data.latitude ? parseFloat(data.latitude) : undefined,
         longitude: data.longitude ? parseFloat(data.longitude) : undefined,

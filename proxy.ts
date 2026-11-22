@@ -15,6 +15,8 @@ const RATE_RULES: Record<string, RateLimitRule> = {
   api: { name: "api-public", limit: 60, windowSec: 60 },
   // /essayer crée une session en base à chaque visite.
   essayer: { name: "essayer", limit: 20, windowSec: 60 },
+  // /voisin/<slug> écrit un Renvoi en base à chaque clic.
+  voisin: { name: "voisin", limit: 20, windowSec: 60 },
 };
 
 // ── Cache in-memory tenant (5 min) ──────────────────────────────────────────
@@ -119,6 +121,8 @@ export async function proxy(request: NextRequest) {
     rateRule = RATE_RULES.api;
   } else if (pathname === "/essayer") {
     rateRule = RATE_RULES.essayer;
+  } else if (pathname.startsWith("/voisin/")) {
+    rateRule = RATE_RULES.voisin;
   }
 
   if (rateRule) {
