@@ -92,14 +92,14 @@ test.describe("Site vitrine — couvertures et tarifs", () => {
     await expect(decor.getByRole("row", { name: /Exclusif à vie/ })).toContainText("500 €");
   });
 
-  test("abonnement par logement, licence unique à 3 000 €, plus d'offre ni de maintenance obligatoire", async ({ page }) => {
+  test("abonnement par logement, licence unique à 5 000 €, plus d'offre ni de maintenance obligatoire", async ({ page }) => {
     await page.goto(`${VITRINE}/`);
     const sub = page.getByRole("table", { name: "Abonnement mensuel" });
     await expect(sub.getByRole("columnheader")).toHaveText(["Formule", "Logements", "Prix"]);
     await expect(sub.getByRole("row", { name: /Solo/ })).toContainText("39 € / mois");
     await expect(sub.getByRole("row", { name: /Grand/ })).toContainText("8 € par logement au-delà de 6");
     const licence = page.locator(".alm-licence");
-    await expect(licence).toContainText("3 000 €");
+    await expect(licence).toContainText("5 000 €");
     await expect(licence).toContainText("Propriétaire à 100 %");
     await expect(licence).toContainText("Maintenance optionnelle, sur devis");
     await expect(page.getByText(/2 mois offerts/)).toHaveCount(0);

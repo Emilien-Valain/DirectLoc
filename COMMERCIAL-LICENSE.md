@@ -1,60 +1,43 @@
-# Licence Commerciale - DirectLoc
+# Licence commerciale — DirectLoc
 
-**Version 1.0** — Avril 2026
+**Version 2.0** — novembre 2026
 
-Ce fichier décrit les conditions de la **licence commerciale** pour le projet **DirectLoc**.
+Le code de DirectLoc est publié sous **Business Source License 1.1** (fichier [`LICENSE`](LICENSE)) : il est lisible, modifiable et redistribuable, mais **l'utiliser pour une activité d'hébergement est payant**.
 
-Le code source de ce projet est publié sous licence **GNU Affero General Public License v3.0 (AGPLv3)** pour permettre un usage libre, open source et communautaire.
+## 1. Ce qui est gratuit
 
-Cependant, nous proposons également une **licence commerciale** qui offre des droits supplémentaires pour les entreprises et les utilisateurs qui souhaitent utiliser le logiciel dans un contexte commercial sans être contraints par les obligations de l'AGPLv3.
-
-### 1. Ce que permet la licence AGPLv3 (gratuite)
-
-Toute personne peut :
-- Utiliser, modifier et distribuer le logiciel gratuitement
-- Déployer sa propre instance (self-hosted)
+- Lire, étudier et modifier le code
+- L'installer pour tester, évaluer ou faire une démonstration
+- Tout usage non commercial
 - Contribuer au projet
 
-**Sous réserve** de respecter les conditions de l’AGPLv3 (notamment l’obligation de publier les modifications si le logiciel est utilisé sur un réseau / en SaaS).
+## 2. Ce qui demande une licence commerciale
 
-### 2. Quand avez-vous besoin d’une licence commerciale ?
+- Prendre, gérer ou recevoir de vraies réservations pour un hébergement (hôtel, chambre d'hôtes, gîte, meublé…), sur votre serveur ou sur le nôtre
+- Proposer DirectLoc à d'autres en service hébergé, en marque blanche ou en revente
 
-Vous devez acquérir une licence commerciale si vous souhaitez :
+## 3. Tarifs
 
-- Utiliser le logiciel dans un produit ou service **propriétaire** (closed-source)
-- Revendre, louer ou proposer DirectLoc en tant que service hébergé (SaaS, white-label) sans ouvrir votre code source
-- Supprimer ou contourner les obligations de copyleft de l’AGPLv3
-- Obtenir un support prioritaire, des mises à jour garanties ou des garanties légales
-- Utiliser le logiciel dans une entreprise sans avoir à publier vos modifications
+Les tarifs sont ceux publiés sur [directloc.app](https://directloc.app) :
 
-### 3. Conditions de la licence commerciale
+| Formule | Prix |
+|---|---|
+| Abonnement (hébergé par DirectLoc) | à partir de 39 € / mois, sans engagement |
+| Licence (votre propre serveur) | 5 000 € payés une fois, installation et réseau des voisins inclus ; maintenance sur devis |
+| Revente, marque blanche, service hébergé pour des tiers | sur devis |
 
-La licence commerciale est une licence **non-exclusive**, **non-transférable** (sauf accord écrit) et payante.
+## 4. Conditions
 
-Elle vous permet notamment de :
-- Utiliser le logiciel sans obligation de publier vos modifications
-- Intégrer le logiciel dans des produits ou services propriétaires
-- Revendre ou proposer le logiciel en marque blanche
-- Bénéficier d’un support technique prioritaire (optionnel selon le forfait)
+La licence commerciale est **non exclusive** et **non transférable** sans accord écrit. Elle couvre l'établissement ou le périmètre indiqué lors de l'achat.
 
-### 4. Tarifs indicatifs (susceptibles d’évolution)
+## 5. Passage en open source
 
-- **Licence pour une instance / un déploiement** : à partir de 1 490 € HT (one-time)
-- **Licence pour usage SaaS / multi-clients** : sur devis (selon volume et durée)
-- **Licence entreprise / white-label** : sur devis
+Chaque version de DirectLoc passe automatiquement sous **GNU AGPL v3** quatre ans après sa première publication. Les versions publiées avant le passage à la BSL restent sous AGPL v3.
 
-Pour obtenir un devis personnalisé, contactez-nous à : [emilien.valain@gmail.com] ou via le formulaire sur [ton site].
+## 6. Contact
 
-### 5. Contact
-
-Pour toute demande de licence commerciale, merci de nous contacter à :
-
-**Email** : emilien.valain@gmail.com 
+Pour une licence ou un devis : via [directloc.app](https://directloc.app) ou par email à emilien.valain@gmail.com.
 
 ---
 
-**Note importante** :  
-L’utilisation du logiciel sous licence AGPLv3 reste gratuite et n’oblige personne à acheter une licence commerciale.  
-La licence commerciale est une **alternative** qui supprime les contraintes copyleft de l’AGPLv3 pour les usages commerciaux intensifs.
-
-Copyright © 2026 [Emilien Valain]. Tous droits réservés pour la partie commerciale.
+Copyright © 2026 Emilien Valain. « DirectLoc » est un nom commercial dont l'usage n'est pas couvert par la licence du code.

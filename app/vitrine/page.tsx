@@ -87,7 +87,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "C'est plus cher qu'elloha ou Amenitiz.",
-    a: "Le prix comprend l'installation, un site à votre nom de domaine et le réseau des hébergeurs voisins. Pour comparaison, la licence complète de l'outil vaut 3 000 €.",
+    a: "Le prix comprend l'installation, un site à votre nom de domaine et le réseau des hébergeurs voisins. Pour comparaison, la licence complète de l'outil vaut 5 000 €.",
   },
   {
     q: "Est-ce un channel manager ?",
@@ -257,7 +257,7 @@ export default function VitrinePage() {
           </table>
           <div className="alm-licence" aria-labelledby="licence-t">
             <h3 id="licence-t">Licence</h3>
-            <p className="alm-licence-price">3 000 €<small>payée une fois</small></p>
+            <p className="alm-licence-price">5 000 €<small>payée une fois</small></p>
             <ul>
               <li>Votre propre serveur</li>
               <li>Propriétaire à 100 %</li>
