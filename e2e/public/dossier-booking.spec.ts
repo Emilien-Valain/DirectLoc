@@ -19,6 +19,8 @@ import { startFakeStripe, type FakeStripe } from "../helpers/fake-stripe";
 const TENANT_ID = "d0551e00-0000-4000-8000-0000000000d3";
 const SLUG = "dossier-tenant";
 const SITE = `http://${SLUG}.localhost:3001`;
+// Compte connecté factice : sans lui le tenant ne peut pas encaisser en ligne.
+const ACCOUNT = "acct_test_e2e_dossier";
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_test_XXXX";
 
 const ctx = JSON.parse(
@@ -61,8 +63,8 @@ async function purgeAll() {
 test.beforeAll(async () => {
   await purgeAll();
   await pool.query(
-    `INSERT INTO tenants (id, name, slug, config) VALUES ($1, 'Gîtes du Bocage', $2, $3::jsonb)`,
-    [TENANT_ID, SLUG, JSON.stringify({ touristTax: { mode: "fixed", amount: 1.5 } })],
+    `INSERT INTO tenants (id, name, slug, config, stripe_account_id) VALUES ($1, 'Gîtes du Bocage', $2, $3::jsonb, $4)`,
+    [TENANT_ID, SLUG, JSON.stringify({ touristTax: { mode: "fixed", amount: 1.5 } }), ACCOUNT],
   );
   const { rows: [prop] } = await pool.query(
     "INSERT INTO properties (tenant_id, name) VALUES ($1, 'Gîtes du Bocage') RETURNING id",
@@ -263,6 +265,7 @@ test.describe("Public — réserver plusieurs chambres", () => {
     await expect(page).toHaveURL(/\/reserver\/confirmation\?session_id=cs_test_fake_/, { timeout: 15_000 });
     expect(stripe.sessions).toHaveLength(1);
     const session = stripe.sessions[0];
+    expect(session.stripeAccount).toBe(ACCOUNT); // direct charge : sur le compte de l'hôtel
     const items = stripe.lineItems(session);
     const cents = items.reduce((s, i) => s + i.unitAmount * i.quantity, 0);
     expect(cents).toBe(72300);
@@ -533,6 +536,22 @@ test.describe("Public — réserver plusieurs chambres", () => {
       expect(await countDossiers(email)).toEqual({ d: 0, b: 0 });
     } finally {
       stripe = await startFakeStripe();
+    }
+  });
+
+  test("sans compte Stripe connecté : aucune session, rien gardé, message dédié", async ({ page }) => {
+    const email = "sans.compte@example.com";
+    await pool.query("UPDATE tenants SET stripe_account_id = NULL WHERE id = $1", [TENANT_ID]);
+    try {
+      await open(page, groupUrl(5, 0));
+      await fillGuestContact(page, { lastName: "Sans compte", email });
+      await page.getByTestId("booking-submit").click();
+      await expect(page.getByTestId("booking-error")).toContainText("Le paiement en ligne n'est pas encore activé pour cet établissement. Contactez-le directement pour réserver.");
+      await expect(page.getByTestId("booking-error")).not.toContainText("momentanément");
+      expect(stripe.sessions).toHaveLength(0);
+      expect(await countDossiers(email)).toEqual({ d: 0, b: 0 });
+    } finally {
+      await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [TENANT_ID, ACCOUNT]);
     }
   });
 

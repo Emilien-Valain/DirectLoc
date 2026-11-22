@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/session";
-import { getStripe } from "@/lib/stripe";
+import { connectedAccountStatus, getStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
 
 /**
  * GET /api/admin/stripe/status
- * Retourne le statut du compte Stripe Connect du tenant.
+ * Statut du compte connecté (Accounts v2) : `chargesEnabled` = capacité `card_payments` de la
+ * config `merchant` active. Sinon l'UI propose de reprendre l'onboarding.
  */
 export async function GET() {
   const { tenantId } = await requireSession();
@@ -23,14 +24,14 @@ export async function GET() {
   }
 
   try {
-    const account = await getStripe().accounts.retrieve(tenant.stripeAccountId);
+    const account = await getStripe().v2.core.accounts.retrieve(tenant.stripeAccountId, {
+      include: ["configuration.merchant"],
+    });
 
     return NextResponse.json({
       connected: true,
       accountId: account.id,
-      chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
-      detailsSubmitted: account.details_submitted,
+      ...connectedAccountStatus(account),
     });
   } catch {
     return NextResponse.json({ connected: false });

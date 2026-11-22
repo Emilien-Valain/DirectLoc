@@ -52,3 +52,51 @@ export function stripeModeAllowed(livemode: boolean, demo: boolean): boolean {
   if (demo) return !livemode;
   return livemode || !isLiveKey(process.env.STRIPE_SECRET_KEY);
 }
+
+/**
+ * Compte connecté d'un hôtel, en Accounts v2 (`POST /v2/core/accounts`) : modèle SaaS, l'hôtel
+ * est le marchand (direct charges sur son compte, config `merchant` avec `card_payments`), il
+ * paie ses frais Stripe (`fees_collector: stripe`), Stripe porte les pertes (litiges, soldes
+ * négatifs : jamais DirectLoc, `losses_collector: stripe`) et il a le tableau de bord complet
+ * (`dashboard: full`). Pas de config `recipient` : aucun virement plateforme → hôtel.
+ * `contact_email` est requis dès qu'on demande la config `merchant`.
+ */
+// Plateforme basée en France : display_name, contact_email, contact_phone et identity (sauf le pays)
+// d'un compte « merchant » ne passent que par un account token (sinon `account_token_required`).
+// On n'envoie donc que le pays : l'onboarding hébergé par Stripe collecte le reste auprès de l'hôtel.
+export function connectedAccountParams(): Stripe.V2.Core.AccountCreateParams {
+  return {
+    identity: { country: "FR" },
+    dashboard: "full",
+    defaults: { responsibilities: { fees_collector: "stripe", losses_collector: "stripe" } },
+    configuration: { merchant: { capabilities: { card_payments: { requested: true } } } },
+    include: ["configuration.merchant", "requirements"],
+  };
+}
+
+/** Lien d'onboarding v2 (`POST /v2/core/account_links`) : reprend là où l'hôtel s'est arrêté. */
+export function onboardingLinkParams(account: string, origin: string): Stripe.V2.Core.AccountLinkCreateParams {
+  return {
+    account,
+    use_case: {
+      type: "account_onboarding",
+      account_onboarding: {
+        configurations: ["merchant"],
+        refresh_url: `${origin}/admin/parametres?stripe=refresh`,
+        return_url: `${origin}/admin/parametres?stripe=success`,
+      },
+    },
+  };
+}
+
+/**
+ * Statut d'un compte v2 (lu avec `include: configuration.merchant`) : l'hôtel peut encaisser
+ * quand `card_payments` est `active` (pas `charges_enabled`, champ v1). Sinon onboarding à reprendre.
+ */
+export function connectedAccountStatus(account: Stripe.V2.Core.Account) {
+  const caps = account.configuration?.merchant?.capabilities;
+  return {
+    chargesEnabled: caps?.card_payments?.status === "active",
+    payoutsEnabled: caps?.stripe_balance?.payouts?.status === "active",
+  };
+}

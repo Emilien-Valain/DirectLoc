@@ -59,10 +59,20 @@ test.describe("Admin — Paramètres", () => {
   });
 
   test("la section Stripe est affichée", async ({ page }) => {
-    await page.goto("/admin/parametres");
-    await page.getByRole("tab", { name: "Calendriers et paiements" }).click();
-    await expect(page.getByText("Paiement Stripe")).toBeVisible();
-    await expect(page.getByRole("button", { name: /connecter stripe/i })).toBeVisible();
+    // test-tenant porte un compte factice (global-setup) : on le retire le temps du test.
+    const { tenantId } = loadTestContext();
+    const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
+    const { rows } = await pool.query("SELECT stripe_account_id FROM tenants WHERE id = $1", [tenantId]);
+    await pool.query("UPDATE tenants SET stripe_account_id = NULL WHERE id = $1", [tenantId]);
+    try {
+      await page.goto("/admin/parametres");
+      await page.getByRole("tab", { name: "Calendriers et paiements" }).click();
+      await expect(page.getByText("Paiement Stripe")).toBeVisible();
+      await expect(page.getByRole("button", { name: /connecter stripe/i })).toBeVisible();
+    } finally {
+      await pool.query("UPDATE tenants SET stripe_account_id = $2 WHERE id = $1", [tenantId, rows[0].stripe_account_id]);
+      await pool.end();
+    }
   });
 
   test("la section calendriers externes est affichée", async ({ page }) => {

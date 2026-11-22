@@ -10,7 +10,6 @@ type StripeStatus = {
   accountId?: string;
   chargesEnabled?: boolean;
   payoutsEnabled?: boolean;
-  detailsSubmitted?: boolean;
 };
 
 export default function StripeConnectSection({
@@ -25,6 +24,7 @@ export default function StripeConnectSection({
 
   const [status, setStatus] = useState<StripeStatus | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (hasAccount && !demo) {
@@ -36,12 +36,17 @@ export default function StripeConnectSection({
 
   async function handleConnect() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/admin/stripe/connect", { method: "POST" });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.url) {
         window.location.href = data.url;
+      } else {
+        setError(data.error ?? "Stripe n'a pas pu ouvrir la configuration de votre compte. Réessayez dans quelques minutes.");
       }
+    } catch {
+      setError("Stripe n'a pas pu ouvrir la configuration de votre compte. Réessayez dans quelques minutes.");
     } finally {
       setLoading(false);
     }
@@ -58,9 +63,9 @@ export default function StripeConnectSection({
     }
   }
 
-  const isFullyConnected =
-    status?.connected && status.chargesEnabled && status.detailsSubmitted;
-  const needsCompletion = status?.connected && !status.detailsSubmitted;
+  // Compte v2 : actif dès que la capacité « paiements par carte » l'est ; sinon onboarding à reprendre.
+  const isFullyConnected = status?.connected && status.chargesEnabled;
+  const needsCompletion = status?.connected && !status.chargesEnabled;
 
   return (
     <SettingsSection
@@ -77,6 +82,8 @@ export default function StripeConnectSection({
           La session a expiré. Cliquez ci-dessous pour reprendre la configuration.
         </StatusBanner>
       )}
+
+      {error && <StatusBanner variant="error">{error}</StatusBanner>}
 
       {demo ? (
         <StatusBanner variant="info">

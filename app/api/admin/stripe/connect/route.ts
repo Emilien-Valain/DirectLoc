@@ -3,13 +3,14 @@ import type { NextRequest } from "next/server";
 import { eq } from "drizzle-orm";
 import { requireSession } from "@/lib/session";
 import { isDemoTenant } from "@/lib/demo";
-import { getStripe } from "@/lib/stripe";
+import { connectedAccountParams, getStripe, onboardingLinkParams } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { tenants } from "@/db/schema";
 
 /**
  * POST /api/admin/stripe/connect
- * Crée un compte Stripe Connect (si pas déjà fait) et retourne l'URL d'onboarding.
+ * Crée le compte connecté de l'hôtel en Accounts v2 (si pas déjà fait) et retourne l'URL
+ * d'onboarding (account link v2). Stripe refuse désormais `POST /v1/accounts` pour la plateforme.
  */
 export async function POST(request: NextRequest) {
   const { tenantId } = await requireSession();
@@ -29,41 +30,36 @@ export async function POST(request: NextRequest) {
 
   let accountId = tenant.stripeAccountId;
 
-  // Créer un compte Connect si le tenant n'en a pas encore
-  if (!accountId) {
-    const account = await getStripe().accounts.create({
-      type: "express",
-      country: "FR",
-      capabilities: {
-        card_payments: { requested: true },
-        transfers: { requested: true },
-      },
-      business_profile: {
-        name: tenant.name,
-      },
-    });
+  try {
+    // Créer un compte Connect si le tenant n'en a pas encore
+    if (!accountId) {
+      const account = await getStripe().v2.core.accounts.create(
+        connectedAccountParams(),
+      );
 
-    accountId = account.id;
+      accountId = account.id;
 
-    await db
-      .update(tenants)
-      .set({ stripeAccountId: accountId })
-      .where(eq(tenants.id, tenantId));
+      await db
+        .update(tenants)
+        .set({ stripeAccountId: accountId })
+        .where(eq(tenants.id, tenantId));
+    }
+
+    // Générer le lien d'onboarding — utiliser le domaine du tenant, pas le header origin
+    const proto = request.headers.get("x-forwarded-proto") ?? "https";
+    const host = request.headers.get("host") ?? "localhost:3000";
+    const origin = `${proto}://${host}`;
+
+    const accountLink = await getStripe().v2.core.accountLinks.create(onboardingLinkParams(accountId, origin));
+
+    return NextResponse.json({ url: accountLink.url });
+  } catch (e) {
+    console.error("Stripe Connect : création du compte ou du lien d'onboarding impossible:", e);
+    return NextResponse.json(
+      { error: "Stripe n'a pas pu ouvrir la configuration de votre compte. Réessayez dans quelques minutes." },
+      { status: 502 },
+    );
   }
-
-  // Générer le lien d'onboarding — utiliser le domaine du tenant, pas le header origin
-  const proto = request.headers.get("x-forwarded-proto") ?? "https";
-  const host = request.headers.get("host") ?? "localhost:3000";
-  const origin = `${proto}://${host}`;
-
-  const accountLink = await getStripe().accountLinks.create({
-    account: accountId,
-    refresh_url: `${origin}/admin/parametres?stripe=refresh`,
-    return_url: `${origin}/admin/parametres?stripe=success`,
-    type: "account_onboarding",
-  });
-
-  return NextResponse.json({ url: accountLink.url });
 }
 
 /**

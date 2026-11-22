@@ -60,6 +60,9 @@ export default async function globalSetup() {
         latitude: 43.8233,
         longitude: 5.3076,
       },
+      // Compte connecté factice : un tenant non démo sans compte ne peut pas encaisser en ligne
+      // (les specs qui attendent un paiement passent par le faux Stripe).
+      stripeAccountId: "acct_test_e2e_main",
     })
     .where(eq(tenants.id, tenant.id));
 

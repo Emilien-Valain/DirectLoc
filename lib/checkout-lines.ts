@@ -56,30 +56,47 @@ export function roomLineItems({
   ];
 }
 
+export const ONLINE_PAYMENT_NOT_ENABLED =
+  "Le paiement en ligne n'est pas encore activé pour cet établissement. Contactez-le directement pour réserver.";
+export const ONLINE_PAYMENT_UNAVAILABLE =
+  "Le paiement en ligne est momentanément indisponible. Votre réservation n'a pas été enregistrée : réessayez dans quelques minutes.";
+
 /**
  * Ouvre la session Checkout d'un Dossier (Stripe Connect en direct charge : sur le compte du
- * tenant, qui encaisse 100 % ; démo : mode test sur le compte plateforme). Si Stripe échoue,
- * aucun événement `expired` n'annulera jamais les réservations pending : on retire tout de
- * suite le Dossier et ses réservations, puis on rend `null`.
+ * tenant, qui encaisse 100 % ; démo : mode test sur le compte plateforme). Un tenant non démo
+ * sans compte connecté ne peut PAS encaisser : jamais de session sur le compte plateforme
+ * (l'argent du voyageur irait à la plateforme au lieu de l'établissement).
+ * Si on ne peut pas ouvrir la session, aucun événement `expired` n'annulera jamais les
+ * réservations pending : on retire tout de suite le Dossier et ses réservations, puis on rend
+ * `{ error }` (message voyageur prêt à afficher).
  */
 export async function openCheckoutOrRollback(
   tenantId: string,
   dossierId: string,
   stripeAccountId: string | null | undefined,
   params: Stripe.Checkout.SessionCreateParams,
-): Promise<Stripe.Checkout.Session | null> {
-  try {
-    const demo = await isDemoTenant(tenantId);
-    return await getStripe({ test: demo }).checkout.sessions.create(
-      params,
-      stripeAccountId && !demo ? { stripeAccount: stripeAccountId } : undefined,
-    );
-  } catch (e) {
-    await db.transaction(async (tx) => {
+): Promise<{ session: Stripe.Checkout.Session; error?: undefined } | { session?: undefined; error: string }> {
+  const rollback = () =>
+    db.transaction(async (tx) => {
       await tx.delete(bookings).where(eq(bookings.dossierId, dossierId));
       await tx.delete(dossiers).where(eq(dossiers.id, dossierId));
     });
+  let demo = false;
+  try {
+    demo = await isDemoTenant(tenantId);
+    if (!demo && !stripeAccountId) {
+      await rollback();
+      console.error(`Paiement en ligne refusé : le tenant ${tenantId} n'a pas de compte Stripe connecté.`);
+      return { error: ONLINE_PAYMENT_NOT_ENABLED };
+    }
+    const session = await getStripe({ test: demo }).checkout.sessions.create(
+      params,
+      stripeAccountId && !demo ? { stripeAccount: stripeAccountId } : undefined,
+    );
+    return { session };
+  } catch (e) {
+    await rollback();
     console.error("Création de la session Stripe impossible:", e);
-    return null;
+    return { error: ONLINE_PAYMENT_UNAVAILABLE };
   }
 }

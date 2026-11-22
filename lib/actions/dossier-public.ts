@@ -228,14 +228,9 @@ export async function createDossierPublic(
     expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_TTL_MINUTES * 60,
   };
 
-  const session = await openCheckoutOrRollback(tenantId, dossierId, tenant?.stripeAccountId, sessionParams);
-  if (!session) {
-    return {
-      error:
-        "Le paiement en ligne est momentanément indisponible. Votre réservation n'a pas été enregistrée : réessayez dans quelques minutes.",
-      values,
-    };
-  }
+  const checkout = await openCheckoutOrRollback(tenantId, dossierId, tenant?.stripeAccountId, sessionParams);
+  if (!checkout.session) return { error: checkout.error, values };
+  const session = checkout.session;
 
   await db.insert(payments).values({
     tenantId,
