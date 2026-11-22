@@ -46,7 +46,7 @@ test.describe("Admin — Accessibilité", () => {
 
   for (const [url, tabs] of [
     ["/admin/regles", ["Règles de réservation", "Tarification", "Blocages manuels"]],
-    ["/admin/parametres", ["Mon établissement", "Mon site", "Calendriers et paiements", "Emails"]],
+    ["/admin/parametres", ["Mon établissement", "Mon site", "Calendriers et paiements", "Emails", "Documents légaux"]],
   ] as const) {
     test(`axe : aucune violation WCAG AA sur chaque onglet de ${url}`, async ({ page }) => {
       test.setTimeout(120_000);

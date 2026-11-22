@@ -275,17 +275,19 @@ test.describe("Admin — Dossiers de plusieurs chambres", () => {
     await expect(page.getByRole("link", { name: "Payé en ligne avec le Dossier" })).toBeVisible();
     await expect(page.getByText("540 €")).toHaveCount(0);
 
-    // Annuler la 2e chambre : le séjour coûte 270 €, 270 € sont à rembourser à la main.
+    // Annuler la 2e chambre sans rembourser (case décochée) : le séjour coûte 270 €, trop-perçu de 270 €.
+    // (Remboursements : e2e/admin/refunds.spec.ts.)
     await page.goto(`/admin/dossiers/${dossierId}`);
     await page.locator(`[data-dossier-room="${bookingIds[1]}"]`).getByRole("button", { name: "Annuler cette chambre" }).click();
-    await expect(page.locator("dialog[open]")).toContainText("l'annulation ne rembourse rien");
+    await page.locator("dialog[open]").getByRole("checkbox", { name: /Rembourser/ }).uncheck();
     await confirmDialog(page);
-    await expect(page).toHaveURL(/chambre-annulee=/);
-    await expect(page.locator("[data-refund-due]")).toContainText("remboursez 270 € depuis votre tableau de bord Stripe");
+    await expect(page).toHaveURL(/chambre-annulee=[^&]+$/);
+    await expect(page.locator("[data-refund-due]")).toHaveText("270 €");
     await expect(page.locator("[data-balance-due]")).toHaveCount(0);
+    await expect(page.locator("[data-refund-open]")).toBeVisible();
     // La fiche de la chambre annulée renvoie au Dossier pour le remboursement (pas le montant total).
     await page.goto(`/admin/reservations/${bookingIds[1]}`);
-    await expect(page.getByText("le montant à rembourser depuis Stripe est indiqué sur la fiche du Dossier")).toBeVisible();
+    await expect(page.getByText("le trop-perçu est indiqué sur la fiche du Dossier, d'où vous pouvez le rembourser")).toBeVisible();
   });
 
   test("Dossier saisi à la main : « Marquer réglé » règle toutes les chambres, « Pas encore réglé » annule", async ({ page }) => {

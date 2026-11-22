@@ -16,6 +16,7 @@ import {
   type Admission,
 } from "@/lib/booking-intake";
 import { admitRoomsInTx, createDossier, RoomRefused } from "@/lib/dossiers";
+import { acceptedTermsFor } from "@/lib/legal-settings";
 import { loadRoomCandidates, type LoadedCandidate } from "@/lib/room-combination-candidates";
 import { ruleReasons, suggestCombination, validateCombination } from "@/lib/room-combination";
 import { combinationErrorMessage, noCombinationMessage } from "@/lib/dossier-messages";
@@ -128,7 +129,9 @@ export async function createDossierPublic(
       // Stripe refuse tout paiement sous 0,50 € : ne rien réserver plutôt que des pending orphelins.
       if (total < MIN_STRIPE_AMOUNT) return null;
 
-      const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest });
+      // En payant, le voyageur accepte les conditions publiées : leur texte exact est gardé sur le Dossier.
+      const terms = await acceptedTermsFor(tx, tenantId);
+      const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, ...terms });
       for (const { plan: p, admission } of admitted) {
         const [row] = await tx
           .insert(bookings)

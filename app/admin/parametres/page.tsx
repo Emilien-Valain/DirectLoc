@@ -28,6 +28,17 @@ export default async function ParametresPage() {
       domain: tenants.domain,
       stripeAccountId: tenants.stripeAccountId,
       config: tenants.config,
+      legalName: tenants.legalName,
+      legalForm: tenants.legalForm,
+      siret: tenants.siret,
+      publicationDirector: tenants.publicationDirector,
+      mediator: tenants.mediator,
+      cancellationLevel: tenants.cancellationLevel,
+      cancellationText: tenants.cancellationText,
+      cgvText: tenants.cgvText,
+      legalNoticeText: tenants.legalNoticeText,
+      privacyText: tenants.privacyText,
+      legalPublishedAt: tenants.legalPublishedAt,
     })
     .from(tenants)
     .where(eq(tenants.id, tenantId))
@@ -87,6 +98,27 @@ export default async function ParametresPage() {
         extras={extras}
         fees={fees}
         demo={demo}
+        legal={{
+          base: {
+            name: tenant.name,
+            address: config.address,
+            email: config.email,
+            phone: config.phone,
+            checkInTime: config.checkInTime,
+            checkOutTime: config.checkOutTime,
+          },
+          legalName: tenant.legalName,
+          legalForm: tenant.legalForm,
+          siret: tenant.siret,
+          publicationDirector: tenant.publicationDirector,
+          mediator: tenant.mediator,
+          cancellationLevel: tenant.cancellationLevel,
+          cancellationText: tenant.cancellationText,
+          cgvText: tenant.cgvText,
+          legalNoticeText: tenant.legalNoticeText,
+          privacyText: tenant.privacyText,
+          publishedAt: tenant.legalPublishedAt?.toISOString() ?? null,
+        }}
       />
     </Suspense>
   );

@@ -114,7 +114,8 @@ test.describe("Admin — États vides", () => {
     // Une seule action principale : sans chambre, « Nouvelle réservation » n'a pas de sens
     await expect(page.getByRole("link", { name: "Nouvelle réservation" })).toHaveCount(0);
     // Étapes 2 et 3 verrouillées tant qu'aucune chambre n'existe
-    await expect(setup.getByText("Possible dès que votre première chambre existe.")).toHaveCount(2);
+    await expect(setup.getByText("Possible dès que votre première chambre existe.")).toHaveCount(3);
+    await expect(setup.getByText("Publiez vos conditions d'annulation et documents légaux")).toBeVisible();
     await expect(setup.getByRole("link")).toHaveCount(1);
     await expect(setup.locator('[aria-current="step"]')).toContainText("Ajoutez votre première chambre");
     await setup.getByRole("link", { name: "Ajouter une chambre" }).click();
@@ -143,6 +144,11 @@ test.describe("Admin — États vides", () => {
       const site = setup.getByRole("link", { name: "Ouvrir mon site" });
       await expect(site).toHaveAttribute("href", "/");
       await expect(site).toHaveAttribute("target", "_blank");
+      // Documents légaux : étape à part, vers l'onglet Documents légaux
+      await expect(setup.getByRole("link", { name: "Préparer mes documents" })).toHaveAttribute(
+        "href",
+        "/admin/parametres?tab=documents",
+      );
       // Une chambre existe : on peut de nouveau saisir une réservation
       await expect(page.getByRole("link", { name: "Nouvelle réservation" })).toBeVisible();
     } finally {
@@ -174,6 +180,11 @@ test.describe("Admin — États vides", () => {
       await page.goto(`${ORIGIN}/admin`);
       await expect(page.locator("[data-setup-checklist]")).toHaveCount(0);
       await expect(page.getByText("Occupation ce soir")).toBeVisible();
+      // …et tant que les documents légaux ne sont pas publiés, un rappel le dit
+      await expect(page.locator("[data-legal-nudge]").getByRole("link", { name: "Préparer mes documents" })).toHaveAttribute(
+        "href",
+        "/admin/parametres?tab=documents",
+      );
       // …mais sans calendrier iCal, le risque de double réservation reste signalé
       const nudge = page.locator("[data-ical-nudge]");
       await expect(nudge.getByRole("heading", { name: "Vous êtes aussi sur Airbnb ou Booking ?" })).toBeVisible();

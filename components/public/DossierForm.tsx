@@ -1,5 +1,6 @@
 "use client";
 
+import TermsNotice from "@/components/public/TermsNotice";
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { createDossierPublic, type DossierBookingState, type PlannedRoom } from "@/lib/actions/dossier-public";
@@ -33,7 +34,13 @@ type FreeRoom = {
   nightPrices: number[];
 };
 
-type Host = { phone?: string; checkInTime?: string; checkOutTime?: string };
+type Host = {
+  phone?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  /** Documents légaux publiés : mention d'acceptation sous le bouton (résumé du niveau d'annulation). */
+  terms?: { summary: string | null } | null;
+};
 
 /** Bornes des sélecteurs du groupe : pas de plafond lié aux chambres (cf. recherche). */
 const MAX_ADULTS = 30;
@@ -484,6 +491,7 @@ export default function DossierForm({
           {submitting ? "Redirection vers le paiement…" : valid ? `Payer ${formatEuros(grand)} et confirmer` : "Procéder au paiement"}
         </button>
         <div className="s-reassure" data-testid="booking-reassure">
+          {host.terms && <TermsNotice summary={host.terms.summary} />}
           {demo && (
             <p className="s-note" data-testid="demo-test-card">
               Démo : carte de test 4242 4242 4242 4242, date future, CVC au choix

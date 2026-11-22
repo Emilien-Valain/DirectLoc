@@ -24,17 +24,22 @@ export function ConfirmButton({
   onConfirm,
   className,
   style,
+  withForm = false,
 }: {
   children: ReactNode;
   title: string;
   message: ReactNode;
   confirmLabel: string;
   cancelLabel?: string;
-  onConfirm: () => unknown | Promise<unknown>;
+  /** Reçoit les champs du message quand `withForm` (ex. case « Rembourser X € »). */
+  onConfirm: (form?: FormData) => unknown | Promise<unknown>;
   className?: string;
   style?: CSSProperties;
+  /** Le message contient des champs : ils sont envoyés à `onConfirm` ; Entrée confirme. */
+  withForm?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const titleId = useId();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +54,7 @@ export function ConfirmButton({
     setError(null);
     startTransition(async () => {
       try {
-        const result = await onConfirm();
+        const result = withForm && formRef.current ? await onConfirm(new FormData(formRef.current)) : await onConfirm();
         // Une action peut refuser proprement en renvoyant { error } : on garde le dialog ouvert.
         if (
           result &&
@@ -101,12 +106,26 @@ export function ConfirmButton({
             >
               {title}
             </h2>
-            <div
-              className="text-[13.5px] leading-[1.55] mt-2"
-              style={{ color: "var(--admin-text-muted)" }}
-            >
-              {message}
-            </div>
+            {withForm ? (
+              <form
+                ref={formRef}
+                className="text-[13.5px] leading-[1.55] mt-2"
+                style={{ color: "var(--admin-text-muted)" }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!pending) confirm();
+                }}
+              >
+                {message}
+              </form>
+            ) : (
+              <div
+                className="text-[13.5px] leading-[1.55] mt-2"
+                style={{ color: "var(--admin-text-muted)" }}
+              >
+                {message}
+              </div>
+            )}
             {error && (
               <p
                 role="alert"

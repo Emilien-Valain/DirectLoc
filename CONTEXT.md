@@ -73,8 +73,20 @@ _Avoid_: "confirmed = paid" (false — that conflates the two axes)
 
 **Balance due** (« Reste à payer »):
 What the [[guest]] still owes on a [[booking]]: its total minus what was paid online. Arises when [[extra|Extras]] are added after an online payment. Zero once the admin marks the booking settled offline. Settled on site — never collected through a second online payment.
-For a multi-room [[dossier|Dossier]] the online payment covers every room, so the balance is read on the Dossier, never per room: total of its non-cancelled Bookings minus what was paid online. When the payment exceeds that total (a room cancelled after payment), the difference is a refund the admin makes by hand in Stripe.
+For a multi-room [[dossier|Dossier]] the online payment covers every room, so the balance is read on the Dossier, never per room: total of its non-cancelled Bookings minus what was **paid online** (gross: a [[refund]] never creates a balance due — a goodwill gesture or a refunded cancelled room leaves it at zero). The **net collected** (paid online minus refunds, pending ones included) is a separate figure: when it exceeds the total (a room cancelled after payment, not yet refunded), the difference is the **trop-perçu**, which the admin refunds from the Dossier page. Both are clamped at zero.
 _Avoid_: solde, reliquat
+
+**Refund** (« Remboursement »):
+Money given back to a [[guest]] on a [[dossier|Dossier]]'s online payment, made by any [[admin]] of the tenant from DirectLoc (never automatically): a free amount, in cents, at most what remains refundable (paid online minus earlier refunds, pending ones included); several partial refunds are allowed. Attached to the Dossier, and to a Booking when it comes from cancelling that room; optional reason. Created on the tenant's own Stripe account (direct charge; the demo tenant refunds in test mode on the platform), status *en cours* / *effectué* / *échoué*. The guest gets an email for each one (never from the demo). Stripe fees are not returned. Not available for an offline settlement (« marqué réglé ») nor while the payment is disputed. The [[cancellation-policy|cancellation policy]] only suggests an amount.
+_Avoid_: avoir, remise, rétrocession
+
+**Dispute** (« Litige »):
+A [[guest]] contesting a [[dossier|Dossier]]'s online payment with their bank (chargeback), reported by Stripe on the tenant's account. Every [[admin]] of the tenant gets one alert email (never from the demo); the Dossier shows a red banner (amount, response deadline) and the bookings list marks it. The admin either **accepts** it (the bank keeps the money) or **responds** with pre-filled text evidence (stay, rooms, guest, booking date, confirmation sent, the cancellation policy accepted at payment), saved as a draft then sent to the bank once, irreversibly; after sending, or past the deadline, it is read-only. While it is open the payment cannot be [[refund|refunded]]. Lost: the amount counts as refunded in the net collected. Won: a banner for 30 days. Never changes a [[booking-status|booking status]].
+_Avoid_: contestation, opposition, chargeback (in UI)
+
+**Cancellation policy** (« Conditions d'annulation »):
+What a [[tenant]] refunds when a [[guest]] cancels, one of four levels: Flexible (100 % up to the day before arrival), Modérée (100 % up to 7 days before, 50 % after), Stricte (50 % up to 30 days before, nothing after), or Personnalisé (free text, no computed suggestion). Deadlines count in calendar days before the check-in date, in Paris time. One of the tenant's four **legal documents** (with CGV, mentions légales, politique de confidentialité), which start as pre-filled templates and stay unpublished — minimal public pages, nothing accepted at payment — until the host publishes them. Paying a [[dossier|Dossier]] accepts the published policy and CGV: their exact text and the date are copied onto the Dossier as proof. Never applied automatically; it only suggests a refund amount.
+_Avoid_: politique de remboursement, CGU
 
 **Night**:
 The unit a booking is sold in — a *calendar date*, not an instant. Represented as UTC midnight and always compared date-only (`getUTC*`); it never carries a meaningful local time. Assumes metropolitan France and a UTC deployment (ADR-0005). The number of nights in a booking is the count of dates in `[checkIn, checkOut)`.

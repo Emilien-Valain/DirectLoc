@@ -22,6 +22,11 @@ export type DossierValues = {
   guestPhone?: string | null;
   guestAddress?: string | null;
   guestCountry?: string | null;
+  /** Preuve d'acceptation des conditions au paiement (lib/legal-settings.ts `acceptedTermsFor`). */
+  cancellationLevel?: "flexible" | "moderate" | "strict" | "custom" | null;
+  acceptedCancellationText?: string | null;
+  acceptedCgvText?: string | null;
+  termsAcceptedAt?: Date | null;
 };
 
 /** Crée le Dossier (à appeler dans la transaction d'admission, avant d'insérer ses réservations). */

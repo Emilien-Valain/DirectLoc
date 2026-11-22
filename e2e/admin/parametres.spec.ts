@@ -158,14 +158,14 @@ test.describe("Admin — Paramètres", () => {
     await pool.end();
   });
 
-  // ─── 4 onglets en langage hôte (critique 2026-10-24, étape distill/clarify) ───
+  // ─── 5 onglets en langage hôte (critique 2026-10-24 ; « Documents légaux » ajouté le 2026-11-22) ───
 
-  test("4 onglets regroupés par ce que l'hôte gère", async ({ page }) => {
+  test("5 onglets regroupés par ce que l'hôte gère", async ({ page }) => {
     await page.goto("/admin/parametres");
     // Noms accessibles (le libellé court pour téléphone est un texte masqué en plus)
     const tabs = page.getByRole("tab");
-    await expect(tabs).toHaveCount(4);
-    const names = ["Mon établissement", "Mon site", "Calendriers et paiements", "Emails"];
+    await expect(tabs).toHaveCount(5);
+    const names = ["Mon établissement", "Mon site", "Calendriers et paiements", "Emails", "Documents légaux"];
     for (const [i, name] of names.entries()) await expect(tabs.nth(i)).toHaveAccessibleName(name);
     await expect(page.getByRole("tab", { name: "Mon établissement" })).toHaveAttribute("aria-selected", "true");
     // « Mon établissement » réunit coordonnées et carte, chacune avec son bouton nommé

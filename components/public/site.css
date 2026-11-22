@@ -413,6 +413,16 @@ button.s-search-room:hover { border-color: var(--s-accent); }
 .s-arrival-links a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; color: inherit; }
 .s-host-note { padding-left: 14px; border-left: 1px solid var(--s-line); }
 
+/* ── Pages légales (texte simple de l'hôte) ──────────── */
+.s-legal-body { display: flex; flex-direction: column; gap: 14px; }
+.s-legal-body .s-h3 { margin-top: 18px; }
+.s-legal-body .s-prose, .s-legal-list { max-width: 72ch; overflow-wrap: anywhere; }
+.s-legal-list { margin: 0; padding-left: 1.2em; color: var(--s-ink-soft); display: flex; flex-direction: column; gap: 4px; }
+.s-legal-nav { margin-top: 12px; padding-top: 16px; border-top: 1px solid var(--s-line); }
+.s-legal-nav a { display: inline-flex; align-items: center; min-height: 44px; font-weight: 700; color: inherit; }
+.s-terms { margin: 0; font-size: 0.875rem; color: var(--s-ink-soft); }
+.s-terms a { color: inherit; font-weight: 700; }
+
 /* ── Footer ─────────────────────────────────────────── */
 .s-footer { padding: 48px var(--s-gutter) 28px; }
 .s-footer-inner {
@@ -423,6 +433,10 @@ button.s-search-room:hover { border-color: var(--s-accent); }
 .s-footer-line { margin: 0; }
 .s-footer-contact { display: flex; flex-direction: column; }
 .s-footer-contact a { display: inline-flex; align-items: center; min-height: 44px; }
+.s-footer-legal { max-width: var(--s-max); margin: 28px auto 0; font-size: 0.85rem; }
+.s-footer-legal ul, .s-legal-nav ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0 20px; }
+.s-footer-legal a { display: inline-flex; align-items: center; min-height: 44px; color: inherit; }
+.s-footer-legal + .s-credit { margin-top: 4px; }
 .s-credit { max-width: var(--s-max); margin: 28px auto 0; font-size: 0.85rem; }
 .s-credit a { display: inline-flex; align-items: center; min-height: 44px; }
 

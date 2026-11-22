@@ -15,6 +15,7 @@ import {
   saveLines,
 } from "@/lib/booking-intake";
 import { createDossier } from "@/lib/dossiers";
+import { acceptedTermsFor } from "@/lib/legal-settings";
 import { CHECKOUT_TTL_MINUTES } from "@/lib/checkout-window";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { amountBucket, browserDistinctId, captureServer } from "@/lib/analytics";
@@ -91,7 +92,9 @@ export async function createBookingPublic(
         // Stripe refuse tout paiement sous 0,50 € : ne rien réserver plutôt qu'un pending orphelin.
         if (total < MIN_STRIPE_AMOUNT) return null;
         const guest = { guestName, guestFirstName, guestLastName, guestEmail, guestPhone, guestAddress, guestCountry };
-        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest });
+        // En payant, le voyageur accepte les conditions publiées : leur texte exact est gardé sur le Dossier.
+        const terms = await acceptedTermsFor(tx, tenantId);
+        const dossierId = await createDossier(tx, { tenantId, checkIn, checkOut, ...guest, ...terms });
         const [row] = await tx
           .insert(bookings)
           .values({

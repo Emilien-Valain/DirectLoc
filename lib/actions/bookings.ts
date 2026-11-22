@@ -37,11 +37,15 @@ import {
   addRoomToDossier,
   cancelDossierRooms,
   changeDossierDates,
+  checkRefund,
   DossierActionError,
+  refundDossierPayment,
   quoteDossierDatesFor,
   setDossierPaidState,
 } from "@/lib/dossier-admin";
 import { dossierSizes } from "@/lib/queries/dossiers";
+import { parseRefundAmount } from "@/lib/refund-amounts";
+import { notifyGuestRefund } from "@/lib/refunds";
 
 async function requireTenantId() {
   const { tenantId } = await requireSession();
@@ -87,12 +91,17 @@ export async function confirmBooking(id: string) {
   await updateStatus(id, tenantId, "confirmed", ["pending"]);
 }
 
-export async function cancelBooking(id: string) {
+export async function cancelBooking(id: string, form?: FormData) {
   const { session, tenantId } = await requireSession();
   const [before] = await db
     .select({ status: bookings.status, dossierId: bookings.dossierId })
     .from(bookings)
     .where(and(eq(bookings.id, id), eq(bookings.tenantId, tenantId)));
+  const refund = refundRequest(form);
+  if (before && refund) {
+    const refused = await precheckRefund(tenantId, before.dossierId, refund);
+    if (refused) return refused;
+  }
   const transitioned = await updateStatus(id, tenantId, "cancelled", [
     "pending",
     "confirmed",
@@ -111,7 +120,60 @@ export async function cancelBooking(id: string) {
   // Email au client (best-effort) ; l'hôte est prévenu s'il n'est pas parti, pour
   // qu'il contacte le client lui-même. Une chambre d'un Dossier = annulation partielle.
   const emailSent = await notifyHostCancellation(tenantId, before.dossierId, [id]);
-  redirect(`/admin/reservations/${id}?annulee=${emailSent ? "1" : "sans-email"}`);
+  const refunded = await refundAfterCancel(tenantId, before.dossierId, refund, id, session.user.id);
+  redirect(`/admin/reservations/${id}?annulee=${emailSent ? "1" : "sans-email"}${refunded}`);
+}
+
+/** Case « Rembourser X € » des dialogs d'annulation (cochée par défaut) ; `null` si décochée ou absente. */
+function refundRequest(form?: FormData) {
+  if (!(form instanceof FormData) || form.get("refund") !== "on") return null;
+  return { amountCents: parseRefundAmount(form.get("amount")), requestId: String(form.get("requestId") ?? "") };
+}
+
+/**
+ * Avant d'annuler : un remboursement demandé mais impossible (montant invalide ou au-delà du
+ * restant, réglé hors ligne, litige) garde le dialog ouvert et n'annule rien.
+ */
+async function precheckRefund(
+  tenantId: string,
+  dossierId: string,
+  refund: NonNullable<ReturnType<typeof refundRequest>>,
+): Promise<{ error: string } | null> {
+  if (refund.amountCents === null) {
+    return { error: "Montant à rembourser invalide : saisissez un montant supérieur à 0 €, ou décochez « Rembourser »." };
+  }
+  try {
+    await checkRefund(tenantId, dossierId, refund.amountCents);
+    return null;
+  } catch (e) {
+    if (e instanceof DossierActionError) return { error: e.message };
+    throw e;
+  }
+}
+
+/**
+ * Après l'annulation : le remboursement demandé, puis l'email au voyageur. Suffixe de l'URL de
+ * retour : `&rembourse=1|sans-email|echec` (échec Stripe : l'annulation reste faite, rien n'est
+ * remboursé, l'hôte réessaie avec « Rembourser »).
+ */
+async function refundAfterCancel(
+  tenantId: string,
+  dossierId: string,
+  refund: ReturnType<typeof refundRequest>,
+  bookingId: string | null,
+  userId: string,
+): Promise<string> {
+  if (!refund || refund.amountCents === null) return "";
+  try {
+    const r = await refundDossierPayment(tenantId, dossierId, { amountCents: refund.amountCents, requestId: refund.requestId, bookingId, userId });
+    revalidatePath(`/admin/dossiers/${dossierId}`);
+    if (!r.created) return "&rembourse=1";
+    captureServer("refund_created", { surface: "admin", tenant_id: tenantId, source: "cancellation" }, userId);
+    return `&rembourse=${(await notifyGuestRefund(tenantId, dossierId, r.amount)) ? "1" : "sans-email"}`;
+  } catch (e) {
+    console.error("Remboursement après annulation impossible:", e);
+    return "&rembourse=echec";
+  }
 }
 
 /** Après une action sur un Dossier : sa fiche, les listes et les réservations touchées. */
@@ -125,21 +187,32 @@ function revalidateDossier(dossierId: string, bookingIds: string[]) {
 
 /**
  * Annuler UNE chambre d'un Dossier depuis sa fiche (ADR-0012) : les autres restent,
- * la chambre est libérée. Pas de remboursement automatique (la fiche dit combien rendre).
+ * la chambre est libérée. Remboursement si la case « Rembourser X € » est cochée (`form`).
  */
-export async function cancelDossierBooking(dossierId: string, bookingId: string) {
+export async function cancelDossierBooking(dossierId: string, bookingId: string, form?: FormData) {
   const { session, tenantId } = await requireSession();
+  const refund = refundRequest(form);
+  if (refund) {
+    const refused = await precheckRefund(tenantId, dossierId, refund);
+    if (refused) return refused;
+  }
   const cancelled = await cancelDossierRooms(tenantId, dossierId, bookingId);
   if (cancelled.length === 0) return;
   revalidateDossier(dossierId, cancelled);
   captureServer("booking_cancelled", { surface: "admin", tenant_id: tenantId, scope: "room" }, session.user.id);
   const emailSent = await notifyHostCancellation(tenantId, dossierId, cancelled);
-  redirect(`/admin/dossiers/${dossierId}?chambre-annulee=${emailSent ? "1" : "sans-email"}`);
+  const refunded = await refundAfterCancel(tenantId, dossierId, refund, bookingId, session.user.id);
+  redirect(`/admin/dossiers/${dossierId}?chambre-annulee=${emailSent ? "1" : "sans-email"}${refunded}`);
 }
 
 /** Annuler tout le Dossier : chaque chambre encore active passe `cancelled` (transitions gardées). */
-export async function cancelDossier(dossierId: string) {
+export async function cancelDossier(dossierId: string, form?: FormData) {
   const { session, tenantId } = await requireSession();
+  const refund = refundRequest(form);
+  if (refund) {
+    const refused = await precheckRefund(tenantId, dossierId, refund);
+    if (refused) return refused;
+  }
   const cancelled = await cancelDossierRooms(tenantId, dossierId);
   if (cancelled.length === 0) return;
   revalidateDossier(dossierId, cancelled);
@@ -149,7 +222,8 @@ export async function cancelDossier(dossierId: string) {
     session.user.id,
   );
   const emailSent = await notifyHostCancellation(tenantId, dossierId, cancelled);
-  redirect(`/admin/dossiers/${dossierId}?annule=${emailSent ? "1" : "sans-email"}`);
+  const refunded = await refundAfterCancel(tenantId, dossierId, refund, null, session.user.id);
+  redirect(`/admin/dossiers/${dossierId}?annule=${emailSent ? "1" : "sans-email"}${refunded}`);
 }
 
 /** Règlement hors ligne de tout le Dossier : chaque chambre non annulée (voir `setBookingPaid`). */

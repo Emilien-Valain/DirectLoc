@@ -26,8 +26,9 @@ import FeesSection from "@/components/admin/FeesSection";
 import TouristTaxSection from "@/components/admin/TouristTaxSection";
 import type { CatalogFee } from "@/lib/queries/fees";
 import type { TenantConfig, TemplateName } from "@/lib/tenant-context";
+import LegalDocumentsSection, { type LegalDocumentsProps } from "@/components/admin/LegalDocumentsSection";
 
-type TabId = "etablissement" | "site" | "calendriers" | "emails";
+type TabId = "etablissement" | "site" | "calendriers" | "emails" | "documents";
 
 // 4 onglets au lieu de 7 (critique du 2026-10-24) : regroupés par ce que l'hôte gère.
 const TABS: { id: TabId; label: string; short: string }[] = [
@@ -35,6 +36,7 @@ const TABS: { id: TabId; label: string; short: string }[] = [
   { id: "site", label: "Mon site", short: "Site" },
   { id: "calendriers", label: "Calendriers et paiements", short: "Calendriers" },
   { id: "emails", label: "Emails", short: "Emails" },
+  { id: "documents", label: "Documents légaux", short: "Légal" },
 ];
 
 // Anciens ?tab= (liens, favoris, tests) : chacun ouvre l'onglet qui contient désormais sa section.
@@ -50,6 +52,8 @@ const TAB_ALIASES: Record<string, TabId> = {
   stripe: "calendriers",
   paiements: "calendriers",
   email: "emails",
+  legal: "documents",
+  "documents-legaux": "documents",
 };
 
 function resolveTab(raw: string | null, fromStripe: boolean): TabId {
@@ -81,6 +85,7 @@ export default function SettingsPageClient({
   extras,
   fees,
   demo,
+  legal,
 }: {
   tenant: { id: string; name: string; slug: string; domain: string | null };
   config: TenantConfig;
@@ -91,6 +96,7 @@ export default function SettingsPageClient({
   extras: CatalogExtra[];
   fees: CatalogFee[];
   demo: boolean;
+  legal: LegalDocumentsProps;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -177,6 +183,7 @@ export default function SettingsPageClient({
           />
         )}
         {tab === "emails" && <RoomEmailsSection rooms={rooms} />}
+        {tab === "documents" && <LegalDocumentsSection {...legal} />}
         {tab === "calendriers" && (
           <>
             <IcalSourcesSection
@@ -184,6 +191,22 @@ export default function SettingsPageClient({
               rooms={rooms}
               sources={icalSources}
             />
+            {!legal.publishedAt && (
+              <StatusBanner variant="warning">
+                <span data-testid="payments-no-cancellation-warning">
+                  Sans conditions d&apos;annulation publiées, vous perdrez la plupart des contestations de paiement
+                  (« annulé, non remboursé »). Le paiement en ligne reste possible.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setTab("documents")}
+                    className="underline underline-offset-2 font-bold"
+                    style={{ background: "none", border: "none", padding: 0, color: "inherit", cursor: "pointer" }}
+                  >
+                    Publier mes conditions
+                  </button>
+                </span>
+              </StatusBanner>
+            )}
             <StripeConnectSection hasAccount={hasStripeAccount} demo={demo} />
           </>
         )}

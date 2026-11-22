@@ -1,6 +1,6 @@
 import { and, eq, gte, lt, lte, or, inArray, count, sum, asc } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, icalSources, rooms } from "@/db/schema";
+import { bookings, icalSources, rooms, tenants } from "@/db/schema";
 import {
   todayStart,
   tomorrowStart,
@@ -185,14 +185,16 @@ export async function getMonthRevenue(tenantId: string) {
 
 // ─── Mise en route ──────────────────────────────────────────────────────────
 
-/** Ce qu'un nouvel hôte a déjà fait : une chambre, un calendrier synchronisé, une réservation. */
+/** Ce qu'un nouvel hôte a déjà fait : une chambre, un calendrier synchronisé, une réservation, ses documents légaux. */
 export async function getSetupProgress(tenantId: string) {
-  const [[r], [i], [b]] = await Promise.all([
+  const [[r], [i], [b], [t]] = await Promise.all([
     db.select({ n: count() }).from(rooms).where(and(eq(rooms.tenantId, tenantId), eq(rooms.active, true))),
     db.select({ n: count() }).from(icalSources).where(and(eq(icalSources.tenantId, tenantId), eq(icalSources.active, true))),
     db.select({ n: count() }).from(bookings).where(eq(bookings.tenantId, tenantId)),
+    db.select({ legalPublishedAt: tenants.legalPublishedAt }).from(tenants).where(eq(tenants.id, tenantId)),
   ]);
-  const progress = { rooms: r.n > 0, ical: i.n > 0, bookings: b.n > 0 };
+  // Documents légaux publiés (conditions d'annulation, CGV, mentions légales) : sans eux, litiges perdus.
+  const progress = { rooms: r.n > 0, ical: i.n > 0, bookings: b.n > 0, legal: !!t?.legalPublishedAt };
   // Le site tourne dès qu'il y a une chambre et des dates réelles (import iCal ou réservation).
   return { ...progress, done: progress.rooms && (progress.ical || progress.bookings) };
 }

@@ -190,6 +190,27 @@
       "when": 1795225447880,
       "tag": "0026_dossier_email_markers",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1795310572492,
+      "tag": "0027_legal_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795314607382,
+      "tag": "0028_refunds",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1795342601143,
+      "tag": "0029_disputes",
+      "breakpoints": true
     }
   ]
 }

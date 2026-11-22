@@ -40,6 +40,9 @@ export function CallbackForm({ id, title }: { id: string; title: React.ReactNode
           <input className="alm-hp" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
           {state?.error && !Object.keys(err).length && <p className="alm-err" role="alert">{state.error}</p>}
           <button type="submit" disabled={pending}>{pending ? "Envoi…" : "Être rappelé"}</button>
+          <p className="alm-coupon-note">
+            Votre numéro sert uniquement à vous rappeler. <a href="/confidentialite">Confidentialité</a>
+          </p>
         </>
       )}
     </form>

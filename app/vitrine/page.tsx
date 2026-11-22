@@ -301,6 +301,10 @@ export default function VitrinePage() {
         </div>
         <CallbackForm id="cb-end" title="Être rappelé" />
         <p className="alm-colophon">DirectLoc · réservation directe pour les hébergeurs de Vendée Bocage et du Puy du Fou · directloc.app</p>
+        <nav className="alm-foot-legal" aria-label="Informations légales">
+          <a href="/mentions-legales">Mentions légales</a>
+          <a href="/confidentialite">Politique de confidentialité</a>
+        </nav>
       </footer>
     </>
   );

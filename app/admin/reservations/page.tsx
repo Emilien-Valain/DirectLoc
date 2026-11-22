@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/session";
 import { getBookingsByTenant, completeFinishedStays } from "@/lib/queries/bookings";
 import { getRoomsByTenant } from "@/lib/queries/rooms";
 import { dossierSizes } from "@/lib/queries/dossiers";
+import { dossiersWithOpenDispute } from "@/lib/disputes";
 import { STATUS_LABELS } from "@/lib/calendar";
 import { viewOfStatus, type BookingStatus, type BookingView } from "@/lib/queries/bookings";
 import {
@@ -51,7 +52,11 @@ export default async function ReservationsPage({
   ]);
 
   // Dossiers de plusieurs chambres (ADR-0012) : chaque ligne mène aussi à la fiche du Dossier.
-  const groups = await dossierSizes(tenantId, reservations.map((r) => r.dossierId));
+  const [groups, disputed] = await Promise.all([
+    dossierSizes(tenantId, reservations.map((r) => r.dossierId)),
+    // Litige ouvert : marque rouge qui mène à la fiche du Dossier (y répondre).
+    dossiersWithOpenDispute(tenantId, reservations.map((r) => r.dossierId)),
+  ]);
 
   // Liens de filtre : on garde le reste, on revient en page 1.
   const href = (over: Partial<Record<"vue" | "status" | "roomId" | "q" | "page", string | undefined>>) => {
@@ -307,7 +312,20 @@ export default async function ReservationsPage({
                       <ChannelTag channel={r.source ?? "manual"} />
                     </td>
                     <td className={`${CELL} block col-start-2 row-start-1 justify-self-end`}>
-                      <StatusBadge status={r.status} />
+                      <span className="inline-flex items-center gap-1.5">
+                        {disputed.has(r.dossierId) && (
+                          <Link
+                            href={`/admin/dossiers/${r.dossierId}`}
+                            data-dispute-tag
+                            aria-label={`Litige en cours sur le paiement de ${r.guestName}`}
+                            className="relative z-10 inline-flex items-center px-2 py-0.5 rounded-full text-[12px] font-semibold hover:opacity-80"
+                            style={{ background: "#FEE2E2", color: "#B91C1C" }}
+                          >
+                            Litige
+                          </Link>
+                        )}
+                        <StatusBadge status={r.status} />
+                      </span>
                     </td>
                   </tr>
                 ))}

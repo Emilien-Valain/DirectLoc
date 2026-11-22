@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useEffect, useRef } from "react";
+import TermsNotice from "@/components/public/TermsNotice";
 import { useSearchParams } from "next/navigation";
 import { createBookingPublic, type PublicBookingState } from "@/lib/actions/bookings-public";
 import RoomPhoto from "@/components/public/RoomPhoto";
@@ -86,7 +87,13 @@ const fmtDateShort = (s: string): string =>
     month: "long",
   });
 
-type Host = { phone?: string; checkInTime?: string; checkOutTime?: string };
+type Host = {
+  phone?: string;
+  checkInTime?: string;
+  checkOutTime?: string;
+  /** Documents légaux publiés : mention d'acceptation sous le bouton (résumé du niveau d'annulation). */
+  terms?: { summary: string | null } | null;
+};
 
 export default function BookingForm({
   room,
@@ -430,6 +437,7 @@ export default function BookingForm({
               : "Procéder au paiement"}
         </button>
         <div className="s-reassure" data-testid="booking-reassure">
+          {host.terms && <TermsNotice summary={host.terms.summary} />}
           {demo && (
             <p className="s-note" data-testid="demo-test-card">
               Démo : carte de test 4242 4242 4242 4242, date future, CVC au choix

@@ -2,7 +2,7 @@ import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bookings, dossiers, payments } from "@/db/schema";
 import { isUuid } from "@/lib/validation";
-import { balanceDue, grandTotal } from "@/lib/extras";
+import { grandTotal } from "@/lib/extras";
 
 /**
  * Nombre de chambres (réservations, annulées comprises) de chaque Dossier du tenant.
@@ -50,6 +50,7 @@ export async function getDossierForAdmin(id: string, tenantId: string) {
     }),
     db
       .select({
+        id: payments.id,
         status: payments.status,
         amount: payments.amount,
         stripePaymentId: payments.stripePaymentId,
@@ -69,17 +70,23 @@ type MoneyBooking = { status: string; totalPrice: string; paidAt: Date | null };
  * L'argent d'un Dossier, toutes chambres confondues (le paiement en ligne est commun) :
  * - `due` : total des chambres non annulées (ce que le séjour coûte) ;
  * - `paidOnline` : paiement Stripe abouti (total du Dossier au moment du paiement) ;
- * - `balance` : reste à payer sur place (options ajoutées après le paiement), 0 si réglé ;
- * - `refund` : trop-perçu à rembourser à la main dans Stripe (chambre annulée après
- *   paiement, ou prix baissé) — DirectLoc ne rembourse jamais seul.
+ * - `refunded` : remboursé ou en cours de remboursement (les échecs ne comptent pas) ;
+ * - `net` : encaissé net = payé en ligne − remboursé ;
+ * - `refundable` : ce qu'on peut encore rembourser (= `net`, plafond côté serveur) ;
+ * - `balance` : reste à payer sur place = max(0, dû − payé en ligne), 0 si réglé hors ligne : un
+ *   remboursement ne crée jamais de reste à payer (geste commercial, chambre annulée rendue) ;
+ * - `refund` : trop-perçu = max(0, net − dû) (chambre annulée après paiement, prix baissé) ;
  * - `settled` : toutes les chambres non annulées sont marquées réglées hors ligne.
  */
-export function dossierMoney(rooms: MoneyBooking[], payment?: { status: string; amount: string }) {
+export function dossierMoney(rooms: MoneyBooking[], payment?: { status: string; amount: string }, refunded = 0) {
+  const c = (n: number) => Math.round(n * 100);
   const active = rooms.filter((b) => b.status !== "cancelled");
   const due = grandTotal(0, active.map((b) => ({ total: parseFloat(b.totalPrice) })));
   const paidOnline = payment?.status === "paid" ? parseFloat(payment.amount) : 0;
+  const net = paidOnline > 0 ? Math.max(0, c(paidOnline) - c(refunded)) / 100 : 0;
   const settled = active.length > 0 && active.every((b) => b.paidAt);
-  const balance = active.length === 0 ? 0 : balanceDue(due, paidOnline, settled ? new Date() : null);
-  const refund = paidOnline > 0 ? Math.max(0, Math.round((paidOnline - due) * 100) / 100) : 0;
-  return { due, paidOnline, balance, refund, settled, activeCount: active.length };
+  // Sans paiement en ligne, rien n'est « reste » : tout se règle avec le client (balanceDue).
+  const balance = active.length === 0 || paidOnline <= 0 || settled ? 0 : Math.max(0, c(due) - c(paidOnline)) / 100;
+  const refund = paidOnline > 0 ? Math.max(0, c(net) - c(due)) / 100 : 0;
+  return { due, paidOnline, refunded: paidOnline > 0 ? refunded : 0, net, refundable: net, balance, refund, settled, activeCount: active.length };
 }

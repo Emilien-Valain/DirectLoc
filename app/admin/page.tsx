@@ -62,7 +62,7 @@ export default async function AdminDashboard() {
 
       {/* Tant que le site n'a ni chambre ni dates réelles, des KPI à zéro n'apprennent rien : on guide. */}
       {!setup.done ? (
-        <SetupChecklist rooms={setup.rooms} ical={setup.ical} />
+        <SetupChecklist rooms={setup.rooms} ical={setup.ical} legal={setup.legal} />
       ) : (
         <>
           {/* Le planning d'abord (ce qui demande une action, aujourd'hui, la semaine) ; les chiffres en marge. */}
@@ -100,6 +100,7 @@ export default async function AdminDashboard() {
               </Card>
 
               {/* Rappel de mise en route, pas une tâche du jour : après le planning du jour. */}
+              {!setup.legal && <LegalNudge />}
               {showIcalNudge && <IcalNudge />}
 
               <WeekPlan items={week} />
@@ -114,6 +115,38 @@ export default async function AdminDashboard() {
         </>
       )}
     </div>
+  );
+}
+
+// Site en service sans documents légaux publiés : paiements acceptés sans conditions d'annulation.
+function LegalNudge() {
+  return (
+    <section
+      aria-labelledby="legal-nudge-title"
+      data-legal-nudge
+      className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4 rounded-[var(--admin-radius)]"
+      style={{
+        background: "var(--admin-primary-light)",
+        border: "1px solid color-mix(in srgb, var(--admin-primary) 25%, transparent)",
+      }}
+    >
+      <div className="flex-1 min-w-[240px]">
+        <h2 id="legal-nudge-title" className="text-[13.5px] font-bold" style={{ color: "var(--admin-text)" }}>
+          Vos conditions d&apos;annulation ne sont pas publiées
+        </h2>
+        <p className="text-[12.5px] leading-[1.5] mt-0.5" style={{ color: "var(--admin-text-muted)" }}>
+          Sans elles, vos clients paient sans conditions acceptées : en cas de litige bancaire, vous le perdrez presque toujours.
+        </p>
+      </div>
+      <Link
+        href="/admin/parametres?tab=documents"
+        className="inline-flex items-center gap-1.5 text-[13.5px] font-semibold underline-offset-4 hover:underline"
+        style={{ color: "var(--admin-primary)" }}
+      >
+        Préparer mes documents
+        <Icon.ArrowRight size={14} />
+      </Link>
+    </section>
   );
 }
 
@@ -160,7 +193,7 @@ function IcalNudge() {
   );
 }
 
-function SetupChecklist({ rooms, ical }: { rooms: boolean; ical: boolean }) {
+function SetupChecklist({ rooms, ical, legal }: { rooms: boolean; ical: boolean; legal: boolean }) {
   const steps = [
     {
       title: "Ajoutez votre première chambre",
@@ -173,6 +206,12 @@ function SetupChecklist({ rooms, ical }: { rooms: boolean; ical: boolean }) {
       desc: "Collez le lien iCal de chaque annonce : les nuits vendues ailleurs se bloquent sur votre site. Pas d'annonce ailleurs ? Passez cette étape.",
       done: ical,
       action: { label: "Ajouter un calendrier", href: "/admin/parametres?tab=calendriers" },
+    },
+    {
+      title: "Publiez vos conditions d'annulation et documents légaux",
+      desc: "Choisissez votre niveau d'annulation, complétez SIRET et raison sociale, puis publiez : vos clients les acceptent en payant, et ils vous protègent en cas de litige.",
+      done: legal,
+      action: { label: "Préparer mes documents", href: "/admin/parametres?tab=documents" },
     },
     {
       title: "Regardez votre site comme vos clients",
@@ -195,7 +234,7 @@ function SetupChecklist({ rooms, ical }: { rooms: boolean; ical: boolean }) {
           Mettez votre site en route
         </h2>
         <p className="text-[13.5px] mt-1" style={{ color: "var(--admin-text-muted)" }}>
-          Trois étapes, une quinzaine de minutes. Votre tableau de bord se remplira avec vos premières réservations.
+          Quatre étapes, une vingtaine de minutes. Votre tableau de bord se remplira avec vos premières réservations.
         </p>
         <ol className="mt-6">
           {steps.map((step, i) => {

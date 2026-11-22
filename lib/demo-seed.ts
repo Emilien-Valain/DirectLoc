@@ -74,6 +74,20 @@ const DEMO_CONFIG: TenantConfig = {
   touristTax: { mode: "fixed", amount: 1.5 },
 };
 
+// Documents légaux publiés d'office : la démo montre les pages légales et la mention au paiement.
+const DEMO_LEGAL = {
+  legalName: "SARL Le Mas des Oliviers (fictive)",
+  legalForm: "SARL au capital de 10 000 €",
+  siret: "00000000000000",
+  publicationDirector: "Claire Martin",
+  mediator: "Médiateur fictif de démonstration, www.example.com",
+  cancellationLevel: "moderate" as const,
+  cancellationText: null,
+  cgvText: null,
+  legalNoticeText: null,
+  privacyText: null,
+};
+
 const ROOMS = [
   {
     slug: "chambre-lavande",
@@ -144,12 +158,12 @@ export async function resetDemoTenant() {
     const [tenant] = existing
       ? await tx
           .update(tenants)
-          .set({ name: DEMO_NAME, domain, config: DEMO_CONFIG, stripeAccountId: null })
+          .set({ name: DEMO_NAME, domain, config: DEMO_CONFIG, stripeAccountId: null, ...DEMO_LEGAL, legalPublishedAt: new Date() })
           .where(eq(tenants.id, existing.id))
           .returning()
       : await tx
           .insert(tenants)
-          .values({ name: DEMO_NAME, slug, domain, config: DEMO_CONFIG })
+          .values({ name: DEMO_NAME, slug, domain, config: DEMO_CONFIG, ...DEMO_LEGAL, legalPublishedAt: new Date() })
           .returning();
     // Garde-fou : toutes les suppressions ci-dessous filtrent sur cet id.
     if (tenant?.slug !== slug) throw new Error("resetDemoTenant : tenant démo introuvable");

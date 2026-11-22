@@ -1,6 +1,6 @@
 # Remboursements depuis l'admin
 
-Status: ready-for-agent
+Status: done
 Dépend de : 01
 
 ## À faire
@@ -11,3 +11,24 @@ Dépend de : 01
 
 ## Tests
 Remboursement total / partiel / multiple jusqu'au plafond ; dépassement refusé ; annulation + remboursement ; suggestion par niveau ; hors ligne et litige → refus ; Stripe en erreur → rien enregistré, message ; isolation tenant (unitaire comme `e2e/unit/dossier-isolation.spec.ts`) ; email voyageur ; démo sans email.
+
+## Comments
+
+- Migration `db/migrations/0028_refunds.sql` (appliquée à `maresa` et `maresa_test`) : enum `refund_status` (`pending` en cours | `succeeded` effectué | `failed` échoué) ; table `refunds` (tenant, `dossier_id` cascade, `booking_id` facultatif = chambre dont l'annulation a déclenché le remboursement, `payment_id` cascade, `amount` décimal, `reason`, `status`, `stripe_refund_id` unique, `idempotency_key` unique, `failure_reason`, `created_by` → users, dates). Le paiement reste `paid` : encaissé net = payé − remboursements non échoués.
+- Logique tenant-explicite dans `lib/dossier-admin.ts` : `refundDossierPayment(tenantId, dossierId, { amountCents, requestId, reason?, bookingId?, userId? })` — transaction, Dossier verrouillé `FOR UPDATE`, plafond = payé − (en cours + effectués), rejeu d'une soumission (`idempotency_key = refund_<dossierId>_<uuid du formulaire>`) → même remboursement (`created: false`), puis `stripe.refunds.create({ payment_intent, amount, metadata: { dossierId, tenantId, bookingId? } }, { idempotencyKey, stripeAccount })` (démo : `getStripe({ test: true })` sans `stripeAccount`), ligne écrite seulement si Stripe accepte (statut initial = celui renvoyé par Stripe via `refundStatusFromStripe`). Refus (`DossierActionError`) : autre tenant, pas de paiement en ligne (réglé hors ligne), litige ouvert, montant ≤ 0 / non entier / au-delà du restant, hôtel sans compte connecté, Stripe en erreur (« Stripe a refusé … » / « Stripe est injoignable … »). `checkRefund` = même contrôle sans verrou, avant d'annuler. `bookingId` hors du Dossier ignoré.
+- `lib/refunds.ts` : `hasOpenDispute(tenantId, dossierId)` (renvoie `false` : **à remplacer par l'issue 04**, même signature ; déjà branché dans le serveur et l'UI : bouton désactivé « Litige en cours, répondez-y d'abord. »), `getDossierRefunds`, `refundedTotal`, `refundStatusFromStripe`, `notifyGuestRefund` (email « Remboursement de X € pour votre réservation », 5-10 jours, jamais depuis la démo via `sendEmail`), `findRefundByStripeId`. Pur : `lib/refund-amounts.ts` (`parseRefundAmount`, `refundSuggestion` via `suggestedRefund` sur le niveau copié sur le Dossier, `cancellationRefund`, `uniqueShortcuts`).
+- `dossierMoney(rooms, payment, refunded)` : `refunded`, `net`, `refundable`, **reste = max(0, dû − payé en ligne brut)** (un remboursement ne crée jamais de « Reste à payer », règle ajoutée pendant l'issue 03), trop-perçu = max(0, net − dû).
+- Actions : `refundDossier` (`lib/actions/refunds.ts`, dialog de la fiche) ; `cancelBooking`, `cancelDossierBooking`, `cancelDossier` reçoivent le `FormData` du dialog (`ConfirmButton withForm`) : case `refund` cochée → pré-contrôle (montant invalide/trop élevé → dialog ouvert, rien annulé), annulation, remboursement, email ; retour `&rembourse=1|sans-email|echec` (échec Stripe : annulation faite, rien remboursé).
+- UI : `components/admin/RefundForms.tsx` (`CancelRefundFields`, `RefundButton`) ; fiche Dossier : une ligne par mouvement (payé en ligne, chaque remboursement avec statut, chambre, motif), « Encaissé net », « Trop-perçu », bouton « Rembourser » (raccourcis : trop-perçu, chaque chambre annulée, suggestion des conditions, tout le restant ; motif facultatif ; « Les frais Stripe du paiement ne vous sont pas rendus. ») ; bandeau « remboursez depuis Stripe » supprimé (fiche Dossier et fiche réservation → lien « Rembourser depuis la fiche du Dossier ») ; alertes admin du webhook renvoient au bouton « Rembourser ». Paiement sans `stripe_payment_id` (données anciennes) : pas de remboursement depuis l'app, ancien message Stripe.
+- Défaut de la case : suggestion des conditions du Dossier si niveau standard (0 % → décochée), personnalisé → prix annulé + « Conditions personnalisées, vérifiez le montant. », sans conditions acceptées → prix de la chambre / tout le paiement ; plafonné au restant.
+- Faux Stripe : `POST /v1/refunds` (`refunds`, `refundStatus`, `refundError`, rejeu par Idempotency-Key).
+- Tests : `e2e/admin/refunds.spec.ts` (11), `e2e/unit/refund-isolation.spec.ts` (2, sonde `refund-isolation-probe.ts` en asynchrone : le faux Stripe vit dans le spec), `e2e/unit/refund-amounts.spec.ts` (11), `e2e/mobile/refunds-mobile.spec.ts` (1) ; `dossier-admin.spec.ts` adapté (case décochée, trop-perçu). Obsidian `Tests de non-régression.md` + `Schema DB.md` ; `CONTEXT.md` terme « Refund » ; ADR-0012 phrase mise à jour.
+
+**Pour l'issue 03 (webhook `charge.refunded` / `refund.updated`)**
+- Retrouver un remboursement créé dans l'app : `findRefundByStripeId(refund.id)` (`lib/refunds.ts`, index unique `refunds.stripe_refund_id`) → ligne avec `tenantId`, `dossierId`, `paymentId`, `status`. Toujours vérifier que `metadata.tenantId` / le compte de l'événement correspondent au tenant de la ligne.
+- Remboursement fait dans le tableau de bord Stripe (aucune ligne) : `refund.payment_intent` → `payments.stripe_payment_id` (unique) → `payments.dossier_id` / `tenant_id` ; insérer une ligne `refunds` avec `stripe_refund_id`, `idempotency_key` = p. ex. `stripe_<re_id>` (NOT NULL unique), `created_by` NULL.
+- Mise à jour de statut : `refundStatusFromStripe(refund.status)` ; `failure_reason` disponible. Un échec sort du plafond automatiquement (les `failed` ne comptent pas).
+- Course connue : si l'insert échoue après un Refund Stripe accepté (panne DB), seul le webhook recréera la ligne.
+- Email voyageur pour un remboursement venu de Stripe : `notifyGuestRefund(tenantId, dossierId, amountEuros)`.
+
+**Clé restreinte live (Connect permissions)** : Refunds → Write (création sur le compte connecté) ; PaymentIntents → Read et Charges → Read (lecture/synchro, issue 03). Litiges (04) : Disputes → Write ; Files → Write en v2.

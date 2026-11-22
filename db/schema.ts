@@ -15,6 +15,9 @@ import {
 
 // ─── TENANTS ────────────────────────────────────────────────────────────────
 
+/** Niveau des conditions d'annulation (lib/legal-documents.ts). `custom` = texte libre de l'hôte. */
+export const cancellationLevelEnum = pgEnum("cancellation_level", ["flexible", "moderate", "strict", "custom"]);
+
 export const tenants = pgTable(
   "tenants",
   {
@@ -24,6 +27,21 @@ export const tenants = pgTable(
     domain: text("domain").unique(),
     config: jsonb("config").notNull().default({}),
     stripeAccountId: text("stripe_account_id"),
+    // ── Documents légaux (lib/legal-documents.ts) ──
+    // Identité de l'exploitant, reprise dans les modèles (mentions légales, CGV, confidentialité).
+    legalName: text("legal_name"),
+    legalForm: text("legal_form"),
+    siret: text("siret"),
+    publicationDirector: text("publication_director"),
+    mediator: text("mediator"),
+    cancellationLevel: cancellationLevelEnum("cancellation_level").notNull().default("moderate"),
+    // Textes modifiés par l'hôte ; NULL = le modèle, rempli à l'affichage avec les infos du tenant.
+    cancellationText: text("cancellation_text"),
+    cgvText: text("cgv_text"),
+    legalNoticeText: text("legal_notice_text"),
+    privacyText: text("privacy_text"),
+    // NULL = pas encore publiés : le site affiche des pages minimales, rien n'est accepté au paiement.
+    legalPublishedAt: timestamp("legal_published_at"),
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [index("tenants_domain_idx").on(table.domain)],
@@ -183,6 +201,12 @@ export const dossiers = pgTable(
     // Marqueurs des emails automatiques : un email par Dossier, réservé par UPDATE … WHERE … IS NULL.
     reminderSentAt: timestamp("reminder_sent_at"),
     thankYouSentAt: timestamp("thank_you_sent_at"),
+    // Preuve d'acceptation au paiement (litiges) : texte exact des conditions d'annulation et des CGV
+    // publiées au moment du paiement. NULL si l'établissement n'avait rien publié.
+    cancellationLevel: cancellationLevelEnum("cancellation_level"),
+    acceptedCancellationText: text("accepted_cancellation_text"),
+    acceptedCgvText: text("accepted_cgv_text"),
+    termsAcceptedAt: timestamp("terms_accepted_at"),
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
   },
@@ -358,6 +382,76 @@ export const payments = pgTable(
     createdAt: timestamp("created_at").defaultNow(),
   },
   (table) => [index("payments_dossier_idx").on(table.dossierId)],
+);
+
+// ─── REFUNDS ────────────────────────────────────────────────────────────────
+// Remboursement d'un paiement en ligne (lib/refunds.ts). Le paiement reste `paid` : l'argent
+// encaissé net = payé − remboursements non échoués (dossierMoney).
+
+/** `pending` = en cours chez Stripe ; `succeeded` = effectué ; `failed` = échoué (rien n'est parti). */
+export const refundStatusEnum = pgEnum("refund_status", ["pending", "succeeded", "failed"]);
+
+export const refunds = pgTable(
+  "refunds",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    dossierId: uuid("dossier_id")
+      .notNull()
+      .references(() => dossiers.id, { onDelete: "cascade" }),
+    // Chambre dont l'annulation a déclenché le remboursement (NULL : remboursement du Dossier).
+    bookingId: uuid("booking_id").references(() => bookings.id, { onDelete: "set null" }),
+    paymentId: uuid("payment_id")
+      .notNull()
+      .references(() => payments.id, { onDelete: "cascade" }),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    reason: text("reason"),
+    status: refundStatusEnum("status").notNull().default("pending"),
+    stripeRefundId: text("stripe_refund_id").unique(),
+    // Une soumission de formulaire = une clé : un double clic ne rembourse pas deux fois.
+    idempotencyKey: text("idempotency_key").notNull().unique(),
+    failureReason: text("failure_reason"),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("refunds_dossier_idx").on(table.dossierId)],
+);
+
+// Litige (chargeback) sur un paiement en ligne, reçu par webhook `charge.dispute.*` (lib/disputes.ts).
+// `status` = statut Stripe tel quel (needs_response, under_review, won, lost, warning_*…). Perdu :
+// le montant compte comme remboursé dans l'encaissé net. Le statut des réservations ne bouge jamais.
+export const disputes = pgTable(
+  "disputes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id),
+    dossierId: uuid("dossier_id")
+      .notNull()
+      .references(() => dossiers.id, { onDelete: "cascade" }),
+    paymentId: uuid("payment_id")
+      .notNull()
+      .references(() => payments.id, { onDelete: "cascade" }),
+    stripeDisputeId: text("stripe_dispute_id").notNull().unique(),
+    amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+    // Code Stripe (fraudulent, product_not_received…) ; traduit à l'affichage.
+    reason: text("reason").notNull(),
+    status: text("status").notNull(),
+    evidenceDueBy: timestamp("evidence_due_by"),
+    // Brouillon des preuves texte (clés = champs evidence Stripe), enregistré dans l'app.
+    evidence: jsonb("evidence").notNull().default({}),
+    submittedAt: timestamp("submitted_at"),
+    // Email d'alerte aux admins : une seule fois, réservé par UPDATE … WHERE alerted_at IS NULL.
+    alertedAt: timestamp("alerted_at"),
+    closedAt: timestamp("closed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [index("disputes_dossier_idx").on(table.dossierId)],
 );
 
 // ─── ICAL SOURCES ────────────────────────────────────────────────────────────

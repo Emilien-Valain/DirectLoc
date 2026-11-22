@@ -18,6 +18,15 @@ import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant, getTouristTax } from "@/lib/queries/fees";
 import { isRoomAvailable } from "@/lib/availability";
 import { bedLimit } from "@/lib/extras";
+import { CANCELLATION_LEVEL_INFO } from "@/lib/legal-documents";
+import { getDossierRefunds, refundedTotal } from "@/lib/refunds";
+import { getDossierDisputes, lostDisputeTotal } from "@/lib/disputes";
+import { canRespond, disputeIsOpen, disputeReasonFr } from "@/lib/dispute-evidence";
+import { disputeBanner, disputeDay, disputeStripeUrl } from "@/lib/dispute-display";
+import { acceptDisputeAction } from "@/lib/actions/disputes";
+import { isDemoTenant } from "@/lib/demo";
+import { cancellationRefund, cents, refundSuggestion, uniqueShortcuts } from "@/lib/refund-amounts";
+import { CancelRefundFields, RefundButton } from "@/components/admin/RefundForms";
 
 export const metadata = { title: "Dossier" };
 
@@ -60,6 +69,8 @@ export default async function DossierPage({
     "chambre-annulee"?: string;
     "dates-modifiees"?: string;
     "chambre-ajoutee"?: string;
+    rembourse?: string;
+    litige?: string;
   }>;
 }) {
   const { id } = await params;
@@ -70,14 +81,27 @@ export default async function DossierPage({
   if (!found || found.bookings.length === 0) notFound();
   const { dossier, bookings, payment } = found;
 
-  const money = dossierMoney(bookings, payment);
+  const [refundRows, disputeRows, demo] = await Promise.all([
+    getDossierRefunds(tenantId, id),
+    getDossierDisputes(tenantId, id),
+    isDemoTenant(tenantId),
+  ]);
+  const dispute = disputeRows.some((d) => disputeIsOpen(d.status));
+  // Litige perdu : la banque a repris l'argent, compté comme remboursé dans l'encaissé net.
+  const money = dossierMoney(bookings, payment, refundedTotal(refundRows) + lostDisputeTotal(disputeRows));
+  const openDispute = disputeRows.findLast((d) => disputeIsOpen(d.status));
+  // Remboursable depuis l'app : un paiement en ligne abouti, pas en litige (PRD Remboursements).
+  const refundable = payment?.status === "paid" && payment.stripePaymentId ? cents(money.refundable) : 0;
+  const canRefund = refundable > 0 && !dispute;
+  const now = new Date();
+  const level = dossier.cancellationLevel;
+  const lastRefund = refundRows.at(-1);
   const active = bookings.filter((b) => b.status === "pending" || b.status === "confirmed");
   const nights = Math.round((new Date(dossier.checkOut).getTime() - new Date(dossier.checkIn).getTime()) / 86_400_000);
   const guests = bookings.filter((b) => b.status !== "cancelled").reduce((n, b) => n + b.guestCount, 0);
   const children = bookings.filter((b) => b.status !== "cancelled").reduce((n, b) => n + b.childCount, 0);
   const allCancelled = bookings.every((b) => b.status === "cancelled");
   const isManual = bookings.every((b) => b.source === "manual");
-  const paidLabel = payment?.stripePaymentId ? ` (paiement ${payment.stripePaymentId})` : "";
   // Dates et chambres se modifient tant que le séjour n'est ni annulé, ni terminé, ni en plein paiement en ligne.
   const editable =
     active.length > 0 && !bookings.some((b) => b.status === "completed") && !openCheckoutDeadline(payment);
@@ -138,20 +162,30 @@ export default async function DossierPage({
         </p>
       </header>
 
-      {/* L'argent encaissé dépasse ce que le séjour coûte : jamais rendu automatiquement. */}
-      {money.refund > 0 && (
-        <StatusBanner variant="error">
-          <span data-refund-due>
-            {allCancelled
-              ? `${dossier.guestName} a payé ${formatEuros(money.paidOnline)} en ligne et tout le Dossier est annulé : `
-              : `${dossier.guestName} a payé ${formatEuros(money.paidOnline)} en ligne pour un séjour qui coûte maintenant ${formatEuros(money.due)} : `}
-            remboursez {formatEuros(money.refund)} depuis votre tableau de bord Stripe{paidLabel}. Rien n&apos;est rendu
-            automatiquement.
-          </span>
-        </StatusBanner>
-      )}
-
       <div role="status">
+        {disputeRows.map((d) => {
+          const banner = disputeBanner(d, now);
+          return (
+            banner && (
+              <StatusBanner key={d.id} variant={banner.variant}>
+                <span data-dispute-banner={d.status}>
+                  {banner.text}
+                  {banner.open && !d.submittedAt && <> Motif : {disputeReasonFr(d.reason)}.</>}
+                </span>
+              </StatusBanner>
+            )
+          );
+        })}
+        {query.litige === "envoye" && (
+          <StatusBanner variant="success">
+            <span data-dispute-flash>Réponse envoyée à la banque. Elle décide, souvent en 2 à 3 mois ; vous serez prévenu ici.</span>
+          </StatusBanner>
+        )}
+        {query.litige === "accepte" && (
+          <StatusBanner variant="success">
+            <span data-dispute-flash>Litige accepté : la banque garde le montant pour le voyageur.</span>
+          </StatusBanner>
+        )}
         {query.enregistre && (
           <StatusBanner variant="success">
             Dossier enregistré : {bookings.length} chambres. Ces nuits ne sont plus proposées sur votre site.
@@ -178,6 +212,34 @@ export default async function DossierPage({
               : (query["dates-modifiees"] ?? query["chambre-ajoutee"]) === "sans-email"
                 ? `L'email n'a pas pu partir : prévenez ${dossier.guestName} directement.`
                 : ""}
+          </StatusBanner>
+        )}
+        {query.rembourse && query.rembourse !== "echec" && lastRefund && (
+          <StatusBanner variant={query.rembourse === "1" ? "success" : "warning"}>
+            <span data-refund-banner>
+              Remboursement de {formatEuros(lastRefund.amount)}{" "}
+              {lastRefund.status === "succeeded" ? "effectué" : lastRefund.status === "failed" ? "refusé par la banque" : "en cours"}.{" "}
+              {query.rembourse === "1"
+                ? `${dossier.guestEmail} a été prévenu par email (délai bancaire de 5 à 10 jours).`
+                : `L'email n'a pas pu partir : prévenez ${dossier.guestName} directement.`}
+            </span>
+          </StatusBanner>
+        )}
+        {lastRefund?.status === "failed" && (
+          <StatusBanner variant="error">
+            <span data-refund-failed>
+              Remboursement de {formatEuros(lastRefund.amount)} échoué
+              {lastRefund.failureReason ? ` (${lastRefund.failureReason})` : ""} : rien n&apos;a été remboursé.
+              Refaites-le avec « Rembourser » ci-dessous ou contactez {dossier.guestName}.
+            </span>
+          </StatusBanner>
+        )}
+        {query.rembourse === "echec" && (
+          <StatusBanner variant="error">
+            <span data-refund-banner>
+              Annulation faite, mais le remboursement n&apos;a pas pu être fait (Stripe a refusé ou est injoignable) :
+              rien n&apos;a été remboursé. Réessayez avec « Rembourser » ci-dessous.
+            </span>
           </StatusBanner>
         )}
         {(query["chambre-annulee"] === "sans-email" || query.annule === "sans-email") && (
@@ -248,23 +310,40 @@ export default async function DossierPage({
                               Seule cette chambre est libérée ;{" "}
                               {active.length > 2 ? `les ${active.length - 1} autres restent réservées` : "l'autre chambre reste réservée"}. Un email d&apos;annulation
                               est envoyé à <strong style={{ color: "var(--admin-text)" }}>{dossier.guestEmail}</strong>.
-                              <span
-                                className="block mt-3 px-3 py-2 rounded-lg text-[12.5px] leading-[1.5]"
-                                style={
-                                  money.paidOnline > 0
-                                    ? { background: "#FEF3C7", color: "#92400E" }
-                                    : { background: "var(--admin-surface-2)", color: "var(--admin-text-muted)" }
-                                }
-                              >
-                                {money.paidOnline > 0
-                                  ? `Payé en ligne : l'annulation ne rembourse rien. La fiche du Dossier indiquera le montant à rendre depuis Stripe.`
-                                  : "Aucun paiement en ligne à rembourser."}
-                              </span>
+                              {canRefund ? (
+                                <CancelRefundFields
+                                  guestEmail={dossier.guestEmail}
+                                  refundable={refundable}
+                                  {...cancellationRefund({
+                                    level,
+                                    checkIn: dossier.checkIn,
+                                    now,
+                                    base: cents(b.totalPrice),
+                                    baseLabel: "Prix de la chambre",
+                                    refundable,
+                                  })}
+                                />
+                              ) : (
+                                <span
+                                  data-refund-note
+                                  className="block mt-3 px-3 py-2 rounded-lg text-[12.5px] leading-[1.5]"
+                                  style={{ background: "var(--admin-surface-2)", color: "var(--admin-text-muted)" }}
+                                >
+                                  {dispute
+                                    ? "Litige en cours sur le paiement : répondez-y d'abord, rien n'est remboursé."
+                                    : money.paidOnline > 0 && !payment?.stripePaymentId
+                                      ? "Paiement en ligne sans référence Stripe : remboursez-le depuis votre tableau de bord Stripe."
+                                      : money.paidOnline > 0
+                                      ? "Le paiement en ligne est déjà entièrement remboursé."
+                                      : "Aucun paiement en ligne à rembourser."}
+                                </span>
+                              )}
                             </>
                           }
                           cancelLabel="Garder"
                           confirmLabel="Annuler cette chambre"
                           onConfirm={cancelDossierBooking.bind(null, dossier.id, b.id)}
+                          withForm
                           style={dangerOutline}
                         >
                           Annuler cette chambre
@@ -301,9 +380,122 @@ export default async function DossierPage({
         </section>
       )}
 
+      {openDispute && (
+        <section
+          aria-label="Litige en cours"
+          data-dispute-card
+          className="px-4 sm:px-5 py-4 space-y-3"
+          style={{ background: "var(--admin-surface)", border: "1px solid #FCA5A5", borderRadius: "var(--admin-radius)" }}
+        >
+          <div>
+            <h2 className="text-[12px] font-bold uppercase" style={{ color: "var(--admin-danger)", letterSpacing: "0.06em" }}>
+              Litige · {formatEuros(openDispute.amount)}
+            </h2>
+            <p className="text-[13px] leading-[1.5] mt-1" style={{ color: "var(--admin-text-muted)" }}>
+              {dossier.guestName} conteste le paiement auprès de sa banque ({disputeReasonFr(openDispute.reason)}).{" "}
+              {canRespond(openDispute, now)
+                ? `Répondez avec vos preuves avant le ${disputeDay(openDispute.evidenceDueBy ?? now, true)}, ou acceptez : sans réponse, la banque donne raison au voyageur.`
+                : openDispute.submittedAt
+                  ? "Votre réponse est envoyée ; la banque décide."
+                  : "La date limite de réponse est dépassée."}{" "}
+              Les réservations ne changent pas.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href={`/admin/dossiers/${dossier.id}/litige`}
+              className="admin-btn"
+              style={{ background: "var(--admin-primary)", color: "#fff", border: "none" }}
+              data-dispute-respond
+            >
+              {canRespond(openDispute, now) ? "Répondre" : "Voir la réponse"}
+            </Link>
+            {canRespond(openDispute, now) && (
+              <ConfirmButton
+                title="Accepter le litige ?"
+                message={
+                  <>
+                    La banque garde <strong style={{ color: "var(--admin-text)" }}>{formatEuros(openDispute.amount)}</strong> pour{" "}
+                    {dossier.guestName} : le montant est compté comme remboursé. C&apos;est définitif, vous ne pourrez plus répondre.
+                  </>
+                }
+                cancelLabel="Retour"
+                confirmLabel="Accepter le litige"
+                onConfirm={acceptDisputeAction.bind(null, dossier.id, openDispute.id)}
+                style={dangerOutline}
+              >
+                Accepter le litige
+              </ConfirmButton>
+            )}
+            <a
+              href={disputeStripeUrl(openDispute.stripeDisputeId, demo)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[12.5px] underline underline-offset-2 py-2"
+              style={{ color: "var(--admin-text-muted)" }}
+              data-dispute-stripe-link
+            >
+              Voir sur Stripe
+            </a>
+          </div>
+        </section>
+      )}
+
       <Card label="Paiement">
         <Row label="Total du séjour" value={formatEuros(money.due)} />
-        {money.paidOnline > 0 && <Row label="Payé en ligne" value={formatEuros(money.paidOnline)} />}
+        {money.paidOnline > 0 && (
+          // Une ligne par mouvement d'argent : le paiement, puis chaque remboursement.
+          <ul className="px-4 sm:px-5 py-1" aria-label="Mouvements" data-money-moves>
+            <Move
+              label="Payé en ligne"
+              date={payment?.createdAt ?? null}
+              amount={`+ ${formatEuros(money.paidOnline)}`}
+            />
+            {refundRows.map((r) => {
+              const room = r.bookingId ? bookings.find((b) => b.id === r.bookingId)?.room?.name : null;
+              return (
+                <Move
+                  key={r.id}
+                  refundId={r.id}
+                  label={room ? `Remboursement · ${room}` : "Remboursement"}
+                  date={r.createdAt}
+                  detail={r.reason}
+                  struck={r.status === "failed"}
+                  amount={`− ${formatEuros(r.amount)}`}
+                  badge={
+                    <StatusBadge
+                      status={r.status === "succeeded" ? "confirmed" : r.status === "failed" ? "cancelled" : "pending"}
+                      label={r.status === "succeeded" ? "Effectué" : r.status === "failed" ? "Échoué" : "En cours"}
+                    />
+                  }
+                />
+              );
+            })}
+            {disputeRows
+              .filter((d) => d.status === "lost")
+              .map((d) => (
+                <Move
+                  key={d.id}
+                  label="Litige perdu · repris par la banque"
+                  date={d.closedAt ?? d.updatedAt}
+                  amount={`− ${formatEuros(d.amount)}`}
+                />
+              ))}
+          </ul>
+        )}
+        {money.refunded > 0 && (
+          <Row label="Encaissé net" value={<span data-net-paid>{formatEuros(money.net)}</span>} />
+        )}
+        {money.refund > 0 && (
+          <Row
+            label="Trop-perçu"
+            value={
+              <span data-refund-due style={{ color: "#92400E" }}>
+                {formatEuros(money.refund)}
+              </span>
+            }
+          />
+        )}
         {money.balance > 0 && (
           <Row
             label="Reste à payer"
@@ -318,8 +510,10 @@ export default async function DossierPage({
           label="Règlement"
           value={
             allCancelled ? (
-              money.paidOnline > 0 ? (
+              money.refund > 0 ? (
                 <StatusBadge status="cancelled" label="Payé, à rembourser" />
+              ) : money.paidOnline > 0 ? (
+                <StatusBadge status="completed" label="Remboursé" />
               ) : (
                 <StatusBadge status="completed" label="Rien à régler" />
               )
@@ -352,7 +546,67 @@ export default async function DossierPage({
             )
           }
         />
+        {money.paidOnline > 0 && (
+          <div className="flex items-center justify-end gap-2 flex-wrap px-4 sm:px-5 py-1.5" data-refund-actions>
+            {canRefund || dispute ? (
+              <RefundButton
+                dossierId={dossier.id}
+                refundable={refundable}
+                guestEmail={dossier.guestEmail}
+                disabledReason={dispute ? "Litige en cours, répondez-y d'abord." : undefined}
+                defaultAmount={money.refund > 0 ? Math.min(cents(money.refund), refundable) : 0}
+                shortcuts={uniqueShortcuts([
+                  money.refund > 0 && { label: "Trop-perçu", amount: Math.min(cents(money.refund), refundable) },
+                  ...bookings
+                    .filter((b) => b.status === "cancelled")
+                    .map((b) => ({ label: `Chambre annulée · ${b.room?.name ?? "Chambre"}`, amount: Math.min(cents(b.totalPrice), refundable) })),
+                  refundSuggestion(level, dossier.checkIn, now, cents(money.paidOnline), refundable),
+                  { label: "Tout le restant", amount: refundable },
+                ])}
+              />
+            ) : (
+              <span className="text-[12.5px]" style={{ color: "var(--admin-text-muted)" }}>
+                {payment?.stripePaymentId ? "Paiement entièrement remboursé." : "Sans référence Stripe : remboursez depuis votre tableau de bord Stripe."}
+              </span>
+            )}
+          </div>
+        )}
         <Row label="Origine" value={<ChannelTag channel={isManual ? "manual" : "direct"} />} />
+        {dossier.termsAcceptedAt && (
+          // Preuve en cas de contestation : le texte exact accepté au paiement.
+          <details className="px-4 sm:px-5 pt-1.5" data-testid="dossier-accepted-terms">
+            <summary className="text-[13px] cursor-pointer min-h-[44px] flex items-center" style={{ color: "var(--admin-text-muted)" }}>
+              Conditions acceptées au paiement le{" "}
+              {new Date(dossier.termsAcceptedAt).toLocaleString("fr-FR", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: HOTEL_TIME_ZONE,
+              })}
+              {dossier.cancellationLevel && ` (annulation ${CANCELLATION_LEVEL_INFO[dossier.cancellationLevel].label.toLowerCase()})`}
+            </summary>
+            {[
+              { title: "Conditions d'annulation", text: dossier.acceptedCancellationText },
+              { title: "Conditions générales de vente", text: dossier.acceptedCgvText },
+            ].map((d) => (
+              <div key={d.title} className="mt-2">
+                <p className="text-[12px] font-bold uppercase" style={{ color: "var(--admin-text-muted)", letterSpacing: "0.06em" }}>
+                  {d.title}
+                </p>
+                <p
+                  tabIndex={0}
+                  aria-label={d.title}
+                  className="text-[12.5px] leading-[1.5] whitespace-pre-line overflow-y-auto mt-1 px-3 py-2 rounded-lg break-words"
+                  style={{ maxHeight: 240, background: "var(--admin-surface-2)", color: "var(--admin-text)" }}
+                >
+                  {d.text}
+                </p>
+              </div>
+            ))}
+          </details>
+        )}
       </Card>
 
       <Card label="Voyageur">
@@ -391,27 +645,42 @@ export default async function DossierPage({
             title={`Annuler tout le Dossier de ${dossier.guestName} ?`}
             message={
               <>
-                Les {active.length} chambre{active.length > 1 ? "s" : ""} encore réservée{active.length > 1 ? "s" : ""}{" "}
-                {active.length > 1 ? "seront libérées" : "sera libérée"} et un email d&apos;annulation sera envoyé à{" "}
+                {active.length > 1 ? `Les ${active.length} chambres encore réservées seront libérées` : "La chambre encore réservée sera libérée"} et un email d&apos;annulation sera envoyé à{" "}
                 <strong style={{ color: "var(--admin-text)" }}>{dossier.guestEmail}</strong>. Cette action est définitive.
-                <span
-                  data-refund-note
-                  className="block mt-3 px-3 py-2 rounded-lg text-[12.5px] leading-[1.5]"
-                  style={
-                    money.paidOnline > 0
-                      ? { background: "#FEF3C7", color: "#92400E" }
-                      : { background: "var(--admin-surface-2)", color: "var(--admin-text-muted)" }
-                  }
-                >
-                  {money.paidOnline > 0
-                    ? `${dossier.guestName} a payé ${formatEuros(money.paidOnline)} en ligne. L'annulation ne le rembourse pas : faites-le depuis votre tableau de bord Stripe.`
-                    : "Aucun paiement en ligne à rembourser."}
-                </span>
+                {canRefund ? (
+                  <CancelRefundFields
+                    guestEmail={dossier.guestEmail}
+                    refundable={refundable}
+                    {...cancellationRefund({
+                      level,
+                      checkIn: dossier.checkIn,
+                      now,
+                      base: cents(money.paidOnline),
+                      baseLabel: "Tout le paiement",
+                      refundable,
+                    })}
+                  />
+                ) : (
+                  <span
+                    data-refund-note
+                    className="block mt-3 px-3 py-2 rounded-lg text-[12.5px] leading-[1.5]"
+                    style={{ background: "var(--admin-surface-2)", color: "var(--admin-text-muted)" }}
+                  >
+                    {dispute
+                      ? "Litige en cours sur le paiement : répondez-y d'abord, rien n'est remboursé."
+                      : money.paidOnline > 0 && !payment?.stripePaymentId
+                        ? "Paiement en ligne sans référence Stripe : remboursez-le depuis votre tableau de bord Stripe."
+                        : money.paidOnline > 0
+                        ? "Le paiement en ligne est déjà entièrement remboursé."
+                        : "Aucun paiement en ligne à rembourser."}
+                  </span>
+                )}
               </>
             }
             cancelLabel="Garder"
             confirmLabel="Annuler le Dossier"
             onConfirm={cancelDossier.bind(null, dossier.id)}
+            withForm
             style={dangerOutline}
           >
             Annuler tout le Dossier
@@ -437,6 +706,56 @@ function Card({ label, children }: { label: string; children: React.ReactNode })
       </h2>
       {children}
     </section>
+  );
+}
+
+function Move({
+  label,
+  date,
+  amount,
+  detail,
+  badge,
+  struck,
+  refundId,
+}: {
+  label: string;
+  date: Date | null;
+  amount: string;
+  detail?: string | null;
+  badge?: React.ReactNode;
+  struck?: boolean;
+  refundId?: string;
+}) {
+  return (
+    <li
+      className="flex justify-between items-start gap-3 py-1.5"
+      style={{ borderTop: "1px solid var(--admin-border-light)" }}
+      data-refund-row={refundId}
+    >
+      <span className="min-w-0">
+        <span className="block text-[13px] font-semibold break-words" style={{ color: "var(--admin-text)" }}>
+          {label}
+        </span>
+        <span className="block text-[12px]" style={{ color: "var(--admin-text-muted)" }}>
+          {date &&
+            new Date(date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric", timeZone: HOTEL_TIME_ZONE })}
+        </span>
+        {detail && (
+          <span className="block text-[12px] break-words whitespace-pre-line" style={{ color: "var(--admin-text-muted)" }} data-refund-reason>
+            {detail}
+          </span>
+        )}
+      </span>
+      <span className="flex flex-col items-end gap-1 flex-shrink-0">
+        <span
+          className="text-[13px] font-semibold tabular-nums whitespace-nowrap"
+          style={{ color: "var(--admin-text)", textDecoration: struck ? "line-through" : undefined }}
+        >
+          {amount}
+        </span>
+        {badge}
+      </span>
+    </li>
   );
 }
 

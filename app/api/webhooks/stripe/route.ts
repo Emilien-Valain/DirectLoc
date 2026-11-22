@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 import Stripe from "stripe";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { bookings, dossiers, payments, rooms, users, userTenants } from "@/db/schema";
+import { bookings, dossiers, payments, rooms } from "@/db/schema";
 import { cancelPendingDossier, confirmDossier, getDossierBookingIds } from "@/lib/dossiers";
 import { getStripe, stripeModeAllowed } from "@/lib/stripe";
 import { isDemoTenant } from "@/lib/demo";
@@ -14,18 +14,10 @@ import {
   sendBookingCancellation,
   sendPaidAfterCancellationAlert,
 } from "@/lib/email";
+import { REFUND_EVENT_TYPES, handleRefundEvent, tenantAdminEmails } from "@/lib/refund-sync";
+import { DISPUTE_EVENT_TYPES, handleDisputeEvent } from "@/lib/dispute-sync";
 import { isUuid } from "@/lib/validation";
 import { loadDossierEmailContext, loadEmailContext } from "@/lib/queries/bookings";
-
-/** Emails des admins du tenant (destinataires des notifications hôte). */
-async function tenantAdminEmails(tenantId: string): Promise<string[]> {
-  const rows = await db
-    .select({ email: users.email })
-    .from(userTenants)
-    .innerJoin(users, eq(users.id, userTenants.userId))
-    .where(eq(userTenants.tenantId, tenantId));
-  return rows.map((r) => r.email);
-}
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -58,6 +50,26 @@ export async function POST(request: NextRequest) {
   // ce serveur écrit les payments, et Stripe choisit l'id de session. Un autre compte
   // connecté ne peut donc pas agir sur la résa d'un autre hôtel, et une session créée
   // avant une déconnexion/reconnexion Stripe reste reconnue (pas le compte actuel).
+  if (REFUND_EVENT_TYPES.has(event.type)) {
+    try {
+      // 503 : Stripe rejouera (ligne d'un remboursement de l'app pas encore écrite, API Stripe injoignable).
+      if ((await handleRefundEvent(event)) === "retry") return NextResponse.json({ error: "Réessayez" }, { status: 503 });
+    } catch (e) {
+      console.error(`[stripe] Événement ${event.id} : synchro du remboursement en erreur`, e);
+      return NextResponse.json({ error: "Erreur" }, { status: 500 });
+    }
+    return NextResponse.json({ received: true });
+  }
+  if (DISPUTE_EVENT_TYPES.has(event.type)) {
+    try {
+      await handleDisputeEvent(event);
+    } catch (e) {
+      // 500 : Stripe rejouera (base indisponible…) ; l'upsert et l'alerte unique rendent le rejeu sûr.
+      console.error(`[stripe] Événement ${event.id} : synchro du litige en erreur`, e);
+      return NextResponse.json({ error: "Erreur" }, { status: 500 });
+    }
+    return NextResponse.json({ received: true });
+  }
   if (!event.type.startsWith("checkout.session.")) {
     return NextResponse.json({ received: true });
   }

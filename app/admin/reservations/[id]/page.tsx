@@ -17,6 +17,10 @@ import { HOTEL_TIME_ZONE } from "@/lib/date-windows";
 import { getBookingLines } from "@/lib/queries/extras";
 import { balanceDue, grandTotal } from "@/lib/extras";
 import { ChannelTag, PrimaryButton, StatusBadge, StatusBanner } from "@/components/admin/ui";
+import { db } from "@/lib/db";
+import { getDossierRefunds, hasOpenDispute, refundedTotal } from "@/lib/refunds";
+import { cancellationRefund, cents } from "@/lib/refund-amounts";
+import { CancelRefundFields } from "@/components/admin/RefundForms";
 
 // Statut du paiement en ligne → libellé hôte + couleur de badge (palette des statuts).
 const PAYMENT_LABEL: Record<string, { label: string; tone: string }> = {
@@ -34,10 +38,10 @@ export default async function ReservationDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ enregistree?: string; annulee?: string; modifiee?: string }>;
+  searchParams: Promise<{ enregistree?: string; annulee?: string; modifiee?: string; rembourse?: string }>;
 }) {
   const { id } = await params;
-  const { enregistree, annulee, modifiee } = await searchParams;
+  const { enregistree, annulee, modifiee, rembourse } = await searchParams;
   const { tenantId } = await requireSession();
   await completeFinishedStays(tenantId);
   const [reservation, payment, dossier] = await Promise.all([
@@ -51,13 +55,29 @@ export default async function ReservationDetailPage({
   // Il ne se lit donc pas chambre par chambre : reste à payer et trop-perçu sont sur la fiche du Dossier.
   const group = dossier && dossier.size > 1 ? dossier : null;
   const dossierHref = group ? `/admin/dossiers/${group.id}` : "";
-  const paidOnline = payment?.status === "paid" && !group ? parseFloat(payment.amount) : 0;
+  // Remboursements du paiement en ligne (PRD Remboursements) : encaissé net = payé − remboursé.
+  // Remboursable depuis l'app seulement avec la référence Stripe (payment_intent) du paiement.
+  const onlinePaid = payment?.status === "paid";
+  const [refundRows, dispute, dossierRow] = onlinePaid
+    ? await Promise.all([
+        getDossierRefunds(tenantId, reservation.dossierId),
+        hasOpenDispute(tenantId, reservation.dossierId),
+        db.query.dossiers.findFirst({
+          where: (d, { and, eq }) => and(eq(d.id, reservation.dossierId), eq(d.tenantId, tenantId)),
+          columns: { cancellationLevel: true, checkIn: true },
+        }),
+      ])
+    : [[], false, undefined];
+  const netPaid = onlinePaid ? Math.max(0, cents(payment!.amount) - cents(refundedTotal(refundRows))) : 0;
+  const refundable = payment?.stripePaymentId ? netPaid : 0;
+  const lastRefund = refundRows.at(-1);
+  const paidOnline = onlinePaid && !group ? netPaid / 100 : 0;
   // Reste à payer : Extras ajoutés après le paiement en ligne, réglés sur place (ADR-0010).
   const balance =
     reservation.status === "cancelled" ? 0 : balanceDue(parseFloat(reservation.totalPrice), paidOnline, reservation.paidAt);
   // Annulée alors que l'argent est encaissé (annulation par l'hôte, ou paiement
   // arrivé après l'annulation via le webhook) : DirectLoc ne rembourse jamais seul.
-  const paidAfterCancel = reservation.status === "cancelled" && payment?.status === "paid" && !group;
+  const paidAfterCancel = reservation.status === "cancelled" && payment?.status === "paid" && !group && netPaid > 0;
   const paymentInfo = paidAfterCancel
     ? { label: "Payé, à rembourser", tone: "cancelled" }
     : payment
@@ -110,16 +130,23 @@ export default async function ReservationDetailPage({
 
       {group && reservation.status === "cancelled" && payment?.status === "paid" && (
         <StatusBanner variant="warning">
-          Chambre annulée alors que le Dossier a été payé en ligne : le montant à rembourser depuis Stripe est
-          indiqué sur la fiche du Dossier.
+          Chambre annulée alors que le Dossier a été payé en ligne : le trop-perçu est indiqué sur la fiche du
+          Dossier, d&apos;où vous pouvez le rembourser.
         </StatusBanner>
       )}
 
       {paidAfterCancel && (
         <StatusBanner variant="error">
-          {reservation.guestName} a payé {formatEuros(payment.amount)} en ligne et la réservation est annulée :
-          l&apos;argent n&apos;est pas rendu automatiquement. Remboursez-le depuis votre tableau de bord Stripe
-          {payment.stripePaymentId ? ` (paiement ${payment.stripePaymentId})` : ""}.
+          {reservation.guestName} a payé {formatEuros(payment.amount)} en ligne et la réservation est annulée :{" "}
+          {formatEuros(netPaid / 100)} ne {netPaid === cents(payment.amount) ? "sont" : "sont toujours"} pas rendus
+          {payment.stripePaymentId ? ` (paiement ${payment.stripePaymentId})` : ""}.{" "}
+          {refundable > 0 ? (
+            <Link href={`/admin/dossiers/${reservation.dossierId}`} className="underline underline-offset-2 font-semibold">
+              Rembourser depuis la fiche du Dossier
+            </Link>
+          ) : (
+            "Remboursez-le depuis votre tableau de bord Stripe."
+          )}
         </StatusBanner>
       )}
 
@@ -147,6 +174,24 @@ export default async function ReservationDetailPage({
           <StatusBanner variant="warning">
             Réservation modifiée, mais l&apos;email n&apos;a pas pu partir : prévenez{" "}
             {reservation.guestName} directement.
+          </StatusBanner>
+        )}
+        {rembourse && rembourse !== "echec" && lastRefund && (
+          <StatusBanner variant={rembourse === "1" ? "success" : "warning"}>
+            <span data-refund-banner>
+              Remboursement de {formatEuros(lastRefund.amount)} {lastRefund.status === "succeeded" ? "effectué" : "en cours"}.{" "}
+              {rembourse === "1"
+                ? `${reservation.guestEmail} a été prévenu par email.`
+                : `L'email n'a pas pu partir : prévenez ${reservation.guestName} directement.`}
+            </span>
+          </StatusBanner>
+        )}
+        {rembourse === "echec" && (
+          <StatusBanner variant="error">
+            <span data-refund-banner>
+              Annulation faite, mais le remboursement n&apos;a pas pu être fait (Stripe a refusé ou est injoignable) : rien
+              n&apos;a été remboursé. Réessayez depuis la fiche du Dossier.
+            </span>
           </StatusBanner>
         )}
         {annulee === "sans-email" && (
@@ -222,40 +267,51 @@ export default async function ReservationDetailPage({
                 <strong style={{ color: "var(--admin-text)" }}>{reservation.guestEmail}</strong>.
                 Cette action est définitive.
                 {/* La vraie question de l'hôte : y a-t-il de l'argent à rendre ? */}
-                <span
-                  data-refund-note
-                  className="block mt-3 px-3 py-2 rounded-lg text-[12.5px] leading-[1.5]"
-                  style={
-                    payment?.status === "paid"
-                      ? { background: "#FEF3C7", color: "#92400E" }
-                      : { background: "var(--admin-surface-2)", color: "var(--admin-text-muted)" }
-                  }
-                >
-                  {group && payment?.status === "paid" ? (
-                    <>
-                      <strong>Le Dossier a été payé en ligne.</strong> L&apos;annulation ne rembourse rien : la fiche du
-                      Dossier indiquera le montant à rendre depuis Stripe.
-                    </>
-                  ) : payment?.status === "paid" ? (
-                    <>
-                      <strong>{reservation.guestName} a payé {formatEuros(payment.amount)} en ligne.</strong>{" "}
-                      L&apos;annulation ne le rembourse pas : faites-le depuis votre tableau de bord Stripe.
-                    </>
-                  ) : reservation.paidAt ? (
-                    <>
-                      Vous avez noté un règlement le{" "}
-                      {new Date(reservation.paidAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: HOTEL_TIME_ZONE })} :
-                      remboursez-le vous-même si nécessaire.
-                    </>
-                  ) : (
-                    "Aucun paiement à rembourser."
-                  )}
-                </span>
+                {refundable > 0 && !dispute ? (
+                  <CancelRefundFields
+                    guestEmail={reservation.guestEmail}
+                    refundable={refundable}
+                    {...cancellationRefund({
+                      level: dossierRow?.cancellationLevel,
+                      checkIn: dossierRow?.checkIn ?? reservation.checkIn,
+                      now: new Date(),
+                      base: group ? cents(reservation.totalPrice) : refundable,
+                      baseLabel: group ? "Prix de la chambre" : "Tout le paiement",
+                      refundable,
+                    })}
+                  />
+                ) : (
+                  <span
+                    data-refund-note
+                    className="block mt-3 px-3 py-2 rounded-lg text-[12.5px] leading-[1.5]"
+                    style={{ background: "var(--admin-surface-2)", color: "var(--admin-text-muted)" }}
+                  >
+                    {dispute ? (
+                      "Litige en cours sur le paiement : répondez-y d'abord, rien n'est remboursé."
+                    ) : onlinePaid && netPaid > 0 ? (
+                      <>
+                        <strong>{reservation.guestName} a payé {formatEuros(payment!.amount)} en ligne.</strong>{" "}
+                        L&apos;annulation ne le rembourse pas : faites-le depuis votre tableau de bord Stripe.
+                      </>
+                    ) : onlinePaid ? (
+                      "Le paiement en ligne est déjà entièrement remboursé."
+                    ) : reservation.paidAt ? (
+                      <>
+                        Vous avez noté un règlement le{" "}
+                        {new Date(reservation.paidAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", timeZone: HOTEL_TIME_ZONE })} :
+                        remboursez-le vous-même si nécessaire.
+                      </>
+                    ) : (
+                      "Aucun paiement à rembourser."
+                    )}
+                  </span>
+                )}
               </>
             }
             cancelLabel="Garder"
             confirmLabel="Annuler la réservation"
             onConfirm={cancelBooking.bind(null, id)}
+            withForm
             style={{
               padding: "9px 18px",
               background: "transparent",

@@ -4,6 +4,7 @@ import type { Tenant, TenantConfig } from "@/lib/tenant-context";
 import SiteMenu from "@/components/public/SiteMenu";
 import Analytics from "@/components/Analytics";
 import { isDemoTenant } from "@/lib/demo";
+import { LEGAL_DOC_KINDS, LEGAL_PAGES } from "@/lib/legal-documents";
 import "@/components/public/site.css";
 import "@/components/public/templates/plaque.css";
 import "@/components/public/templates/linge.css";
@@ -135,6 +136,15 @@ function SiteShell({
             {config.email && <a href={`mailto:${config.email}`}>{config.email}</a>}
           </div>
         </div>
+        <nav className="s-footer-legal" aria-label="Informations légales" data-testid="footer-legal">
+          <ul>
+            {LEGAL_DOC_KINDS.map((k) => (
+              <li key={k}>
+                <Link href={LEGAL_PAGES[k].path}>{LEGAL_PAGES[k].title}</Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
         <p className="s-credit">
           © {new Date().getFullYear()} {tenant.name} · Réservation directe par{" "}
           <a href="https://directloc.app" target="_blank" rel="noopener noreferrer">

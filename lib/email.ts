@@ -487,7 +487,7 @@ export async function sendPaidAfterCancellationAlert(data: PaidAfterCancellation
   ${escapeHtml(guestName)} (${escapeHtml(guestEmail)}) a pay&eacute; tout son s&eacute;jour, mais
   ${cancelledRooms.map((r) => `<strong>${escapeHtml(r.name)}</strong> (${escapeHtml(r.total)} &euro;)`).join(", ")}
   ${cancelledRooms.length > 1 ? "avaient &eacute;t&eacute; annul&eacute;es" : "avait &eacute;t&eacute; annul&eacute;e"} entre-temps.
-  Les autres chambres sont confirm&eacute;es. <strong>Remboursement partiel &agrave; faire depuis votre tableau de bord Stripe</strong>
+  Les autres chambres sont confirm&eacute;es. <strong>Remboursement partiel &agrave; faire depuis la fiche du Dossier (bouton &laquo;&nbsp;Rembourser&nbsp;&raquo;)</strong>
   (paiement <code>${escapeHtml(stripePaymentId)}</code>).
 </p>
 ${renderBookingSummaryTable(data)}`
@@ -495,7 +495,7 @@ ${renderBookingSummaryTable(data)}`
 <h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #b42318;">Paiement re&ccedil;u sur une r&eacute;servation annul&eacute;e</h2>
 <p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
   ${escapeHtml(guestName)} (${escapeHtml(guestEmail)}) a pay&eacute; une r&eacute;servation qui avait &eacute;t&eacute; annul&eacute;e entre-temps.
-  La r&eacute;servation reste annul&eacute;e : <strong>remboursez le client depuis votre tableau de bord Stripe</strong>
+  La r&eacute;servation reste annul&eacute;e : <strong>remboursez le client depuis la fiche du Dossier (bouton &laquo;&nbsp;Rembourser&nbsp;&raquo;)</strong>
   (paiement <code>${escapeHtml(stripePaymentId)}</code>), ou recr&eacute;ez la r&eacute;servation si la chambre est encore libre.
 </p>
 ${renderBookingSummaryTable(data)}`;
@@ -616,6 +616,112 @@ export async function sendPartialCancellation(data: PartialCancellationData) {
     html: renderEmailLayout({ hotelName, config }, body),
     hotelName,
     replyTo: config?.email,
+  });
+}
+
+// ─── 3c. Remboursement (un email par remboursement, jamais depuis la démo) ────
+
+export async function sendRefundNotice(data: {
+  tenantId: string;
+  guestName: string;
+  guestEmail: string;
+  hotelName: string;
+  config?: TenantConfig;
+  checkIn: Date;
+  checkOut: Date;
+  /** En euros. */
+  amount: number;
+}) {
+  const { guestName, guestEmail, hotelName, config, checkIn, checkOut, amount } = data;
+  const body = `
+<h2 style="margin: 0 0 16px 0; font-size: 24px; font-weight: 600; color: #1a1a1a;">Remboursement de ${euros(amount)} &euro;</h2>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Bonjour ${escapeHtml(guestName)},</p>
+<p style="font-size: 15px; color: #333; line-height: 1.6;"><strong>${escapeHtml(hotelName)}</strong> vous rembourse <strong>${euros(amount)} &euro;</strong> pour votre r&eacute;servation du ${formatDate(checkIn)} au ${formatDate(checkOut)}.</p>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Le montant est rendu sur la carte utilis&eacute;e pour le paiement. Selon votre banque, il appara&icirc;t sur votre compte sous 5 &agrave; 10 jours ouvr&eacute;s.</p>
+<p style="font-size: 15px; color: #333; line-height: 1.6;">Pour toute question, r&eacute;pondez simplement &agrave; cet email.</p>`;
+
+  await sendEmail({
+    tenantId: data.tenantId,
+    to: guestEmail,
+    subject: `Remboursement de ${euros(amount)} € pour votre réservation — ${hotelName}`,
+    html: renderEmailLayout({ hotelName, config }, body),
+    hotelName,
+    replyTo: config?.email,
+  });
+}
+
+/** Alerte admin : un remboursement a échoué chez Stripe (rien n'est parti), à refaire depuis la fiche du Dossier. */
+export async function sendRefundFailedAlert(data: {
+  tenantId: string;
+  adminEmail: string;
+  guestName: string;
+  guestEmail: string;
+  hotelName: string;
+  config?: TenantConfig;
+  checkIn: Date;
+  checkOut: Date;
+  /** En euros, au format « 12.50 ». */
+  amount: string;
+  reason: string | null;
+}) {
+  const { guestName, guestEmail, hotelName, config, checkIn, checkOut, adminEmail } = data;
+  const amount = euros(parseFloat(data.amount));
+  const body = `
+<h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #b42318;">Remboursement de ${amount} &euro; &eacute;chou&eacute;</h2>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
+  Le remboursement de <strong>${amount} &euro;</strong> pour ${escapeHtml(guestName)} (${escapeHtml(guestEmail)}), s&eacute;jour du ${formatDate(checkIn)} au ${formatDate(checkOut)}, a &eacute;chou&eacute; chez Stripe${data.reason ? ` (motif : <code>${escapeHtml(data.reason)}</code>)` : ""}.
+  <strong>Rien n'a &eacute;t&eacute; rembours&eacute;</strong> : refaites-le depuis la fiche du Dossier (bouton &laquo;&nbsp;Rembourser&nbsp;&raquo;) ou contactez le voyageur pour un autre moyen de remboursement.
+</p>`;
+  await sendEmail({
+    tenantId: data.tenantId,
+    to: adminEmail,
+    subject: `Remboursement de ${amount} € échoué (${guestName})`,
+    html: renderEmailLayout({ hotelName, config }, body),
+    hotelName: `DirectLoc`,
+  });
+}
+
+/**
+ * Alerte admin : un voyageur conteste le paiement auprès de sa banque (litige). Une seule fois par
+ * litige (réservée par `disputes.alerted_at`). Montant, motif en français, date limite de réponse.
+ */
+export async function sendDisputeAlert(data: {
+  tenantId: string;
+  adminEmail: string;
+  guestName: string;
+  guestEmail: string;
+  hotelName: string;
+  config?: TenantConfig;
+  checkIn: Date;
+  checkOut: Date;
+  /** En euros, au format « 12.50 ». */
+  amount: string;
+  /** Motif déjà traduit. */
+  reason: string;
+  dueBy: Date | null;
+  dossierId: string;
+}) {
+  const { guestName, guestEmail, hotelName, config, checkIn, checkOut, adminEmail } = data;
+  const amount = euros(parseFloat(data.amount));
+  const due = data.dueBy
+    ? data.dueBy.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Paris" })
+    : null;
+  const body = `
+<h2 style="margin: 0 0 16px 0; font-size: 22px; font-weight: 600; color: #b42318;">Litige : ${amount} &euro; contest&eacute;s par ${escapeHtml(guestName)}</h2>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
+  ${escapeHtml(guestName)} (${escapeHtml(guestEmail)}) conteste aupr&egrave;s de sa banque le paiement de <strong>${amount} &euro;</strong> pour le s&eacute;jour du ${formatDate(checkIn)} au ${formatDate(checkOut)}.
+  Motif donn&eacute; par la banque : <strong>${escapeHtml(data.reason)}</strong>.
+</p>
+<p style="margin: 0 0 16px 0; font-size: 15px; line-height: 1.6;">
+  ${due ? `<strong>R&eacute;pondez avant le ${escapeHtml(due)}</strong>` : "<strong>R&eacute;pondez au plus vite</strong>"} : ouvrez la fiche du Dossier de ${escapeHtml(guestName)} dans DirectLoc, puis &laquo;&nbsp;R&eacute;pondre&nbsp;&raquo; (preuves pr&eacute;remplies) ou &laquo;&nbsp;Accepter&nbsp;&raquo;.
+  Sans r&eacute;ponse &agrave; temps, la banque donne raison au voyageur et l'argent est repris.
+</p>`;
+  await sendEmail({
+    tenantId: data.tenantId,
+    to: adminEmail,
+    subject: `Litige : ${amount} € contestés par ${guestName}${due ? ` — réponse avant le ${data.dueBy!.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", timeZone: "Europe/Paris" })}` : ""}`,
+    html: renderEmailLayout({ hotelName, config }, body),
+    hotelName: `DirectLoc`,
   });
 }
 

@@ -10,6 +10,7 @@ import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant } from "@/lib/queries/fees";
 import { matchesRoom } from "@/lib/extras";
 import { isDemoTenant } from "@/lib/demo";
+import { paymentTerms } from "@/lib/legal-documents";
 
 // Tunnel de réservation : rien à indexer.
 export async function generateMetadata(): Promise<Metadata> {
@@ -60,7 +61,12 @@ export default async function ReserverPage({
           extras={extras.filter((x) => matchesRoom(x, room.id))}
           fees={fees.filter((f) => matchesRoom(f, room.id))}
           touristTax={config.touristTax}
-          host={{ phone: config.phone, checkInTime: config.checkInTime, checkOutTime: config.checkOutTime }}
+          host={{
+            phone: config.phone,
+            checkInTime: config.checkInTime,
+            checkOutTime: config.checkOutTime,
+            terms: paymentTerms(tenant),
+          }}
           demo={demo}
         />
       </div>

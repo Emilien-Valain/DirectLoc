@@ -5,6 +5,7 @@ import PublicLayout from "@/components/public/PublicLayout";
 import DossierForm from "@/components/public/DossierForm";
 import { Breadcrumb } from "@/components/public/Site";
 import { requireTenant, type TenantConfig } from "@/lib/tenant-context";
+import { paymentTerms } from "@/lib/legal-documents";
 import { getRoomsPublic } from "@/lib/queries/public";
 import { getExtrasByTenant } from "@/lib/queries/extras";
 import { getFeesByTenant } from "@/lib/queries/fees";
@@ -132,7 +133,12 @@ export default async function ReserverChambresPage({ searchParams }: { searchPar
         extras={extras}
         fees={fees}
         touristTax={config.touristTax}
-        host={{ phone: config.phone, checkInTime: config.checkInTime, checkOutTime: config.checkOutTime }}
+        host={{
+          phone: config.phone,
+          checkInTime: config.checkInTime,
+          checkOutTime: config.checkOutTime,
+          terms: paymentTerms(tenant),
+        }}
         demo={demo}
       />
     </Shell>
