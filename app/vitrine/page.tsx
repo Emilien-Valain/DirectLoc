@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DirectLocMark } from "@/components/brand/DirectLocMark";
 import { CallbackForm } from "./CallbackForm";
 import { Bareme } from "./Bareme";
 
@@ -109,7 +110,7 @@ export default function VitrinePage() {
       <a className="alm-skip" href="#rappel">Aller au formulaire de rappel</a>
       <header className="alm-cover">
         <nav className="alm-nav" aria-label="Navigation principale">
-          <Link href="/" className="alm-mark">Direct<span>Loc</span></Link>
+          <Link href="/" className="alm-mark"><DirectLocMark size={44} onDark decorative />Direct<span>Loc</span></Link>
           <ul>
             <li><a href="#sejour">Le calcul</a></li>
             <li><a href="#travaux">Comment ça marche</a></li>

@@ -5,6 +5,7 @@ import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/lib/auth-client";
 import { Icon, type IconName } from "@/components/admin/icons";
+import { DirectLocMark } from "@/components/brand/DirectLocMark";
 
 type AccessibleTenant = {
   id: string;
@@ -118,15 +119,7 @@ export default function Sidebar({
           isCollapsed ? "py-5 justify-center" : "px-4 py-5"
         }`}
       >
-        <div
-          className="w-[34px] h-[34px] rounded-[9px] flex items-center justify-center flex-shrink-0"
-          // Terracotta foncé : le D blanc passe 4,5:1 (3,2:1 sur la teinte claire).
-          style={{ background: "var(--admin-accent-text)" }}
-        >
-          <span className="text-white font-extrabold text-[15px] tracking-tight">
-            D
-          </span>
-        </div>
+        <DirectLocMark size={36} onDark decorative className="flex-shrink-0" />
         {!isCollapsed && (
           <div className="leading-tight">
             <div className="text-white font-bold text-[15px] tracking-tight">

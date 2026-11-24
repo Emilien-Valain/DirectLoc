@@ -45,6 +45,15 @@ test.describe("Admin — icône d'onglet du site", () => {
     expect((await iconHrefs(page)).some((h) => h?.startsWith("/favicon.ico"))).toBe(true);
   });
 
+  test("l'admin porte l'icône DirectLoc, pas l'icône neutre des sites d'hôtel", async ({ page }) => {
+    await page.goto("/admin");
+    const hrefs = await iconHrefs(page);
+    expect(hrefs).toContain("/brand/favicon.ico");
+    expect(hrefs.some((h) => h?.startsWith("/favicon.ico"))).toBe(false);
+    // Logo de la barre latérale : la maison-almanach, un seul jour réservé.
+    await expect(page.locator('aside svg[aria-hidden="true"] rect[fill="#c41f27"]').first()).toBeAttached();
+  });
+
   test("envoyer une icône rectangulaire : recadrée en carré 512 px, affichée dans l'onglet du site, retirable", async ({ page }) => {
     await openSiteTab(page);
     await page.getByTestId("favicon-input").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: await png(800, 300) });

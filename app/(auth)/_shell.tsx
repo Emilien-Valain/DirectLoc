@@ -5,6 +5,7 @@ import type {
   InputHTMLAttributes,
   ReactNode,
 } from "react";
+import { DirectLocMark } from "@/components/brand/DirectLocMark";
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
@@ -28,22 +29,7 @@ export function AuthShell({ children }: { children: ReactNode }) {
         }}
       >
         <div className="flex items-center gap-3 mb-8">
-          <div
-            className="flex items-center justify-center"
-            style={{
-              width: 42,
-              height: 42,
-              borderRadius: 10,
-              background: "var(--admin-sidebar-bg)",
-            }}
-          >
-            <span
-              className="text-white font-extrabold"
-              style={{ fontSize: 17, letterSpacing: "-0.5px" }}
-            >
-              D
-            </span>
-          </div>
+          <DirectLocMark size={44} decorative />
           <div className="leading-tight">
             <div
               className="font-extrabold"

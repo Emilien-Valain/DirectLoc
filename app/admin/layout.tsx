@@ -1,3 +1,4 @@
+import { DIRECTLOC_ICONS } from "@/lib/brand";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { eq } from "drizzle-orm";
@@ -10,6 +11,7 @@ import Analytics from "@/components/Analytics";
 
 // Un onglet par page qui dit où l'on est (« Réservations · DirectLoc »), plus jamais « DirectLoc » partout.
 export const metadata = {
+  icons: DIRECTLOC_ICONS,
   title: { template: "%s · DirectLoc", default: "Tableau de bord · DirectLoc" },
 };
 

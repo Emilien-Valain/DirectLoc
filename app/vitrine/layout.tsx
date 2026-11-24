@@ -1,3 +1,4 @@
+import { DIRECTLOC_ICONS } from "@/lib/brand";
 import type { Metadata } from "next";
 import { Archivo, Big_Shoulders, Source_Serif_4 } from "next/font/google";
 import "./vitrine.css";
@@ -9,6 +10,7 @@ const serif = Source_Serif_4({ variable: "--alm-serif", subsets: ["latin"], styl
 const ui = Archivo({ variable: "--alm-ui", subsets: ["latin"], weight: ["500", "600", "700"] });
 
 export const metadata: Metadata = {
+  icons: DIRECTLOC_ICONS,
   title: "DirectLoc — votre site de réservation, zéro commission",
   description:
     "Un site de réservation à votre nom pour votre gîte ou chambre d'hôtes en Vendée Bocage : zéro commission, calendriers Airbnb et Booking synchronisés, installé par quelqu'un du coin.",

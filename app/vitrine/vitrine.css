@@ -45,7 +45,7 @@
 .alm-cover { max-width: var(--max); margin: 0 auto; padding: 22px var(--gutter) 30px; color: var(--paper); display: grid; grid-template-columns: minmax(0, 2.35fr) minmax(300px, 1fr); column-gap: 32px; align-items: end; }
 .alm-nav { grid-column: 1 / -1; }
 .alm-nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
-.alm-mark { font: 900 32px/1 var(--display); text-transform: uppercase; letter-spacing: 0.04em; text-decoration: none; }
+.alm-mark { display: inline-flex; align-items: center; gap: 12px; font: 900 32px/1 var(--display); text-transform: uppercase; letter-spacing: 0.04em; text-decoration: none; }
 .alm-mark span { color: var(--gold); }
 .alm-nav ul { display: flex; align-items: center; gap: 6px 26px; list-style: none; margin: 0; padding: 0; flex-wrap: wrap; font: 600 16px var(--ui); }
 .alm-nav a { text-decoration: none; padding: 10px 0; display: inline-block; }
