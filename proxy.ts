@@ -232,6 +232,7 @@ export const config = {
   matcher: [
     // Exclut les fichiers statiques et les routes auth. /demo/ (photos de l'hôtel démo dans public/) :
     // /_next/image les récupère par une requête interne sans Host, qui ne résoudrait aucun tenant.
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|demo/).*)",
+    // /brand/ (logo et icônes DirectLoc dans public/) : sinon la vitrine les réécrit en /vitrine/brand → 404.
+    "/((?!api/auth|_next/static|_next/image|favicon.ico|demo/|brand/).*)",
   ],
 };

@@ -32,8 +32,12 @@ test.describe("Marque — logo et icônes DirectLoc", () => {
     await expect(page.locator("a.alm-mark svg")).toBeVisible();
   });
 
-  test("les fichiers d'icône répondent avec le bon type", async ({ request }) => {
+  test("les fichiers d'icône répondent avec le bon type, sur la vitrine et sur un site d'hôtel", async ({ request }) => {
+    // Sur la vitrine, le proxy réécrit tout vers /vitrine : /brand/ doit en être exclu (régression du 2026-11-24).
     for (const [url, type] of [
+      [`${VITRINE}/brand/favicon.ico`, "image/"],
+      [`${VITRINE}/brand/directloc-mark.svg`, "image/svg+xml"],
+      [`${VITRINE}/brand/apple-touch-icon.png`, "image/png"],
       ["/brand/favicon.ico", "image/"],
       ["/brand/directloc-mark.svg", "image/svg+xml"],
       ["/brand/apple-touch-icon.png", "image/png"],
