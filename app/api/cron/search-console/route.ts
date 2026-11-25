@@ -4,7 +4,8 @@ import { registerSearchConsoleSites } from "@/lib/google-search-console";
 /**
  * GET /api/cron/search-console
  *
- * Inscrit dans Google Search Console chaque hôtel avec domaine pas encore inscrit
+ * Inscrit dans Google Search Console chaque hôtel avec domaine pas encore inscrit,
+ * et ajoute aux sites déjà inscrits les nouveaux GOOGLE_SEARCH_CONSOLE_OWNERS
  * (vérification META, ajout du site, envoi du sitemap). Idempotent. Usage Coolify : chaque jour.
  *   curl -s -H "Authorization: Bearer $CRON_SECRET" https://directloc.app/api/cron/search-console
  */

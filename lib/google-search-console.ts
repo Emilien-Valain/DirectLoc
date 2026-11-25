@@ -46,8 +46,19 @@ async function call<T>(token: string, method: string, path: string, body?: objec
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+/** Ajoute à la ressource vérifiée les propriétaires qui y manquent (aucun appel s'il n'en manque pas). */
+async function addOwners(token: string, site: string, resource: { id: string; owners?: string[] }, owners: string[]) {
+  const missing = owners.filter((o) => !resource.owners?.includes(o));
+  if (!missing.length) return;
+  await call(token, "PUT", `/siteVerification/v1/webResource/${encodeURIComponent(resource.id)}`, {
+    site: { type: "SITE", identifier: site },
+    owners: [...(resource.owners ?? []), ...missing],
+  });
+}
+
 /**
- * Traite chaque hôtel avec domaine pas encore inscrit (hors démo). Idempotent : à lancer chaque jour,
+ * Inscrit chaque hôtel avec domaine pas encore inscrit (hors démo) ; sur un site déjà inscrit, ajoute seulement
+ * les nouveaux GOOGLE_SEARCH_CONSOLE_OWNERS. Idempotent : à lancer chaque jour,
  * un site dont le domaine ne répond pas encore est retenté au passage suivant.
  * Retourne un statut lisible par domaine.
  */
@@ -65,10 +76,29 @@ export async function registerSearchConsoleSites(): Promise<Record<string, strin
   const results: Record<string, string> = {};
   for (const t of list) {
     const config = (t.config ?? {}) as TenantConfig;
-    if (t.slug === DEMO_TENANT_SLUG || config.searchConsoleAddedAt) continue;
+    if (t.slug === DEMO_TENANT_SLUG) continue;
     const site = `https://${t.domain}/`;
     const save = (patch: Partial<TenantConfig>) =>
       db.update(tenants).set({ config: mergeTenantConfig(patch) }).where(eq(tenants.id, t.id));
+
+    // Site déjà inscrit : seulement les propriétaires ajoutés à GOOGLE_SEARCH_CONSOLE_OWNERS depuis.
+    if (config.searchConsoleAddedAt) {
+      const known = config.searchConsoleOwners ?? [];
+      if (owners.every((o) => known.includes(o))) continue;
+      try {
+        const id = encodeURIComponent(site);
+        const resource = await call<{ id: string; owners?: string[] }>(
+          token, "GET", `/siteVerification/v1/webResource/${encodeURIComponent(id)}`,
+        );
+        await addOwners(token, site, resource, owners);
+        await save({ searchConsoleOwners: owners });
+        results[t.domain!] = "propriétaires ajoutés";
+      } catch (err) {
+        console.error(`[search-console] ${t.domain} :`, err);
+        results[t.domain!] = `échec, retenté au prochain passage : ${(err as Error).message}`;
+      }
+      continue;
+    }
 
     try {
       // 1. Jeton META, enregistré pour que les pages publiques le rendent (lib/seo.ts).
@@ -89,20 +119,14 @@ export async function registerSearchConsoleSites(): Promise<Record<string, strin
       );
 
       // 3. Propriétaires humains, pour voir le site dans leur propre Search Console.
-      const missing = owners.filter((o) => !resource.owners?.includes(o));
-      if (missing.length) {
-        await call(token, "PUT", `/siteVerification/v1/webResource/${encodeURIComponent(resource.id)}`, {
-          site: { type: "SITE", identifier: site },
-          owners: [...(resource.owners ?? []), ...missing],
-        });
-      }
+      await addOwners(token, site, resource, owners);
 
       // 4. Search Console : ajout du site puis du sitemap.
       const enc = encodeURIComponent(site);
       await call(token, "PUT", `/webmasters/v3/sites/${enc}`);
       await call(token, "PUT", `/webmasters/v3/sites/${enc}/sitemaps/${encodeURIComponent(`${site}sitemap.xml`)}`);
 
-      await save({ searchConsoleAddedAt: new Date().toISOString() });
+      await save({ searchConsoleAddedAt: new Date().toISOString(), searchConsoleOwners: owners });
       results[t.domain!] = "inscrit";
     } catch (err) {
       console.error(`[search-console] ${t.domain} :`, err);

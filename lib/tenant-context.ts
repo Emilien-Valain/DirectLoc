@@ -99,6 +99,8 @@ export type TenantConfig = {
   googleSiteVerification?: string;
   /** Date d'inscription dans Search Console : le cron ne retraite plus ce site. */
   searchConsoleAddedAt?: string;
+  /** GOOGLE_SEARCH_CONSOLE_OWNERS déjà ajoutés comme propriétaires : un nouvel email est ajouté au passage suivant. */
+  searchConsoleOwners?: string[];
   /** Absente = taxe de séjour désactivée (ADR-0011). */
   touristTax?: TouristTax;
 };
