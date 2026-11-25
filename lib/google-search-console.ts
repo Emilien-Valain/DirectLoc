@@ -47,10 +47,11 @@ async function call<T>(token: string, method: string, path: string, body?: objec
 }
 
 /** Ajoute à la ressource vérifiée les propriétaires qui y manquent (aucun appel s'il n'en manque pas). */
-async function addOwners(token: string, site: string, resource: { id: string; owners?: string[] }, owners: string[]) {
+// L'identifiant d'une ressource SITE est son URL : encodée une seule fois dans le chemin (Google refuse le double encodage).
+async function addOwners(token: string, site: string, resource: { owners?: string[] }, owners: string[]) {
   const missing = owners.filter((o) => !resource.owners?.includes(o));
   if (!missing.length) return;
-  await call(token, "PUT", `/siteVerification/v1/webResource/${encodeURIComponent(resource.id)}`, {
+  await call(token, "PUT", `/siteVerification/v1/webResource/${encodeURIComponent(site)}`, {
     site: { type: "SITE", identifier: site },
     owners: [...(resource.owners ?? []), ...missing],
   });
@@ -86,9 +87,8 @@ export async function registerSearchConsoleSites(): Promise<Record<string, strin
       const known = config.searchConsoleOwners ?? [];
       if (owners.every((o) => known.includes(o))) continue;
       try {
-        const id = encodeURIComponent(site);
-        const resource = await call<{ id: string; owners?: string[] }>(
-          token, "GET", `/siteVerification/v1/webResource/${encodeURIComponent(id)}`,
+        const resource = await call<{ owners?: string[] }>(
+          token, "GET", `/siteVerification/v1/webResource/${encodeURIComponent(site)}`,
         );
         await addOwners(token, site, resource, owners);
         await save({ searchConsoleOwners: owners });
@@ -113,7 +113,7 @@ export async function registerSearchConsoleSites(): Promise<Record<string, strin
       }
 
       // 2. Vérification : Google lit la balise sur la page d'accueil, en direct.
-      const resource = await call<{ id: string; owners?: string[] }>(
+      const resource = await call<{ owners?: string[] }>(
         token, "POST", "/siteVerification/v1/webResource?verificationMethod=META",
         { site: { type: "SITE", identifier: site } },
       );

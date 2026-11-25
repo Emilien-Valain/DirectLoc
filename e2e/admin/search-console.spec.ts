@@ -50,6 +50,9 @@ test.beforeAll(async () => {
         if (failVerification) return json(400, { error: { message: "verification failed" } });
         return json(200, { id: encodeURIComponent(SITE), owners: ["sa@test.iam.gserviceaccount.com"] });
       }
+      // Comme le vrai Google : l'identifiant est l'URL du site, encodée une seule fois.
+      if (req.url!.startsWith("/siteVerification/v1/webResource/") && req.url !== `/siteVerification/v1/webResource/${encodeURIComponent(SITE)}`)
+        return json(400, { error: { message: "The ID for this site is missing or invalid" } });
       if (req.method === "GET" && req.url!.startsWith("/siteVerification/v1/webResource/")) {
         if (failOwnersRead) return json(500, { error: { message: "backend error" } });
         return json(200, { id: encodeURIComponent(SITE), owners: ["sa@test.iam.gserviceaccount.com"] });
