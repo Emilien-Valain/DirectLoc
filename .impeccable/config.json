@@ -38,6 +38,15 @@
         ],
         "createdAt": "2026-11-05T15:31:16.327Z",
         "reason": "agent: flagged input has border-radius 0 (almanac underline field), not a rounded card"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "components/public/templates/postale.css"
+        ],
+        "createdAt": "2026-11-26T22:02:40.710Z",
+        "reason": "Brief 2c fourni par l'utilisateur : lettres rayées « Greetings from » (background-clip:text) = motif signature du template"
       }
     ]
   }

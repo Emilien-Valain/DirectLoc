@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 /** Menu mobile commun aux templates (stylé par la feuille du template). */
-export default function SiteMenu({ showLocation }: { showLocation: boolean }) {
+export default function SiteMenu({ showLocation, showStory = false }: { showLocation: boolean; showStory?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -53,6 +53,11 @@ export default function SiteMenu({ showLocation }: { showLocation: boolean }) {
           <Link href="/chambres" onClick={close} className="s-nav-link">
             Chambres
           </Link>
+          {showStory && (
+            <Link href="/#la-maison" onClick={close} className="s-nav-link">
+              La maison
+            </Link>
+          )}
           {showLocation && (
             <Link href="/#nous-trouver" onClick={close} className="s-nav-link">
               Nous trouver

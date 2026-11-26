@@ -2,6 +2,10 @@ import Link from "next/link";
 import { requireTenant } from "@/lib/tenant-context";
 import type { Tenant, TenantConfig } from "@/lib/tenant-context";
 import SiteMenu from "@/components/public/SiteMenu";
+import { CarnetHeader } from "@/components/public/templates/Carnet";
+import { GuideHeader } from "@/components/public/templates/Guide";
+import { DefilantFooterTicker, DefilantHeader } from "@/components/public/templates/Defilant";
+import { PostaleHeader } from "@/components/public/templates/Postale";
 import Analytics from "@/components/Analytics";
 import { isDemoTenant } from "@/lib/demo";
 import { LEGAL_DOC_KINDS, LEGAL_PAGES } from "@/lib/legal-documents";
@@ -10,6 +14,10 @@ import "@/components/public/templates/plaque.css";
 import "@/components/public/templates/linge.css";
 import "@/components/public/templates/affiche.css";
 import "@/components/public/templates/standard.css";
+import "@/components/public/templates/carnet.css";
+import "@/components/public/templates/guide.css";
+import "@/components/public/templates/defilant.css";
+import "@/components/public/templates/postale.css";
 
 /**
  * Coque commune des sites publics. Le balisage est le même pour tous les
@@ -19,12 +27,20 @@ import "@/components/public/templates/standard.css";
  *   "boutique" → linge    (Le Linge de maison)
  *   "affiche"  → affiche  (L'Affiche touristique)
  *   "standard" → standard (Classique)
+ *   "carnet"   → carnet   (Le Carnet) — accueil et en-tête propres (templates/Carnet.tsx)
+ *   "guide"    → guide    (Le Guide du parc) — accueil et en-tête propres (templates/Guide.tsx)
+ *   "defilant" → defilant (Le Défilant) — accueil, en-tête et bandeau de pied propres (templates/Defilant.tsx)
+ *   "postale"  → postale  (La Carte postale) — accueil et en-tête propres (templates/Postale.tsx)
  */
 const WORLDS = {
   classic: { tpl: "plaque", primary: "#1F3B7A", secondary: "#D8D3C6" },
   boutique: { tpl: "linge", primary: "#B23A3A", secondary: "#E2DED3" },
   affiche: { tpl: "affiche", primary: "#1F3B57", secondary: "#F2B33D" },
   standard: { tpl: "standard", primary: "#2A5C40", secondary: "#F4F1EC" },
+  carnet: { tpl: "carnet", primary: "#2F6B47", secondary: "#F5F1E9" },
+  guide: { tpl: "guide", primary: "#2F6B47", secondary: "#FBFAF7" },
+  defilant: { tpl: "defilant", primary: "#2F6B47", secondary: "#F2F0E8" },
+  postale: { tpl: "postale", primary: "#2F6B47", secondary: "#F6ECD9" },
 } as const;
 
 export function siteTemplate(config: TenantConfig) {
@@ -94,35 +110,46 @@ function SiteShell({
           <a href="/essayer">Voir l&apos;admin</a>
         </p>
       )}
-      <header className="s-header">
-        <Link href="/" className="s-brand">
-          {config.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={config.logoUrl} alt="" height={44} className="s-brand-logo" />
-          ) : (
-            <span className="s-mark" aria-hidden="true">
-              {initials(tenant.name)}
-            </span>
-          )}
-          <span className="s-brand-name">{tenant.name}</span>
-        </Link>
-        <nav className="s-nav" aria-label="Navigation principale">
-          <Link href="/chambres" className="s-nav-link">
-            Chambres
+      {world.tpl === "carnet" ? (
+        <CarnetHeader name={tenant.name} config={config} showLocation={showLocation} />
+      ) : world.tpl === "guide" ? (
+        <GuideHeader name={tenant.name} config={config} showLocation={showLocation} />
+      ) : world.tpl === "defilant" ? (
+        <DefilantHeader name={tenant.name} config={config} showLocation={showLocation} />
+      ) : world.tpl === "postale" ? (
+        <PostaleHeader name={tenant.name} config={config} showLocation={showLocation} />
+      ) : (
+        <header className="s-header">
+          <Link href="/" className="s-brand">
+            {config.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={config.logoUrl} alt="" height={44} className="s-brand-logo" />
+            ) : (
+              <span className="s-mark" aria-hidden="true">
+                {initials(tenant.name)}
+              </span>
+            )}
+            <span className="s-brand-name">{tenant.name}</span>
           </Link>
-          {showLocation && (
-            <Link href="/#nous-trouver" className="s-nav-link">
-              Nous trouver
+          <nav className="s-nav" aria-label="Navigation principale">
+            <Link href="/chambres" className="s-nav-link">
+              Chambres
             </Link>
-          )}
-          <Link href="/#dates" className="s-nav-link s-nav-cta">
-            Réserver
-          </Link>
-        </nav>
-        <SiteMenu showLocation={showLocation} />
-      </header>
+            {showLocation && (
+              <Link href="/#nous-trouver" className="s-nav-link">
+                Nous trouver
+              </Link>
+            )}
+            <Link href="/#dates" className="s-nav-link s-nav-cta">
+              Réserver
+            </Link>
+          </nav>
+          <SiteMenu showLocation={showLocation} />
+        </header>
+      )}
 
       <main className="s-main">{children}</main>
+      {world.tpl === "defilant" && <DefilantFooterTicker config={config} />}
 
       <footer className="s-footer">
         <div className="s-footer-inner">

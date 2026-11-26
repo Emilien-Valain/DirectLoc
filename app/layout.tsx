@@ -1,15 +1,20 @@
 import type { Metadata, Viewport } from "next";
 import {
+  Anton,
   Antonio,
   Atkinson_Hyperlegible,
   Epilogue,
   Hanken_Grotesk,
+  Instrument_Sans,
+  Instrument_Serif,
   League_Gothic,
   Libre_Franklin,
   Literata,
   Figtree,
   JetBrains_Mono,
   Plus_Jakarta_Sans,
+  Public_Sans,
+  Source_Serif_4,
 } from "next/font/google";
 import "./globals.css";
 
@@ -48,6 +53,14 @@ const leagueGothic = League_Gothic({ variable: "--font-league-gothic", subsets: 
 const franklin = Libre_Franklin({ variable: "--font-franklin", subsets: ["latin"], preload: false });
 // Classique (standard de la catégorie)
 const hanken = Hanken_Grotesk({ variable: "--font-hanken", subsets: ["latin"], preload: false });
+// Le Carnet (magazine de voyage)
+const instrumentSerif = Instrument_Serif({ variable: "--font-instrument-serif", subsets: ["latin"], weight: "400", style: ["normal", "italic"], preload: false });
+const instrumentSans = Instrument_Sans({ variable: "--font-instrument-sans", subsets: ["latin"], weight: ["400", "500", "600", "700"], preload: false });
+const sourceSerif = Source_Serif_4({ variable: "--font-source-serif", subsets: ["latin"], weight: ["400"], style: ["normal", "italic"], preload: false });
+// Le Défilant et La Carte postale (grandes lettres)
+const anton = Anton({ variable: "--font-anton", subsets: ["latin"], weight: "400", preload: false });
+// Le Guide du parc (brochure Unigrid) — Source Serif 4 partagée avec le Carnet
+const publicSans = Public_Sans({ variable: "--font-public-sans", subsets: ["latin"], weight: ["400", "600", "800"], preload: false });
 
 export const metadata: Metadata = {
   title: "DirectLoc",
@@ -72,7 +85,7 @@ export default function RootLayout({
   return (
     <html
       lang="fr"
-      className={`${body.variable} ${mono.variable} ${jakarta.variable} ${antonio.variable} ${atkinson.variable} ${epilogue.variable} ${literata.variable} ${leagueGothic.variable} ${franklin.variable} ${hanken.variable} h-full antialiased`}
+      className={`${body.variable} ${mono.variable} ${jakarta.variable} ${antonio.variable} ${atkinson.variable} ${epilogue.variable} ${literata.variable} ${leagueGothic.variable} ${franklin.variable} ${hanken.variable} ${instrumentSerif.variable} ${instrumentSans.variable} ${sourceSerif.variable} ${publicSans.variable} ${anton.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

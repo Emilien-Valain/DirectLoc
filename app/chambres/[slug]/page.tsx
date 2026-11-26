@@ -11,6 +11,7 @@ import { getFeesByTenant } from "@/lib/queries/fees";
 import { matchesRoom } from "@/lib/extras";
 import { metaDescription, roomJsonLd, tenantBaseUrl, tenantMetadata } from "@/lib/seo";
 import JsonLd from "@/components/public/JsonLd";
+import { CarnetRoom } from "@/components/public/templates/Carnet";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -68,9 +69,35 @@ export default async function ChambreDetailPage({
       .map(async (r) => ({ ...r, minPrice: await getMinPricePerNight(r.id, tenant.id) })),
   );
 
+  const jsonLd = <JsonLd data={roomJsonLd(tenant, await tenantBaseUrl(tenant), room)} />;
+
+  if (config.template === "carnet") {
+    const all = await Promise.all(
+      allRooms
+        .map((r, index) => ({ ...r, index }))
+        .filter((r) => r.id !== room.id)
+        .map(async (r) => ({ ...r, minPrice: await getMinPricePerNight(r.id, tenant.id) })),
+    );
+    return (
+      <PublicLayout>
+        {jsonLd}
+        <CarnetRoom
+          room={{ ...room, minPrice }}
+          index={allRooms.findIndex((r) => r.id === room.id)}
+          total={allRooms.length}
+          minPrice={minPrice}
+          facts={facts}
+          chargesNote={chargesNote}
+          others={all.slice(0, 4)}
+          today={today}
+        />
+      </PublicLayout>
+    );
+  }
+
   return (
     <PublicLayout>
-      <JsonLd data={roomJsonLd(tenant, await tenantBaseUrl(tenant), room)} />
+      {jsonLd}
       <div className="s-page">
         <Breadcrumb
           items={[

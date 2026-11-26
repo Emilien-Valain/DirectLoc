@@ -370,6 +370,34 @@ const TEMPLATES: {
     bg: "#2A5C40",
     accent: "#FFFFFF",
   },
+  {
+    id: "carnet",
+    name: "Le Carnet",
+    desc: "Magazine de voyage, serif et filets fins",
+    bg: "#F5F1E9",
+    accent: "#2F6B47",
+  },
+  {
+    id: "guide",
+    name: "Le Guide du parc",
+    desc: "Brochure de parc national : barre noire, grille, filets",
+    bg: "#111111",
+    accent: "#2F6B47",
+  },
+  {
+    id: "defilant",
+    name: "Le Défilant",
+    desc: "Typo géante qui défile sur la couleur de la maison",
+    bg: "#2F6B47",
+    accent: "#D9FF5C",
+  },
+  {
+    id: "postale",
+    name: "La Carte postale",
+    desc: "« Bons baisers de… », lettres rayées et tampons",
+    bg: "#F6ECD9",
+    accent: "#C23B26",
+  },
 ];
 
 function ThemeTab({ config }: { config: TenantConfig }) {

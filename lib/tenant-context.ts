@@ -36,7 +36,7 @@ export type Tenant = Awaited<ReturnType<typeof requireTenant>>;
  * Clés stockées en base. Les deux premières gardent leur nom historique :
  * classic = « La Plaque émaillée », boutique = « Le Linge de maison ».
  */
-export const TEMPLATE_NAMES = ["classic", "boutique", "affiche", "standard"] as const;
+export const TEMPLATE_NAMES = ["classic", "boutique", "affiche", "standard", "carnet", "guide", "defilant", "postale"] as const;
 export type TemplateName = (typeof TEMPLATE_NAMES)[number];
 
 export type HeroPhoto = {

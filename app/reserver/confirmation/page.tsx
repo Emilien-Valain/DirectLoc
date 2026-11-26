@@ -124,6 +124,7 @@ export default async function ConfirmationPage({
       <Confirmation
         isPaid={isPaid}
         guestName={booking.guestName}
+        guestFirstName={booking.guestFirstName}
         guestEmail={booking.guestEmail}
         rooms={roomsBooked}
         checkIn={checkIn}

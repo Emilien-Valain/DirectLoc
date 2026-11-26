@@ -6,6 +6,7 @@ import HeroArt from "@/components/public/HeroArt";
 import LocationMap from "@/components/public/LocationMap";
 import { formatEuros } from "@/lib/utils";
 import { sortedPhotos } from "@/components/public/photos";
+import { postcodeOf } from "@/lib/place";
 
 /**
  * Sections publiques communes à tous les templates. Aucune ne montre de
@@ -32,6 +33,17 @@ export function placeLine(config: TenantConfig) {
   return parts.at(-1) ?? null;
 }
 
+/** Commune seule (« Les Epesses ») : ville déclarée, sinon fin d'adresse sans code postal. */
+export function townName(config: TenantConfig) {
+  const town = config.city ?? placeLine(config)?.replace(/^\d{5}\s*/, "");
+  return town?.trim() || null;
+}
+
+/** Code postal trouvé dans l'adresse (« 85590 »), sinon null. */
+export function postcode(config: TenantConfig) {
+  return postcodeOf(config.address);
+}
+
 export function RoomPrice({ room }: { room: PublicRoom }) {
   const base = parseFloat(room.pricePerNight);
   const from = room.minPrice < base;
@@ -42,6 +54,18 @@ export function RoomPrice({ room }: { room: PublicRoom }) {
       <small> / nuit</small>
     </span>
   );
+}
+
+/** Prix d'appel (« à partir de ») : le plus bas des chambres données, null sans chambre. */
+export function minRoomPrice(rooms: PublicRoom[]) {
+  return rooms.length ? Math.min(...rooms.map((r) => Math.min(r.minPrice, parseFloat(r.pricePerNight)))) : null;
+}
+
+/** « Trois chambres » : nombre en lettres jusqu'à douze, avec majuscule. */
+const SMALL_NUMBERS = "zéro une deux trois quatre cinq six sept huit neuf dix onze douze".split(" ");
+export function roomsInWords(n: number) {
+  const word = n <= 12 ? SMALL_NUMBERS[n] : String(n);
+  return `${word[0].toUpperCase()}${word.slice(1)} chambre${n > 1 ? "s" : ""}`;
 }
 
 export function RoomItem({ room, index }: { room: PublicRoom; index: number }) {

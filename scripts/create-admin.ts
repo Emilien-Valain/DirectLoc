@@ -36,7 +36,7 @@ async function main() {
 
   if (!name || !slug || !email || !password) {
     console.error(
-      "Usage: --name <name> --slug <slug> --email <email> --password <password> [--domain <domain>] [--template classic|boutique|affiche|standard]",
+      "Usage: --name <name> --slug <slug> --email <email> --password <password> [--domain <domain>] [--template classic|boutique|affiche|standard|carnet|guide|defilant|postale]",
     );
     process.exit(1);
   }

@@ -1,0 +1,395 @@
+/*
+ * Template « Le Guide du parc » (clé en base : guide).
+ * Brochure Unigrid des parcs nationaux (Vignelli, 1977) : barre noire en tête,
+ * bande de 6 px à la couleur de l'hôte, grille stricte, filet noir de 6 px en
+ * tête de chaque section, Public Sans grasse, angles droits, une seule couleur.
+ * L'accueil et l'en-tête ont leur balisage (Guide.tsx, classes g-*) ; les pages
+ * intérieures gardent le balisage commun, habillé ici.
+ */
+
+.site[data-tpl="guide"] {
+  --g-bar: #111;
+  --g-paper: #fbfaf7;
+  --g-ink: #1b1b1b;
+  --g-label: #5f5f5f; /* #666 de la maquette = 5.5:1 sur papier, 4.9:1 sur le survol : un cran plus sombre pour les deux */
+  --g-rule: #d8d4ca;
+  --g-hover: #f0ede5;
+  --g-on-bar: #bdbdbd;
+  /* Couleur de l'hôte bornée : blanc lisible dessus (≥ 4.5:1), lisible sur papier. */
+  --g-accent: oklch(from var(--color-primary) min(l, 0.48) min(c, 0.16) h);
+  /* « Réserver » dans la barre noire : la même teinte, éclaircie (≥ 4.5:1 sur #111). */
+  --g-nav-accent: oklch(from var(--color-primary) max(l, 0.78) min(c, 0.12) h);
+
+  --s-ground: var(--g-paper);
+  --s-ink: var(--g-ink);
+  --s-ink-soft: #3d3d3d;
+  --s-surface: #fff;
+  --s-field: #fff;
+  --s-line: var(--g-rule);
+  --s-field-line: var(--g-bar);
+  --s-accent: var(--g-accent);
+  --s-on-accent: #fff;
+  --s-accent-ink: var(--g-accent);
+  --s-focus: var(--g-accent);
+  --s-good: #2a6338;
+  --s-bad: #a3261d;
+  --s-warn: #855506;
+  --s-display: var(--font-public-sans), "Helvetica Neue", Arial, sans-serif;
+  --s-body: var(--font-public-sans), "Helvetica Neue", Arial, sans-serif;
+  --g-reading: var(--font-source-serif), Georgia, serif;
+  --s-field-radius: 0;
+  --s-chip-radius: 0;
+  --s-max: 1184px;
+  --s-gutter: clamp(20px, 4vw, 48px);
+  --s-gap: 24px;
+  --s-section-y: clamp(40px, 5vw, 56px);
+  font-size: 1rem;
+}
+
+/* Angles droits partout. */
+[data-tpl="guide"] :is(.s-btn, .s-field input, .s-field select, .s-field textarea, .s-chip-btn, .s-search-room,
+  .s-full-slip, .s-map-link, .s-thumb, .s-summary, .s-group, .s-confirm-card, .s-room-detail-book, .s-menu-btn) {
+  border-radius: 0;
+}
+
+[data-tpl="guide"] :is(.s-h1, .s-h2, .s-h3, .s-title, .g-h2, .s-search-title, .s-summary-room, .s-stat-value) {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+[data-tpl="guide"] .s-h1 { font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 0.95; }
+[data-tpl="guide"] :is(.s-h2, .g-h2) { font-size: clamp(1.625rem, 2.6vw, 1.875rem); line-height: 1.1; }
+[data-tpl="guide"] .s-h3 { font-size: 1.5rem; }
+
+/* Libellés : capitales 12 px, la voix « fiche technique » de la brochure. */
+[data-tpl="guide"] :is(.g-label, .g-eyebrow, .s-field label, .s-fact dt, .s-row dt, .s-stat-label, .s-room-meta) {
+  font-family: var(--s-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-tpl="guide"] :is(.g-label, .s-field label, .s-fact dt, .s-row dt) { color: var(--g-label); }
+[data-tpl="guide"] .g-muted { color: var(--g-label); font-size: 0.875rem; font-weight: 600; }
+[data-tpl="guide"] .g-sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+[data-tpl="guide"] a:not(.s-btn) { text-decoration: none; }
+[data-tpl="guide"] a:not(.s-btn):hover { text-decoration: underline; }
+[data-tpl="guide"] :is(.g-card, .g-plan-room, .s-room, .s-search-room):hover { text-decoration: none; }
+
+/* ── Barre noire + bande accent ──────────────────────── */
+[data-tpl="guide"] .g-top { background: var(--g-bar); color: #fff; }
+[data-tpl="guide"] .g-header {
+  align-items: flex-end;
+  padding: 16px var(--s-gutter) 14px;
+}
+[data-tpl="guide"] .g-brand-wrap { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+[data-tpl="guide"] .g-eyebrow { margin: 0; color: var(--g-on-bar); }
+/* La ligne de lieu n'apparaît qu'à l'accueil, au-dessus du grand nom. */
+[data-tpl="guide"]:not(:has(.g-home)) .g-eyebrow { display: none; }
+[data-tpl="guide"] .g-brand { display: inline-flex; align-items: center; gap: 14px; min-height: 44px; text-decoration: none; }
+[data-tpl="guide"] .g-brand:hover { text-decoration: none; }
+[data-tpl="guide"] .g-brand-logo { height: 40px; width: auto; object-fit: contain; }
+[data-tpl="guide"] .g-brand-name {
+  font: 800 clamp(1.5rem, 4vw, 1.875rem) / 1 var(--s-display);
+  letter-spacing: -0.02em; overflow-wrap: anywhere; text-wrap: balance;
+}
+[data-tpl="guide"]:has(.g-home) .g-brand-name { font-size: clamp(2.5rem, 6.5vw, 4.75rem); line-height: 0.95; }
+[data-tpl="guide"]:has(.g-home) .g-header { padding-top: clamp(16px, 2.4vw, 28px); padding-bottom: clamp(14px, 2vw, 22px); }
+[data-tpl="guide"] .g-nav { gap: 28px; padding-bottom: 4px; }
+[data-tpl="guide"] .g-nav .s-nav-link,
+[data-tpl="guide"] .s-menu-panel .s-nav-link { font-weight: 600; font-size: 0.875rem; color: #fff; }
+[data-tpl="guide"] .g-nav .g-cta,
+[data-tpl="guide"] .s-menu-panel .s-nav-cta { color: var(--g-nav-accent); }
+[data-tpl="guide"] .s-menu-btn { border: 1px solid #555; width: 44px; height: 44px; color: #fff; }
+[data-tpl="guide"] .s-menu-panel { background: var(--g-bar); border-bottom: 6px solid var(--g-accent); }
+[data-tpl="guide"] .g-band { height: 6px; background: var(--g-accent); }
+[data-tpl="guide"] .g-top :focus-visible { outline-color: var(--g-nav-accent); }
+
+/* ── Sections : filet noir de 6 px, puis le titre ────── */
+[data-tpl="guide"] :is(.g-section, .g-hero, .g-house) {
+  max-width: calc(var(--s-max) + 2 * var(--s-gutter));
+  width: 100%; margin: 0 auto;
+  padding-inline: var(--s-gutter);
+}
+[data-tpl="guide"] .g-section { padding-top: var(--s-section-y); display: flex; flex-direction: column; gap: 20px; }
+[data-tpl="guide"] .g-head {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 24px;
+  border-top: 6px solid var(--g-bar); padding-top: 14px;
+}
+[data-tpl="guide"] .g-head-link { font-weight: 600; font-size: 0.875rem; display: inline-flex; align-items: center; min-height: 44px; }
+[data-tpl="guide"] .g-num { font: 800 1.375rem / 1 var(--s-display); color: var(--g-accent); font-variant-numeric: tabular-nums; }
+
+/* ── Hero 8/4 : photo + accroche | « Planifier votre séjour » ── */
+[data-tpl="guide"] .g-hero {
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px;
+  padding-top: 32px;
+}
+@media (min-width: 1000px) {
+  [data-tpl="guide"] .g-hero { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+}
+[data-tpl="guide"] .g-hero-main { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+[data-tpl="guide"] .g-hero-photo { position: relative; height: clamp(240px, 34vw, 440px); background: var(--g-hover); }
+[data-tpl="guide"] .g-hero-photo img { object-fit: cover; }
+[data-tpl="guide"] .g-title { margin: 6px 0 0; font: 800 clamp(2rem, 4vw, 3.5rem) / 1 var(--s-display); letter-spacing: -0.02em; text-wrap: balance; overflow-wrap: anywhere; }
+[data-tpl="guide"] .g-pitch { margin: 0; max-width: 720px; font: 400 clamp(1.125rem, 1.6vw, 1.3125rem) / 1.5 var(--g-reading); text-wrap: pretty; overflow-wrap: anywhere; }
+/* Sans photo : un aplat de la couleur de l'hôte porte une phrase forte. */
+[data-tpl="guide"] .g-flat {
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 18px;
+  min-height: clamp(240px, 34vw, 440px);
+  padding: clamp(24px, 4vw, 48px);
+  background: var(--g-accent); color: #fff;
+}
+[data-tpl="guide"] .g-flat-title { margin: 0; font: 800 clamp(2.5rem, 6vw, 4.5rem) / 0.95 var(--s-display); letter-spacing: -0.025em; text-wrap: balance; overflow-wrap: anywhere; }
+[data-tpl="guide"] .g-flat-pitch { margin: 0; max-width: 640px; font: 400 clamp(1.125rem, 1.6vw, 1.3125rem) / 1.5 var(--g-reading); overflow-wrap: anywhere; }
+[data-tpl="guide"] .g-flat :focus-visible { outline-color: #fff; }
+
+/* Encart de recherche commun, recomposé en tableau à filets. */
+[data-tpl="guide"] .g-plan { min-width: 0; border-top: 6px solid var(--g-bar); }
+[data-tpl="guide"] .g-plan .s-search { scroll-margin-top: 16px; }
+[data-tpl="guide"] .g-plan .s-sign-face { padding: 0; background: none; }
+[data-tpl="guide"] .g-plan .s-search-title { padding: 16px 0 12px; font-size: 1.625rem; }
+[data-tpl="guide"] .g-plan .s-sign-arrow { display: none; }
+[data-tpl="guide"] .g-plan .s-search-fields,
+[data-tpl="guide"] .g-plan .s-party { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; }
+[data-tpl="guide"] .g-plan .s-search-fields { border-top: 1px solid var(--g-bar); }
+[data-tpl="guide"] .g-plan .s-search-fields > * { min-width: 0; }
+[data-tpl="guide"] .g-plan .s-search-fields > :nth-child(n + 3) { grid-column: 1 / -1; }
+[data-tpl="guide"] .g-plan .s-field { padding: 10px 0; gap: 4px; border-bottom: 1px solid var(--g-bar); }
+[data-tpl="guide"] .g-plan .s-search-fields > .s-field:first-child { padding-right: 12px; border-right: 1px solid var(--g-bar); }
+[data-tpl="guide"] .g-plan .s-search-fields > .s-field:nth-child(2) { padding-left: 12px; }
+[data-tpl="guide"] .g-plan .s-party .s-field:first-child { padding-right: 12px; border-right: 1px solid var(--g-bar); }
+[data-tpl="guide"] .g-plan .s-party .s-field:last-child { padding-left: 12px; }
+[data-tpl="guide"] .g-plan .s-field :is(input, select) {
+  min-height: 44px; padding-left: 0; border-color: transparent; background-color: transparent;
+  font-weight: 600; font-size: 1.125rem;
+}
+[data-tpl="guide"] .g-plan .s-field :is(input, select):hover { border-color: var(--g-rule); }
+[data-tpl="guide"] .g-plan .s-btn { margin-top: 16px; width: 100%; min-height: 56px; }
+[data-tpl="guide"] .g-plan-rooms { display: flex; flex-direction: column; margin-top: 28px; }
+[data-tpl="guide"] .g-plan-rooms .g-label { margin: 0; padding-bottom: 8px; border-bottom: 1px solid var(--g-bar); letter-spacing: 0.08em; }
+[data-tpl="guide"] .g-plan-room {
+  display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: baseline;
+  padding: 14px 0; border-bottom: 1px solid var(--g-rule);
+  transition: background-color 0.2s;
+}
+[data-tpl="guide"] .g-plan-room:hover { background: var(--g-hover); }
+[data-tpl="guide"] .g-plan-room-body { display: flex; flex-direction: column; min-width: 0; }
+[data-tpl="guide"] .g-plan-room-name { font-weight: 600; font-size: 1.125rem; overflow-wrap: anywhere; }
+[data-tpl="guide"] .s-room-price { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+[data-tpl="guide"] .s-room-price small { font-size: 1em; font-weight: inherit; }
+
+/* Boutons : aplat accent, angles droits ; le noir de la barre au survol. */
+[data-tpl="guide"] .s-btn { font-weight: 800; font-size: 1.0625rem; transition: background-color 0.15s; }
+[data-tpl="guide"] .s-btn:hover { filter: none; background: var(--g-bar); }
+[data-tpl="guide"] .s-btn:active { transform: none; }
+[data-tpl="guide"] .s-search-room { border-width: 1px; border-color: var(--g-bar); }
+[data-tpl="guide"] button.s-search-room:hover,
+[data-tpl="guide"] a.s-search-room:hover { background: var(--g-hover); }
+[data-tpl="guide"] .s-full-slip { border-width: 1px; border-color: var(--g-bar); }
+
+/* ── Chiffres clés : 4 cellules, valeurs en accent ───── */
+[data-tpl="guide"] .s-stats {
+  max-width: calc(var(--s-max) + 2 * var(--s-gutter));
+  padding: var(--s-section-y) var(--s-gutter) 0;
+  gap: 0;
+}
+[data-tpl="guide"] .s-stats .s-h2 { border-top: 6px solid var(--g-bar); padding: 14px 0; }
+[data-tpl="guide"] .s-stat-list { --s-stat-rule: var(--g-rule); border-top: 1px solid var(--g-bar); border-bottom: 1px solid var(--g-bar); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 900px) { [data-tpl="guide"] .s-stat-list { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); grid-auto-flow: column; } }
+[data-tpl="guide"] .s-stat { padding: 18px 20px 20px; flex-direction: column; flex-wrap: nowrap; align-items: flex-start; gap: 4px; }
+[data-tpl="guide"] .s-stat-value { font-size: clamp(2.5rem, 5vw, 3.5rem); line-height: 1; color: var(--g-accent); }
+[data-tpl="guide"] .s-stat-label { color: var(--g-ink); font-size: 0.875rem; letter-spacing: 0; text-transform: none; }
+[data-tpl="guide"] .s-stat-sub { font: 400 0.9375rem / 1.4 var(--g-reading); }
+
+/* ── Cartes chambre : 3 colonnes ─────────────────────── */
+[data-tpl="guide"] .g-cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px 24px; }
+@media (min-width: 640px) { [data-tpl="guide"] .g-cards:not([data-count="1"]) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { [data-tpl="guide"] .g-cards:not([data-count="1"]) { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+[data-tpl="guide"] .g-card {
+  display: flex; flex-direction: column; gap: 12px;
+  padding-bottom: 16px; border-bottom: 1px solid var(--g-bar);
+  transition: background-color 0.2s;
+}
+[data-tpl="guide"] .g-card:hover { background: var(--g-hover); }
+[data-tpl="guide"] :is(.g-card-photo, .g-card-flat) { position: relative; display: block; height: 240px; }
+[data-tpl="guide"] .g-card-photo { background: var(--g-hover); overflow: hidden; }
+[data-tpl="guide"] .g-card-photo img { object-fit: cover; }
+[data-tpl="guide"] .g-card-flat {
+  display: flex; align-items: flex-end; padding: 12px 16px;
+  background: var(--g-accent); color: #fff;
+  font: 800 7.5rem / 0.85 var(--s-display); letter-spacing: -0.04em; font-variant-numeric: tabular-nums;
+}
+/* Une seule chambre : photo à gauche (8), texte à droite (4). */
+@media (min-width: 800px) {
+  [data-tpl="guide"] .g-cards[data-count="1"] .g-card {
+    display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); column-gap: 24px; align-content: start;
+  }
+  [data-tpl="guide"] .g-cards[data-count="1"] :is(.g-card-photo, .g-card-flat) { grid-row: 1 / span 4; height: 360px; }
+  [data-tpl="guide"] .g-cards[data-count="1"] .g-card-price { margin-top: 0; }
+}
+[data-tpl="guide"] .g-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+[data-tpl="guide"] .g-card-name { font: 800 1.5rem / 1.1 var(--s-display); overflow-wrap: anywhere; }
+[data-tpl="guide"] .g-card-desc {
+  font: 400 1rem / 1.55 var(--g-reading); text-wrap: pretty;
+  display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+}
+[data-tpl="guide"] .g-card-price { margin-top: auto; font-weight: 600; font-size: 1.0625rem; }
+
+/* ── En images : mosaïque ────────────────────────────── */
+[data-tpl="guide"] .g-mosaic { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 150px; gap: 12px; }
+/* Nombre pair de photos : la dernière occupe toute la ligne, aucun trou dans la grille. */
+[data-tpl="guide"] .g-mosaic .g-tile:last-child:nth-child(even) { grid-column: 1 / -1; }
+[data-tpl="guide"] .g-mosaic[data-count="1"] { grid-template-columns: minmax(0, 1fr); grid-auto-rows: clamp(220px, 40vw, 420px); }
+[data-tpl="guide"] .g-mosaic:not([data-count="1"]) .g-tile:first-child { grid-column: 1 / -1; grid-row: span 2; }
+@media (min-width: 800px) {
+  [data-tpl="guide"] .g-mosaic:not([data-count="1"]) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  [data-tpl="guide"] .g-mosaic:not([data-count="1"]) .g-tile:first-child { grid-column: span 2; }
+  [data-tpl="guide"] .g-mosaic .g-tile:last-child:nth-child(even) { grid-column: auto; }
+  [data-tpl="guide"] .g-mosaic[data-count="2"] .g-tile { grid-column: span 2; grid-row: span 2; }
+}
+[data-tpl="guide"] .g-tile { position: relative; margin: 0; overflow: hidden; background: var(--g-hover); }
+[data-tpl="guide"] .g-tile img { object-fit: cover; }
+[data-tpl="guide"] .g-tile figcaption {
+  position: absolute; left: 10px; bottom: 10px; max-width: calc(100% - 20px);
+  padding: 3px 8px; background: var(--g-paper); color: var(--g-ink);
+  font-size: 0.8125rem; font-weight: 600;
+}
+
+/* ── La maison (4) / Nous trouver (8) ────────────────── */
+[data-tpl="guide"] .g-house { display: grid; gap: 40px 24px; padding-top: var(--s-section-y); }
+@media (min-width: 1000px) {
+  [data-tpl="guide"] .g-house.is-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+}
+[data-tpl="guide"] .g-story { display: flex; flex-direction: column; gap: 12px; border-top: 6px solid var(--g-bar); padding-top: 14px; }
+[data-tpl="guide"] .g-story-title { margin: 0; font: 600 1.25rem / 1.25 var(--s-display); text-wrap: balance; }
+[data-tpl="guide"] .g-story-text { margin: 0; max-width: 62ch; font: 400 1.0625rem / 1.6 var(--g-reading); white-space: pre-line; text-wrap: pretty; overflow-wrap: anywhere; }
+[data-tpl="guide"] .g-signature { margin: 0; font: italic 400 1.0625rem var(--g-reading); color: var(--g-label); }
+
+[data-tpl="guide"] .g-house .s-location {
+  max-width: none; margin: 0; padding: 14px 0 0;
+  border-top: 6px solid var(--g-bar);
+  display: grid; gap: 24px; align-items: start;
+}
+@media (min-width: 760px) {
+  [data-tpl="guide"] .g-house .s-location:has(.s-map-canvas) { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  [data-tpl="guide"] .g-house .s-location:has(.s-map-canvas) .s-location-text { order: 2; }
+}
+[data-tpl="guide"] .g-house .s-location-text { gap: 12px; }
+[data-tpl="guide"] .s-location .s-lead { margin: 0; font: 600 1.25rem / 1.25 var(--s-display); }
+[data-tpl="guide"] .s-location .s-prose { margin: 0; font: 400 1rem / 1.55 var(--g-reading); }
+[data-tpl="guide"] .s-facts { gap: 0; }
+[data-tpl="guide"] .s-fact { grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 10px 0; border-top: 1px solid var(--g-rule); font-size: 0.9375rem; }
+[data-tpl="guide"] .s-fact:first-child { border-top-color: var(--g-bar); }
+[data-tpl="guide"] .s-fact dd { overflow-wrap: anywhere; }
+[data-tpl="guide"] .s-fact dd a { min-height: 32px; text-decoration: underline; text-decoration-thickness: 1px; }
+[data-tpl="guide"] .s-fact-strong { font-weight: 600; }
+[data-tpl="guide"] .s-map { min-height: 300px; background: var(--g-hover); }
+[data-tpl="guide"] .s-map:not(:has(.s-map-canvas)) { background: none; }
+[data-tpl="guide"] .s-map-link { border: 1px solid var(--g-bar); background: #fff; font-weight: 800; font-size: 0.9375rem; }
+[data-tpl="guide"] .s-pin-label { background: var(--g-bar); color: #fff; border-radius: 0; font-weight: 800; }
+[data-tpl="guide"] .s-pin-dot { background: var(--g-accent); box-shadow: 0 0 0 3px #fff; }
+
+/* ── Barre fixe mobile de l'accueil ──────────────────── */
+[data-tpl="guide"] .g-bar {
+  position: sticky; bottom: 0; z-index: 10;
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  margin-top: var(--s-section-y);
+  padding: 10px var(--s-gutter);
+  background: var(--g-bar); color: #fff;
+  border-top: 6px solid var(--g-accent);
+}
+[data-tpl="guide"] .g-bar-price { margin: 0; display: flex; flex-direction: column; line-height: 1.15; }
+[data-tpl="guide"] .g-bar-price span { font-size: 0.75rem; font-weight: 600; color: var(--g-on-bar); }
+[data-tpl="guide"] .g-bar-price strong { font-size: 1.25rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+[data-tpl="guide"] .g-bar-btn { min-height: 46px; padding-inline: 22px; }
+[data-tpl="guide"] .g-bar-btn:hover { background: #fff; color: var(--g-bar); }
+[data-tpl="guide"] .g-bar :focus-visible { outline-color: var(--g-nav-accent); }
+@media (min-width: 900px) { [data-tpl="guide"] .g-bar { display: none; } }
+[data-tpl="guide"] .g-home { padding-bottom: 0; }
+@media (min-width: 900px) { [data-tpl="guide"] .g-home { padding-bottom: var(--s-section-y); } }
+
+/* ── Pages intérieures ──────────────────────────────── */
+[data-tpl="guide"] .s-page { padding-top: 20px; }
+[data-tpl="guide"] .s-crumbs { font-size: 0.8125rem; font-weight: 600; color: var(--g-label); }
+[data-tpl="guide"] .s-crumbs ol { font-size: inherit; }
+[data-tpl="guide"] .s-crumbs [aria-current] { color: var(--g-ink); }
+[data-tpl="guide"] .s-prose { font-family: var(--g-reading); }
+[data-tpl="guide"] .s-room-detail-text > .s-prose { font-size: 1.0625rem; line-height: 1.6; }
+[data-tpl="guide"] .s-page .s-section > .s-h2,
+[data-tpl="guide"] .s-room-detail-text > .s-h2 { border-top: 6px solid var(--g-bar); padding-top: 14px; }
+
+[data-tpl="guide"] .s-room-index { gap: 32px 24px; }
+[data-tpl="guide"] .s-room-card { padding-bottom: 16px; border-bottom: 1px solid var(--g-bar); background: none; box-shadow: none; border-radius: 0; }
+[data-tpl="guide"] .s-room-card-photo { background: var(--g-hover); border-radius: 0; }
+[data-tpl="guide"] .s-room-card-body { padding: 14px 0 0; }
+[data-tpl="guide"] .s-room-card .s-room-num { font: 800 1.5rem / 1 var(--s-display); color: var(--g-accent); }
+[data-tpl="guide"] .s-room-card .s-h2 a { text-decoration: none; }
+[data-tpl="guide"] .s-room-meta { color: var(--g-label); }
+[data-tpl="guide"] .s-room-card-foot { padding-top: 12px; border-top: 1px solid var(--g-rule); }
+
+/* « Les autres chambres » : lignes du tableau, N° en accent. */
+[data-tpl="guide"] .s-room-list { gap: 0; border-top: 1px solid var(--g-bar); }
+[data-tpl="guide"] .s-room { padding: 14px 0; border-bottom: 1px solid var(--g-rule); border-radius: 0; background: none; box-shadow: none; transition: background-color 0.2s; }
+[data-tpl="guide"] .s-room:hover { background: var(--g-hover); transform: none; }
+[data-tpl="guide"] .s-room-num { font: 800 1.375rem / 1 var(--s-display); color: var(--g-accent); min-width: 2.2em; }
+[data-tpl="guide"] .s-room-name { font-weight: 600; font-size: 1.125rem; }
+
+[data-tpl="guide"] .s-room-facts { padding: 10px 0; border-block: 1px solid var(--g-bar); }
+[data-tpl="guide"] .s-room-detail-gallery .s-gallery-main { background: var(--g-hover); border-radius: 0; }
+[data-tpl="guide"] .s-thumb { border-width: 2px; }
+
+[data-tpl="guide"] :is(.s-room-detail-book, .s-summary, .s-group, .s-confirm-card) {
+  background: #fff; border: 0; border-top: 6px solid var(--g-bar); box-shadow: none;
+}
+[data-tpl="guide"] .s-room-detail-book { border-inline: 1px solid var(--g-rule); border-bottom: 1px solid var(--g-rule); }
+[data-tpl="guide"] .s-room-detail-book .s-room-price { font: 800 2.25rem / 1 var(--s-display); }
+[data-tpl="guide"] .s-room-detail-book .s-room-price small { font: 600 0.875rem var(--s-body); color: var(--g-label); }
+[data-tpl="guide"] .s-group legend { font-weight: 800; font-size: 1.625rem; letter-spacing: -0.02em; }
+[data-tpl="guide"] .s-field :is(input, select, textarea) { border: 1px solid var(--g-bar); font-family: var(--s-body); }
+[data-tpl="guide"] .s-field input:focus-visible,
+[data-tpl="guide"] .s-field select:focus-visible { box-shadow: none; outline: 3px solid var(--g-accent); outline-offset: 2px; }
+[data-tpl="guide"] .s-optional { text-transform: none; letter-spacing: 0; }
+[data-tpl="guide"] .s-summary-photo { margin: -24px -24px 8px; border-radius: 0; }
+[data-tpl="guide"] .s-summary-room { font-size: 1.5rem; }
+[data-tpl="guide"] .s-row { border-bottom: 1px solid var(--g-rule); }
+[data-tpl="guide"] .s-row dd { font-weight: 600; font-variant-numeric: tabular-nums; }
+[data-tpl="guide"] .s-total { border-top: 1px solid var(--g-bar); font-weight: 800; }
+[data-tpl="guide"] .s-total span:last-child { font-size: 2rem; color: var(--g-ink); }
+[data-tpl="guide"] .s-chip-btn { border-width: 1px; font-weight: 600; }
+[data-tpl="guide"] .s-ref strong { font-weight: 800; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
+[data-tpl="guide"] .s-book-bar { background: var(--g-bar); color: #fff; border-top: 6px solid var(--g-accent); box-shadow: none; }
+[data-tpl="guide"] .s-book-bar-total span { color: var(--g-on-bar); }
+[data-tpl="guide"] .s-book-bar-total strong { font-weight: 800; }
+[data-tpl="guide"] .s-book-bar .s-btn:hover { background: #fff; color: var(--g-bar); }
+[data-tpl="guide"] .s-book-bar :focus-visible { outline-color: var(--g-nav-accent); }
+
+/* ── Pied de page noir ──────────────────────────────── */
+[data-tpl="guide"] .s-footer { background: var(--g-bar); color: var(--g-on-bar); padding-top: 24px; font-size: 0.875rem; }
+[data-tpl="guide"]:not(:has(.g-home)) .s-footer { margin-top: var(--s-section-y); }
+[data-tpl="guide"] .s-footer-name { color: #fff; font-weight: 800; font-size: 1.25rem; }
+[data-tpl="guide"] .s-footer a { color: #fff; }
+[data-tpl="guide"] .s-footer :focus-visible { outline-color: var(--g-nav-accent); }
+[data-tpl="guide"] :is(.s-footer-legal, .s-credit) { color: var(--g-on-bar); }
+
+/* ── Mise en place : la bande se trace, puis la grille se pose ── */
+@media (prefers-reduced-motion: no-preference) {
+  [data-tpl="guide"] .g-band { transform-origin: left; animation: g-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  [data-tpl="guide"] .g-hero-main { animation: s-settle 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.12s both; }
+  [data-tpl="guide"] .g-plan { animation: s-settle 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.24s both; }
+  [data-tpl="guide"] .g-plan-room { animation: s-settle 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  [data-tpl="guide"] .g-plan-room:nth-child(2) { animation-delay: 0.34s; }
+  [data-tpl="guide"] .g-plan-room:nth-child(3) { animation-delay: 0.4s; }
+  [data-tpl="guide"] .g-plan-room:nth-child(4) { animation-delay: 0.46s; }
+  [data-tpl="guide"] .g-plan-room:nth-child(5) { animation-delay: 0.52s; }
+}
+@keyframes g-draw { from { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  [data-tpl="guide"] :is(.g-card, .g-plan-room, .s-room, .s-btn) { transition: none; }
+}
+
+/* « N°1 » sur une ligne dans la liste des chambres. */
+[data-tpl="guide"] .s-room-num { display: inline-flex; align-items: baseline; gap: 1px; }
+[data-tpl="guide"] .s-room-num small { font-size: 0.7em; font-weight: 800; }
+[data-tpl="guide"] .s-room-facts .s-fact { border-top: 0; padding: 0; }

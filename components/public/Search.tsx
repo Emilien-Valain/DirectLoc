@@ -64,7 +64,10 @@ function addDay(dateStr: string): string {
 }
 
 /** Recherche de dates de l'accueil : renvoie les chambres libres, avec lien direct vers la réservation. */
-export default function Search() {
+export default function Search({
+  title = "Vos dates",
+  submitLabel = "Voir les disponibilités",
+}: { title?: string; submitLabel?: string } = {}) {
   const today = parisToday();
   // Recherche pré-remplie par l'URL (Renvoi d'un Voisin) ; `via` suit jusqu'à la réservation, sans cookie.
   const sp = useSearchParams();
@@ -165,7 +168,7 @@ export default function Search() {
       >
         <div className="s-sign-face">
           <h2 className="s-search-title">
-            Vos dates
+            {title}
             <svg className="s-sign-arrow" viewBox="0 0 40 20" aria-hidden="true">
               <path d="M0 7h26V0l14 10-14 10v-7H0z" />
             </svg>
@@ -243,7 +246,7 @@ export default function Search() {
             >
               {status === "searching"
                 ? "Recherche…"
-                : "Voir les disponibilités"}
+                : submitLabel}
             </button>
           </div>
         </div>

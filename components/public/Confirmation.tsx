@@ -3,12 +3,21 @@ import type { TenantConfig } from "@/lib/tenant-context";
 import { formatEuros } from "@/lib/utils";
 import PendingRefresh from "@/components/public/PendingRefresh";
 
+/** « À samedi » si l'arrivée est dans la semaine, sinon « À samedi 12 décembre ». */
+function soonLabel(checkIn: Date) {
+  const days = (checkIn.getTime() - Date.now()) / 86_400_000;
+  const opts: Intl.DateTimeFormatOptions =
+    days >= 0 && days < 6 ? { weekday: "long", timeZone: "UTC" } : { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" };
+  return `À ${checkIn.toLocaleDateString("fr-FR", opts)}`;
+}
+
 const formatDate = (d: Date) =>
   d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 
 export default function Confirmation({
   isPaid,
   guestName,
+  guestFirstName,
   guestEmail,
   rooms,
   checkIn,
@@ -21,6 +30,8 @@ export default function Confirmation({
 }: {
   isPaid: boolean;
   guestName: string;
+  /** Prénom seul : titre personnel du Carnet (« À samedi, Claire. »). */
+  guestFirstName?: string;
   guestEmail: string;
   /** Chambres de la réservation (une seule : affichage historique, ligne « Chambre »). */
   rooms: { name: string | null; guests: number; total: string; extras: { label: string; total: number }[] }[];
@@ -71,7 +82,13 @@ export default function Confirmation({
         <p className={`s-status ${isPaid ? "is-good" : "is-warn"}`}>
           {isPaid ? "Réservation confirmée" : "Paiement en cours de vérification"}
         </p>
-        <h1 className="s-h1">{isPaid ? `Merci, ${guestName} !` : "Encore un instant"}</h1>
+        {isPaid && config.template === "carnet" ? (
+          <h1 className="s-h1 c-confirm-title">
+            {soonLabel(checkIn)}, <em>{guestFirstName?.trim() || guestName}.</em>
+          </h1>
+        ) : (
+          <h1 className="s-h1">{isPaid ? `Merci, ${guestName} !` : "Encore un instant"}</h1>
+        )}
         {isPaid ? (
           <p className="s-prose">
             {single ? "Votre séjour est réservé" : `Vos ${rooms.length} chambres sont réservées`}. La confirmation vient

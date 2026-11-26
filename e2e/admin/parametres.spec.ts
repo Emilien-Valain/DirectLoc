@@ -203,14 +203,14 @@ test.describe("Admin — Paramètres", () => {
     }
   });
 
-  test("modèle de site : 4 modèles proposés, le choix est enregistré et appliqué au site public", async ({ page }) => {
+  test("modèle de site : 8 modèles proposés, le choix est enregistré et appliqué au site public", async ({ page }) => {
     const { tenantId } = loadTestContext();
     const pool = new Pool({ connectionString: process.env.TEST_DATABASE_URL });
     const { rows } = await pool.query("SELECT config FROM tenants WHERE id = $1", [tenantId]);
     const before = rows[0].config;
     try {
       await page.goto("/admin/parametres?tab=theme");
-      for (const name of ["Plaque émaillée", "Linge de maison", "Affiche touristique", "Classique"]) {
+      for (const name of ["Plaque émaillée", "Linge de maison", "Affiche touristique", "Classique", "Le Carnet", "Le Guide du parc", "Le Défilant", "La Carte postale"]) {
         await expect(page.getByRole("button", { name: `Modèle ${name}` })).toBeVisible();
       }
       await page.getByRole("button", { name: "Modèle Affiche touristique" }).click();

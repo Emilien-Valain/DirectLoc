@@ -6,6 +6,10 @@ import { getMinPricePerNight } from "@/lib/pricing";
 import type { TenantConfig } from "@/lib/tenant-context";
 import { lodgingJsonLd, metaDescription, tenantBaseUrl, tenantMetadata } from "@/lib/seo";
 import JsonLd from "@/components/public/JsonLd";
+import { CarnetHome } from "@/components/public/templates/Carnet";
+import { GuideHome } from "@/components/public/templates/Guide";
+import { DefilantHome } from "@/components/public/templates/Defilant";
+import { PostaleHome } from "@/components/public/templates/Postale";
 
 export async function generateMetadata() {
   const tenant = await requireTenant();
@@ -33,16 +37,52 @@ export default async function HomePage() {
   return (
     <PublicLayout>
       <JsonLd data={lodgingJsonLd(tenant, await tenantBaseUrl(tenant))} />
-      <HomeHero
-        tenant={tenant}
-        config={config}
-        rooms={featuredRooms}
-        totalRooms={allRooms.length}
-      />
-      <HomeStory config={config} />
-      <HomeStats config={config} />
-      <HomeGallery config={config} />
-      {hasLocation(config) && <HomeLocation tenant={tenant} config={config} />}
+      {config.template === "carnet" ? (
+        <CarnetHome
+          tenant={tenant}
+          config={config}
+          rooms={featuredRooms}
+          totalRooms={allRooms.length}
+          showLocation={hasLocation(config)}
+        />
+      ) : config.template === "guide" ? (
+        <GuideHome
+          tenant={tenant}
+          config={config}
+          rooms={featuredRooms}
+          totalRooms={allRooms.length}
+          showLocation={hasLocation(config)}
+        />
+      ) : config.template === "defilant" ? (
+        <DefilantHome
+          tenant={tenant}
+          config={config}
+          rooms={featuredRooms}
+          totalRooms={allRooms.length}
+          showLocation={hasLocation(config)}
+        />
+      ) : config.template === "postale" ? (
+        <PostaleHome
+          tenant={tenant}
+          config={config}
+          rooms={featuredRooms}
+          totalRooms={allRooms.length}
+          showLocation={hasLocation(config)}
+        />
+      ) : (
+        <>
+          <HomeHero
+            tenant={tenant}
+            config={config}
+            rooms={featuredRooms}
+            totalRooms={allRooms.length}
+          />
+          <HomeStory config={config} />
+          <HomeStats config={config} />
+          <HomeGallery config={config} />
+          {hasLocation(config) && <HomeLocation tenant={tenant} config={config} />}
+        </>
+      )}
     </PublicLayout>
   );
 }

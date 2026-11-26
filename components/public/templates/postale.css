@@ -1,0 +1,374 @@
+/*
+ * Template « La Carte postale » (clé en base : postale).
+ * « Greetings from » : grandes lettres Anton rayées aux couleurs de l'hôte,
+ * contour et ombre dure à l'encre, cartes inclinées qui flottent, timbres
+ * dentelés, tampon rouge fixe pour l'action. Instrument Serif italique pour
+ * « l'écriture », Instrument Sans en capitales pour « l'imprimé ».
+ * Accueil et en-tête : Postale.tsx (classes p-*) ; pages intérieures :
+ * balisage commun, habillé ici.
+ */
+
+.site[data-tpl="postale"] {
+  --p-paper: #f6ecd9;
+  --p-card: #fffaf0;
+  --p-ink: #1d2a44;
+  /* Couleur de l'hôte bornée : blanc lisible dessus, lisible sur papier. */
+  --p-accent: oklch(from var(--color-primary) min(l, 0.47) min(c, 0.16) h);
+  --p-stripe-2: oklch(from var(--p-accent) calc(l + 0.1) c h);
+  --p-sun: #e2a13a;
+  --p-stamp: #c23b26;
+  --p-muted: #4a5570;
+  --p-hand: var(--font-instrument-serif), "Iowan Old Style", Georgia, serif;
+
+  --s-ground: var(--p-paper);
+  --s-ink: var(--p-ink);
+  --s-ink-soft: var(--p-muted);
+  --s-surface: var(--p-card);
+  --s-field: var(--p-card);
+  --s-line: var(--p-ink);
+  --s-field-line: var(--p-ink);
+  --s-accent: var(--p-stamp);
+  --s-on-accent: #fff;
+  --s-accent-ink: var(--p-accent);
+  --s-focus: var(--p-ink);
+  --s-good: #2a6338;
+  --s-bad: #a3261d;
+  --s-warn: #855506;
+  --s-display: var(--p-hand);
+  --s-body: var(--font-instrument-sans), system-ui, sans-serif;
+  --s-field-radius: 0;
+  --s-chip-radius: 0;
+  --s-max: 1184px;
+  --s-gutter: clamp(20px, 4vw, 48px);
+  --s-gap: 24px;
+  --s-section-y: clamp(48px, 6vw, 72px);
+  font-size: 1rem;
+}
+
+/* L'écriture : Instrument Serif italique, une seule graisse. */
+[data-tpl="postale"] :is(.s-h1, .s-h2, .s-h3, .s-title, .p-h2, .s-summary-room, .s-group legend, .s-footer-name, .s-search-title) {
+  font-family: var(--p-hand);
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+[data-tpl="postale"] .s-h1 { font-size: clamp(3rem, 7vw, 5.5rem); line-height: 0.95; }
+[data-tpl="postale"] :is(.s-h2, .p-h2) { font-size: clamp(2.5rem, 4.6vw, 3.5rem); line-height: 1; }
+[data-tpl="postale"] .s-h3 { font-size: 2rem; }
+/* L'imprimé : capitales espacées. */
+[data-tpl="postale"] :is(.p-label, .s-field label, .s-fact dt, .s-row dt, .s-room-meta, .s-crumbs, .s-stat-label) {
+  font: 700 0.75rem / 1.4 var(--s-body);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+[data-tpl="postale"] .p-label { margin: 0; color: var(--p-muted); }
+[data-tpl="postale"] a { text-decoration: none; }
+[data-tpl="postale"] :focus-visible { outline: 3px solid var(--p-ink); outline-offset: 3px; }
+
+/* ── En-tête à filet double ─────────────────────────── */
+[data-tpl="postale"] .p-header { max-width: none; padding: 18px var(--s-gutter); border-bottom: 3px double var(--p-ink); }
+[data-tpl="postale"] .p-brand { display: inline-flex; align-items: center; gap: 12px; min-height: 44px; font: italic 400 1.625rem / 1 var(--p-hand); overflow-wrap: anywhere; }
+[data-tpl="postale"] .p-brand-logo { height: 36px; width: auto; object-fit: contain; }
+[data-tpl="postale"] .p-nav { gap: 28px; }
+[data-tpl="postale"] :is(.p-nav, .s-menu-panel) .s-nav-link { font: 700 0.8125rem var(--s-body); letter-spacing: 0.12em; text-transform: uppercase; }
+[data-tpl="postale"] :is(.p-nav, .s-menu-panel) .s-nav-link:not(.s-nav-cta):hover { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 6px; }
+[data-tpl="postale"] :is(.p-nav, .s-menu-panel) .s-nav-cta,
+[data-tpl="postale"] .s-btn,
+[data-tpl="postale"] .p-bar-btn {
+  padding: 0 18px; background: var(--p-stamp); color: #fff; border-radius: 0;
+  font: 700 0.875rem var(--s-body); letter-spacing: 0.12em; text-transform: uppercase;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+[data-tpl="postale"] :is(.s-nav-cta, .s-btn, .p-bar-btn):hover { filter: none; transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--p-ink); }
+[data-tpl="postale"] .s-btn:active { transform: none; box-shadow: none; }
+[data-tpl="postale"] .s-menu-panel { background: var(--p-paper); border-bottom: 3px double var(--p-ink); }
+
+/* ── Hero : Bons baisers + grandes lettres rayées ───── */
+[data-tpl="postale"] .p-hero {
+  position: relative;
+  max-width: calc(var(--s-max) + 2 * var(--s-gutter)); margin: 0 auto; width: 100%;
+  padding: clamp(24px, 4vw, 40px) var(--s-gutter) 0;
+  display: flex; flex-direction: column; align-items: center;
+}
+[data-tpl="postale"] .p-title { margin: 0; display: flex; flex-direction: column; align-items: center; text-align: center; max-width: 100%; }
+[data-tpl="postale"] .p-greet {
+  align-self: flex-start; margin-left: clamp(0px, 9vw, 120px);
+  font: italic 400 clamp(2rem, 4.6vw, 3.75rem) / 1 var(--p-hand);
+  color: var(--p-stamp); transform: rotate(-4deg);
+}
+[data-tpl="postale"] .p-letters {
+  display: block; max-width: 100%;
+  padding: 0.04em 0.06em 0.1em;
+  font: 400 clamp(6rem, 23vw, 18.75rem) / 0.85 var(--font-anton), Impact, sans-serif;
+  text-transform: uppercase; letter-spacing: 0.01em;
+  overflow-wrap: anywhere; text-wrap: balance;
+  color: var(--p-accent);
+  -webkit-text-stroke: clamp(2px, 0.35vw, 4px) var(--p-ink);
+  filter: drop-shadow(clamp(5px, 0.8vw, 10px) clamp(5px, 0.8vw, 10px) 0 var(--p-ink));
+}
+[data-tpl="postale"] .p-letters[data-size="m"] { font-size: clamp(4.5rem, 14vw, 12rem); }
+[data-tpl="postale"] .p-letters[data-size="s"] { font-size: clamp(3.25rem, 9vw, 8rem); }
+@supports ((background-clip: text) or (-webkit-background-clip: text)) {
+  [data-tpl="postale"] .p-letters {
+    background: repeating-linear-gradient(115deg, var(--p-accent) 0 18px, var(--p-stripe-2) 18px 36px, var(--p-sun) 36px 54px, var(--p-accent) 54px 72px);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+  }
+}
+[data-tpl="postale"] .p-stamp {
+  position: absolute; right: clamp(8px, 5vw, 70px); top: clamp(8px, 3vw, 40px);
+  width: clamp(96px, 12vw, 150px); aspect-ratio: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 4px solid var(--p-stamp); border-radius: 50%; color: var(--p-stamp);
+  font: 800 clamp(0.625rem, 1vw, 0.9375rem) / 1.15 var(--s-body); letter-spacing: 0.12em; text-transform: uppercase; text-align: center;
+  padding: 10px; transform: rotate(-12deg); background: rgb(246 236 217 / 0.6);
+}
+[data-tpl="postale"] .p-stamp-num { font: 400 clamp(1.5rem, 2.8vw, 2.5rem) / 1 var(--font-anton), Impact, sans-serif; letter-spacing: 0.02em; }
+[data-tpl="postale"] .p-badge {
+  position: absolute; right: clamp(8px, 4.4vw, 56px); top: clamp(120px, 16vw, 210px);
+  width: 90px; height: 90px; display: none; align-items: center; justify-content: center;
+  border: 1.5px dashed var(--p-ink); border-radius: 50%;
+  font: 500 0.6875rem var(--font-mono), ui-monospace, monospace;
+}
+@media (min-width: 900px) { [data-tpl="postale"] .p-badge { display: flex; } }
+[data-tpl="postale"] .p-pitch {
+  margin: 20px auto 0; max-width: 720px; text-align: center;
+  font: 400 clamp(1.25rem, 2vw, 1.5rem) / 1.4 var(--p-hand); text-wrap: balance; overflow-wrap: anywhere;
+}
+
+/* Carte de recherche : un dos de carte (message | lignes d'adresse). */
+[data-tpl="postale"] .p-search { width: 100%; max-width: 880px; margin-top: 32px; }
+[data-tpl="postale"] .p-search .s-sign-face {
+  display: grid; gap: 20px 24px; padding: 24px;
+  background: var(--p-card); border: 2px solid var(--p-ink); box-shadow: 8px 8px 0 var(--p-ink);
+}
+@media (min-width: 700px) {
+  [data-tpl="postale"] .p-search .s-sign-face { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+  [data-tpl="postale"] .p-search .s-search-fields { padding-left: 24px; border-left: 2px solid var(--p-ink); }
+}
+[data-tpl="postale"] .p-search .s-search-title { font-size: clamp(1.75rem, 3vw, 2rem); line-height: 1.05; }
+[data-tpl="postale"] .p-search .s-sign-arrow { display: none; }
+[data-tpl="postale"] .p-search .s-search-fields,
+[data-tpl="postale"] .p-search .s-party { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+[data-tpl="postale"] .p-search .s-field { flex-direction: row; align-items: flex-end; justify-content: space-between; gap: 12px; border-bottom: 1.5px solid var(--p-ink); }
+[data-tpl="postale"] .p-search .s-field label { flex: none; padding-bottom: 10px; color: var(--p-ink); }
+[data-tpl="postale"] .p-search .s-field > :not(label) { flex: 0 1 12rem; min-width: 0; }
+[data-tpl="postale"] .p-search .s-field :is(input, select) {
+  min-height: 44px; padding-left: 0; border: 0; background-color: transparent;
+  text-align: right; text-align-last: right; font: italic 400 1.375rem var(--p-hand);
+}
+[data-tpl="postale"] .p-search .s-field .s-date input { padding-right: 44px; }
+[data-tpl="postale"] .p-search .s-btn { min-height: 48px; width: 100%; margin-top: 6px; }
+
+/* Champs « à la plume » partout : une ligne dessous, valeur manuscrite. */
+[data-tpl="postale"] .s-field :is(input, select, textarea) {
+  border: 0; border-bottom: 1.5px solid var(--p-ink); border-radius: 0; background-color: transparent;
+  font: italic 400 1.375rem var(--p-hand); padding-left: 2px;
+}
+[data-tpl="postale"] .s-field textarea {
+  background: repeating-linear-gradient(var(--p-card) 0 37px, #9aa3b8 37px 38px); line-height: 38px; border: 0;
+}
+[data-tpl="postale"] .s-field :is(input, select):focus-visible { box-shadow: none; outline: 3px solid var(--p-ink); outline-offset: 2px; }
+[data-tpl="postale"] .s-search-room { border-radius: 0; border: 2px solid var(--p-ink); background: var(--p-card); box-shadow: 4px 4px 0 var(--p-ink); }
+[data-tpl="postale"] button.s-search-room:hover,
+[data-tpl="postale"] a.s-search-room:hover { box-shadow: 6px 6px 0 var(--p-stamp); }
+[data-tpl="postale"] .s-full-slip { border-radius: 0; border: 2px solid var(--p-ink); background: var(--p-card); box-shadow: 6px 6px 0 var(--p-ink); }
+
+/* ── Sections ───────────────────────────────────────── */
+[data-tpl="postale"] .p-section {
+  max-width: calc(var(--s-max) + 2 * var(--s-gutter)); width: 100%; margin: 0 auto;
+  padding: var(--s-section-y) var(--s-gutter) 0;
+  display: flex; flex-direction: column; align-items: center; gap: 32px;
+}
+[data-tpl="postale"] .p-h2 { margin: 0; text-align: center; text-wrap: balance; }
+[data-tpl="postale"] .p-link { font: 700 0.8125rem var(--s-body); letter-spacing: 0.12em; text-transform: uppercase; text-decoration: underline; text-underline-offset: 6px; min-height: 44px; display: inline-flex; align-items: center; }
+
+/* Chambres : cartes qui flottent. */
+[data-tpl="postale"] .p-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 40px 36px; width: 100%; padding: 8px 0 16px; }
+[data-tpl="postale"] .p-card {
+  --r: 0deg;
+  width: min(340px, 100%);
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px 14px 18px;
+  background: var(--p-card); border: 2px solid var(--p-ink); box-shadow: 6px 6px 0 var(--p-ink);
+  transform: rotate(var(--r));
+  transition: box-shadow 0.2s;
+}
+[data-tpl="postale"] .p-card:is(:hover, :focus-visible) { box-shadow: 10px 10px 0 var(--p-stamp); }
+[data-tpl="postale"] :is(.p-card-photo, .p-card-flat) { position: relative; display: block; height: 200px; }
+[data-tpl="postale"] .p-card-photo { overflow: hidden; background: #e8dcc4; }
+[data-tpl="postale"] .p-card-photo img { object-fit: cover; }
+[data-tpl="postale"] .p-card-flat {
+  display: flex; align-items: center; justify-content: center;
+  background: var(--p-accent); color: var(--p-card);
+  font: 400 8rem / 1 var(--font-anton), Impact, sans-serif;
+  -webkit-text-stroke: 2px var(--p-ink);
+}
+[data-tpl="postale"] .p-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+[data-tpl="postale"] .p-card-name { font: italic 400 2.125rem / 1 var(--p-hand); overflow-wrap: anywhere; }
+[data-tpl="postale"] .p-card-num { flex: none; font: 700 0.75rem var(--s-body); letter-spacing: 0.1em; color: var(--p-stamp); }
+[data-tpl="postale"] .p-card-desc {
+  font-size: 0.9375rem; line-height: 1.45; color: var(--p-muted);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+[data-tpl="postale"] .p-card-foot {
+  display: flex; justify-content: space-between; gap: 12px; margin-top: auto;
+  padding-top: 10px; border-top: 1.5px dashed var(--p-ink); font-weight: 600; font-size: 0.9375rem;
+}
+[data-tpl="postale"] .s-room-price { font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+[data-tpl="postale"] .s-room-price small { font-size: 1em; font-weight: inherit; }
+
+/* En bref : timbres dentelés. */
+[data-tpl="postale"] .s-stats { padding-top: var(--s-section-y); align-items: center; gap: 32px; }
+[data-tpl="postale"] .s-stats .s-h2 { text-align: center; }
+[data-tpl="postale"] .s-stat-list { width: 100%; display: flex; flex-wrap: wrap; justify-content: center; gap: 28px; }
+[data-tpl="postale"] .s-stat {
+  flex: 0 1 200px; flex-direction: column; flex-wrap: nowrap; align-items: center; gap: 4px; text-align: center;
+  padding: 22px 18px; background: var(--p-card);
+  outline: 2px dashed var(--p-ink); outline-offset: -8px; box-shadow: 4px 4px 0 var(--p-ink);
+  transform: rotate(-3deg);
+}
+[data-tpl="postale"] .s-stat:nth-child(2) { transform: rotate(2deg); }
+[data-tpl="postale"] .s-stat:nth-child(3) { transform: rotate(-1.5deg); }
+[data-tpl="postale"] .s-stat:nth-child(4) { transform: rotate(3deg); }
+[data-tpl="postale"] .s-stat + .s-stat { box-shadow: 4px 4px 0 var(--p-ink); }
+[data-tpl="postale"] .s-stat-value { font: 400 clamp(2.5rem, 4.4vw, 3.5rem) / 1 var(--font-anton), Impact, sans-serif; color: var(--p-accent); text-transform: uppercase; overflow-wrap: anywhere; }
+[data-tpl="postale"] .s-stat-label { color: var(--p-ink); }
+[data-tpl="postale"] .s-stat-sub { font: italic 400 1.125rem / 1.25 var(--p-hand); color: var(--p-ink); }
+
+/* Quelques souvenirs : polaroïds qui se chevauchent. */
+[data-tpl="postale"] .p-polaroids { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px 0; width: 100%; }
+[data-tpl="postale"] .p-polaroid {
+  --r: 0deg;
+  width: min(280px, 82%); margin: 0 -10px;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px 12px 16px; background: #fff;
+  border: 2px solid var(--p-ink); box-shadow: 6px 6px 0 var(--p-ink);
+  transform: rotate(var(--r));
+}
+[data-tpl="postale"] .p-polaroid:nth-child(even) { margin-top: 30px; }
+[data-tpl="postale"] .p-polaroid-img { position: relative; display: block; aspect-ratio: 1 / 0.82; background: #e8dcc4; overflow: hidden; }
+[data-tpl="postale"] .p-polaroid-img img { object-fit: cover; }
+[data-tpl="postale"] .p-polaroid figcaption { font: italic 400 1.25rem / 1.2 var(--p-hand); text-align: center; overflow-wrap: anywhere; }
+
+/* Lettre des hôtes : dos de carte. */
+[data-tpl="postale"] .p-letter {
+  width: calc(100% - 2 * var(--s-gutter)); max-width: 1040px; margin: var(--s-section-y) auto 0;
+  display: grid; gap: 28px 32px; padding: clamp(20px, 3vw, 32px);
+  background: var(--p-card); border: 2px solid var(--p-ink); box-shadow: 8px 8px 0 var(--p-ink);
+}
+@media (min-width: 800px) {
+  [data-tpl="postale"] .p-letter.is-pair { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); }
+  [data-tpl="postale"] .p-letter.is-pair .p-letter-addr { padding-left: 32px; border-left: 2px solid var(--p-ink); }
+}
+[data-tpl="postale"] .p-letter-msg,
+[data-tpl="postale"] .p-letter-addr { display: flex; flex-direction: column; gap: 14px; min-width: 0; scroll-margin-top: 24px; }
+[data-tpl="postale"] .p-letter-title { margin: 0; font: italic 400 2rem / 1.1 var(--p-hand); overflow-wrap: anywhere; }
+[data-tpl="postale"] .p-letter-text { margin: 0; font: italic 400 clamp(1.375rem, 2.2vw, 1.75rem) / 1.4 var(--p-hand); white-space: pre-line; text-wrap: pretty; overflow-wrap: anywhere; }
+[data-tpl="postale"] .p-signature { margin: 0; font: italic 400 1.875rem var(--p-hand); color: var(--p-accent); }
+[data-tpl="postale"] .p-addr-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+[data-tpl="postale"] .p-addr-stamp {
+  flex: none; width: 86px; height: 100px; display: flex; align-items: center; justify-content: center;
+  border: 2px dashed var(--p-ink); background: var(--p-accent); color: var(--p-paper);
+  font: 400 1.875rem var(--font-anton), Impact, sans-serif;
+}
+[data-tpl="postale"] .p-lines { margin: 0; display: flex; flex-direction: column; font: italic 400 1.5rem / 1.2 var(--p-hand); }
+[data-tpl="postale"] .p-lines > * { padding: 6px 0; border-bottom: 1.5px solid var(--p-ink); overflow-wrap: anywhere; }
+[data-tpl="postale"] .p-lines a { min-height: 44px; display: flex; align-items: flex-end; }
+[data-tpl="postale"] .p-lines a:hover { color: var(--p-stamp); }
+[data-tpl="postale"] .p-hours { margin: 0; color: var(--p-muted); font-size: 0.9375rem; }
+
+/* Plan + accès en pointillés. */
+[data-tpl="postale"] .p-plan {
+  max-width: calc(var(--s-max) + 2 * var(--s-gutter)); width: 100%; margin: 0 auto;
+  padding: var(--s-section-y) var(--s-gutter) 0;
+  display: grid; gap: 32px 40px; align-items: center;
+}
+@media (min-width: 800px) { [data-tpl="postale"] .p-plan.is-pair { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); } }
+[data-tpl="postale"] .p-map { min-height: 280px; border: 2px solid var(--p-ink); box-shadow: 6px 6px 0 var(--p-ink); background: #e8dcc4; }
+[data-tpl="postale"] .p-map:not(:has(.s-map-canvas)) { min-height: 0; border: 0; box-shadow: none; background: none; }
+[data-tpl="postale"] .s-map-link { border-radius: 0; border: 2px solid var(--p-ink); background: var(--p-card); font: 700 0.8125rem var(--s-body); letter-spacing: 0.12em; text-transform: uppercase; }
+[data-tpl="postale"] .p-access { margin: 0; padding: 0; list-style: none; }
+[data-tpl="postale"] .p-access li { padding: 12px 0; border-bottom: 1.5px dashed var(--p-ink); font: italic 400 1.375rem / 1.25 var(--p-hand); overflow-wrap: anywhere; }
+[data-tpl="postale"] .p-access li:last-child { border-bottom: 0; }
+[data-tpl="postale"] .s-pin-label { background: var(--p-card); color: var(--p-ink); border: 2px solid var(--p-ink); border-radius: 0; font: italic 400 1rem var(--p-hand); }
+[data-tpl="postale"] .s-pin-dot { background: var(--p-stamp); box-shadow: 0 0 0 3px var(--p-card); }
+
+/* Barre fixe mobile de l'accueil. */
+[data-tpl="postale"] .p-bar {
+  position: sticky; bottom: 0; z-index: 10;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  margin-top: var(--s-section-y); padding: 10px var(--s-gutter);
+  background: var(--p-card); border-top: 3px double var(--p-ink);
+}
+[data-tpl="postale"] .p-bar-price { margin: 0; display: flex; flex-direction: column; line-height: 1.1; }
+[data-tpl="postale"] .p-bar-price span { font: italic 400 1rem var(--p-hand); color: var(--p-muted); }
+[data-tpl="postale"] .p-bar-price strong { font: 400 1.5rem var(--font-anton), Impact, sans-serif; font-variant-numeric: tabular-nums; }
+[data-tpl="postale"] .p-bar-btn { display: inline-flex; align-items: center; min-height: 48px; }
+@media (min-width: 900px) { [data-tpl="postale"] .p-bar { display: none; } }
+@media (min-width: 900px) { [data-tpl="postale"] .p-home { padding-bottom: var(--s-section-y); } }
+
+/* ── Pages intérieures ──────────────────────────────── */
+[data-tpl="postale"] .s-page { padding-top: 24px; }
+[data-tpl="postale"] .s-crumbs { color: var(--p-muted); }
+[data-tpl="postale"] .s-crumbs [aria-current] { color: var(--p-ink); }
+[data-tpl="postale"] .s-room-detail-text > .s-prose { font: italic 400 1.5rem / 1.4 var(--p-hand); color: var(--p-ink); }
+[data-tpl="postale"] .s-room-index { gap: 40px 32px; }
+[data-tpl="postale"] .s-room-card { padding: 14px; background: var(--p-card); border: 2px solid var(--p-ink); border-radius: 0; box-shadow: 6px 6px 0 var(--p-ink); }
+[data-tpl="postale"] .s-room-card:nth-child(odd) { transform: rotate(-1.2deg); }
+[data-tpl="postale"] .s-room-card:nth-child(even) { transform: rotate(1deg); }
+[data-tpl="postale"] .s-room-card-photo { border-radius: 0; background: #e8dcc4; }
+[data-tpl="postale"] .s-room-card .s-room-num { color: var(--p-stamp); font: 700 0.8125rem var(--s-body); letter-spacing: 0.1em; }
+[data-tpl="postale"] .s-room-meta { color: var(--p-muted); }
+[data-tpl="postale"] .s-room-list { gap: 0; border-top: 3px double var(--p-ink); }
+[data-tpl="postale"] .s-room { padding: 14px 4px; border: 0; border-bottom: 1.5px dashed var(--p-ink); border-radius: 0; background: none; box-shadow: none; }
+[data-tpl="postale"] .s-room:hover { background: var(--p-card); transform: none; }
+[data-tpl="postale"] .s-room-num { display: inline-flex; align-items: baseline; font: 700 0.875rem var(--s-body); letter-spacing: 0.1em; color: var(--p-stamp); min-width: 3ch; }
+[data-tpl="postale"] .s-room-name { font: italic 400 1.75rem / 1 var(--p-hand); }
+[data-tpl="postale"] .s-room-facts { padding: 10px 0; border-block: 1.5px dashed var(--p-ink); }
+[data-tpl="postale"] .s-room-detail-gallery .s-gallery-main { border: 2px solid var(--p-ink); box-shadow: 8px 8px 0 var(--p-ink); border-radius: 0; transform: rotate(-1deg); }
+[data-tpl="postale"] .s-thumb { border-radius: 0; }
+
+[data-tpl="postale"] :is(.s-room-detail-book, .s-summary, .s-group, .s-confirm-card) {
+  background: var(--p-card); border: 2px solid var(--p-ink); border-radius: 0; box-shadow: 8px 8px 0 var(--p-ink);
+}
+[data-tpl="postale"] .s-room-detail-book .s-room-price { font: 400 2.5rem / 1 var(--font-anton), Impact, sans-serif; }
+[data-tpl="postale"] .s-room-detail-book .s-room-price small { font: italic 400 1.125rem var(--p-hand); color: var(--p-muted); }
+[data-tpl="postale"] .s-group legend { font-size: 2.25rem; }
+[data-tpl="postale"] .s-optional { text-transform: none; letter-spacing: 0; }
+[data-tpl="postale"] .s-summary-photo { margin: -24px -24px 8px; border-radius: 0; border-bottom: 2px solid var(--p-ink); }
+[data-tpl="postale"] .s-summary-room { font-size: 2rem; }
+[data-tpl="postale"] .s-row { border-bottom: 1.5px dashed var(--p-ink); }
+[data-tpl="postale"] .s-row dd { font: italic 400 1.25rem var(--p-hand); font-variant-numeric: tabular-nums; }
+[data-tpl="postale"] .s-total { border-block: 3px double var(--p-ink); }
+[data-tpl="postale"] .s-total span:last-child { font: 400 2.25rem / 1 var(--font-anton), Impact, sans-serif; }
+[data-tpl="postale"] .s-chip-btn { border-width: 2px; font-weight: 700; }
+[data-tpl="postale"] .s-ref strong { font: 400 1.5rem var(--font-anton), Impact, sans-serif; letter-spacing: 0.04em; }
+[data-tpl="postale"] .s-book-bar { background: var(--p-card); border-top: 3px double var(--p-ink); box-shadow: none; }
+[data-tpl="postale"] .s-book-bar-total strong { font-family: var(--font-anton), Impact, sans-serif; font-weight: 400; }
+
+/* ── Pied à filet double ────────────────────────────── */
+[data-tpl="postale"] .s-footer { border-top: 3px double var(--p-ink); padding-top: 24px; font-size: 0.875rem; }
+[data-tpl="postale"]:not(:has(.p-home)) .s-footer { margin-top: var(--s-section-y); }
+[data-tpl="postale"] .s-footer-name { font-size: 1.75rem; }
+[data-tpl="postale"] :is(.s-footer-legal, .s-credit) { color: var(--p-muted); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.75rem; }
+
+/* ── Mouvement : rayures qui glissent, tampon qui tombe, cartes qui flottent ── */
+@media (prefers-reduced-motion: no-preference) {
+  [data-tpl="postale"] .p-letters { animation: p-drift 6s linear infinite; }
+  [data-tpl="postale"] .p-stamp { animation: p-stamp 0.7s cubic-bezier(0.3, 1.6, 0.5, 1) 0.6s both; }
+  [data-tpl="postale"] .p-badge { animation: p-spin 16s linear infinite; }
+  [data-tpl="postale"] .p-card { animation: p-bob 5s ease-in-out var(--delay, 0s) infinite; }
+  [data-tpl="postale"] .p-card:is(:hover, :focus-visible) { animation-play-state: paused; }
+}
+@keyframes p-drift { to { background-position: 200px 0; } }
+@keyframes p-stamp {
+  0% { opacity: 0; transform: scale(2.2) rotate(-24deg); }
+  60% { opacity: 1; transform: scale(0.92) rotate(-12deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-12deg); }
+}
+@keyframes p-bob { 0%, 100% { transform: translateY(0) rotate(var(--r)); } 50% { transform: translateY(-8px) rotate(var(--r)); } }
+@keyframes p-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  [data-tpl="postale"] :is(.p-card, .s-btn, .s-nav-cta, .p-bar-btn) { transition: none; }
+}
