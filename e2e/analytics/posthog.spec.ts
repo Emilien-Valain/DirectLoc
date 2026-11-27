@@ -3,6 +3,7 @@ import crypto from "crypto";
 import fs from "fs";
 import http from "http";
 import path from "path";
+import zlib from "zlib";
 import type { AddressInfo } from "net";
 import { eq } from "drizzle-orm";
 import { Pool } from "pg";
@@ -218,6 +219,98 @@ test.describe("Vitrine : partenaires et rappel", () => {
     await expect(page).toHaveURL(`${DEMO}/admin`);
     await expect.poll(() => sink.find("demo_opened").length).toBe(before + 1);
     expect(sink.find("demo_opened").at(-1)!.properties).toMatchObject({ partner_code: "gite-de-france" });
+  });
+});
+
+test.describe("Vitrine : clics sur les boutons (cta_clicked)", () => {
+  type PhEvent = { event: string; properties: Record<string, unknown> };
+
+  /** Enregistre les événements envoyés par le SDK navigateur (JSON, base64 ou gzip, fetch ou beacon). */
+  async function recordBrowserEvents(page: Page) {
+    const events: PhEvent[] = [];
+    // posthog-js écarte les robots : navigateur piloté (navigator.webdriver) et marque « HeadlessChrome ».
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+      Object.defineProperty(navigator, "userAgentData", { get: () => undefined });
+    });
+    await page.route(/posthog\.com/, async (route) => {
+      const req = route.request();
+      const raw = req.postDataBuffer();
+      if (raw?.length) {
+        try {
+          let text: string;
+          if (/compression=gzip/.test(req.url())) text = zlib.gunzipSync(raw).toString();
+          else {
+            text = raw.toString();
+            const data = new URLSearchParams(text).get("data");
+            if (data && !text.trimStart().startsWith("{") && !text.trimStart().startsWith("[")) {
+              text = Buffer.from(data, "base64").toString();
+            }
+          }
+          const parsed = JSON.parse(text);
+          const list = Array.isArray(parsed) ? parsed : (parsed.batch ?? [parsed]);
+          for (const e of list) if (e?.event) events.push(e);
+        } catch {
+          // requêtes sans événement (flags, config) : ignorées
+        }
+      }
+      await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
+    });
+    const clicks = (cta: string) => events.filter((e) => e.event === "cta_clicked" && e.properties.cta === cta);
+    return Object.assign(clicks, { pageviews: () => events.filter((e) => e.event === "$pageview") });
+  }
+
+  test("« Être rappelé » du menu après Refuser → cta_clicked rappel/menu (anonyme, sans cookie)", async ({ page, context }) => {
+    const clicks = await recordBrowserEvents(page);
+    await page.goto(`${VITRINE}/`);
+    await banner(page).getByRole("button", { name: "Refuser" }).click();
+    await page.locator("nav").getByRole("link", { name: "Être rappelé" }).click();
+    await expect.poll(() => clicks("rappel").length).toBe(1);
+    expect(clicks("rappel")[0].properties).toMatchObject({ placement: "menu", surface: "vitrine" });
+    expect(await phCookie(context)).toBeUndefined();
+  });
+
+  test("sans réponse au bandeau → page vue et clic comptés sans cookie, bandeau toujours là après rechargement", async ({ page, context }) => {
+    const clicks = await recordBrowserEvents(page);
+    await page.goto(`${VITRINE}/`);
+    await expect(banner(page)).toBeVisible();
+    await expect.poll(() => clicks.pageviews().length).toBeGreaterThan(0);
+    await page.locator("nav").getByRole("link", { name: "Être rappelé" }).click();
+    await expect.poll(() => clicks("rappel").length).toBe(1);
+    expect(clicks("rappel")[0].properties).toMatchObject({ placement: "menu", surface: "vitrine" });
+    expect(await phCookie(context)).toBeUndefined();
+    await page.reload();
+    await expect(banner(page)).toBeVisible(); // le refus posé d'office n'est pas un choix
+    expect(await phCookie(context)).toBeUndefined();
+  });
+
+  test("sans réponse puis Accepter → cookie posé, bandeau disparu même après rechargement", async ({ page, context }) => {
+    await recordBrowserEvents(page);
+    await page.goto(`${VITRINE}/`);
+    await banner(page).getByRole("button", { name: "Accepter" }).click();
+    await expect.poll(async () => (await phCookie(context)) !== undefined).toBe(true);
+    await page.reload();
+    await page.waitForTimeout(1000);
+    await expect(banner(page)).toHaveCount(0);
+  });
+
+  test("« Essayer l'admin » du haut → cta_clicked envoyé malgré le changement de page", async ({ page }) => {
+    const clicks = await recordBrowserEvents(page);
+    await page.goto(`${VITRINE}/`);
+    await banner(page).getByRole("button", { name: "Accepter" }).click();
+    await page.getByRole("link", { name: "Essayer l'admin avec un compte de démonstration" }).first().click();
+    await expect(page).toHaveURL(`${DEMO}/admin`);
+    await expect.poll(() => clicks("essayer").length).toBe(1);
+    expect(clicks("essayer")[0].properties).toMatchObject({ placement: "haut", surface: "vitrine" });
+  });
+
+  test("clic hors bouton marqué (lien d'ancre « Tarifs ») → aucun cta_clicked", async ({ page }) => {
+    const clicks = await recordBrowserEvents(page);
+    await page.goto(`${VITRINE}/`);
+    await banner(page).getByRole("button", { name: "Accepter" }).click();
+    await page.locator("nav").getByRole("link", { name: "Tarifs" }).click();
+    await page.waitForTimeout(1500);
+    expect([...clicks("rappel"), ...clicks("essayer"), ...clicks("site_demo")]).toHaveLength(0);
   });
 });
 

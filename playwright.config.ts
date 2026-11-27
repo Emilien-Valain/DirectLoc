@@ -78,6 +78,9 @@ export default defineConfig({
       MARKETING_HOST: "directloc.localhost",
       // Hôtel démo public : http://demo-tenant.localhost:3001 (seedé par global-setup)
       DEMO_TENANT_SLUG: "demo-tenant",
+      // Vide (et non absent) : next dev ne reprend pas la vraie clé de .env.local, sinon chaque
+      // run E2E envoie ses réservations de test dans le projet PostHog de prod.
+      POSTHOG_KEY: "",
       OPERATOR_EMAIL: "operateur@directloc.test",
       STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY ?? "sk_test_placeholder",
       STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET ?? "whsec_test_XXXX",

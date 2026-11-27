@@ -47,6 +47,14 @@ test.describe("SEO — métadonnées des pages publiques", () => {
     expect(body).toContain("Disallow: /api/");
   });
 
+  test("robots.txt interdit /essayer (chaque passage ouvre une session démo), vitrine comprise", async ({ request }) => {
+    for (const url of ["/robots.txt", "http://directloc.localhost:3001/robots.txt"]) {
+      const res = await request.get(url);
+      expect(res.status()).toBe(200);
+      expect(await res.text()).toContain("Disallow: /essayer");
+    }
+  });
+
   test("JSON-LD : LodgingBusiness sur l'accueil, HotelRoom rattachée sur la chambre", async ({ page }) => {
     await page.goto("/");
     const lodging = JSON.parse((await page.locator('script[type="application/ld+json"]').textContent())!);

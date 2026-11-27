@@ -116,7 +116,7 @@ export default function VitrinePage() {
             <li><a href="#travaux">Comment ça marche</a></li>
             <li><a href="#reseau">Le réseau</a></li>
             <li><a href="#tarifs">Tarifs</a></li>
-            <li><a className="alm-nav-cta" href="#rappel">Être rappelé</a></li>
+            <li><a className="alm-nav-cta" href="#rappel" data-cta="rappel" data-placement="menu">Être rappelé</a></li>
           </ul>
         </nav>
         <h1>Votre site à vous.<br /><span>Zéro commission</span><br />sur vos dates.</h1>
@@ -132,8 +132,8 @@ export default function VitrinePage() {
         <aside className="alm-side" id="rappel">
           <CallbackForm id="cb-top" title={<>On vous<br />rappelle</>} />
           {/* <a>, pas <Link> : un prefetch de /essayer ouvrirait une session démo à chaque affichage. */}
-          <a href="/site-demo" className="alm-try">Voir le site de réservation d&apos;un hôte de démonstration</a>
-          <a href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</a>
+          <a href="/site-demo" className="alm-try" data-cta="site_demo" data-placement="haut">Voir le site de réservation d&apos;un hôte de démonstration</a>
+          <a href="/essayer" className="alm-try" data-cta="essayer" data-placement="haut">Essayer l&apos;admin avec un compte de démonstration</a>
         </aside>
       </section>
 
@@ -174,8 +174,8 @@ export default function VitrinePage() {
           <li><b>Ensuite</b><span>Les réservations arrivent</span><p>Les voyageurs réservent et paient sur votre site. Vous recevez un e-mail et retrouvez tout dans votre tableau de bord.</p></li>
         </ol>
         <p className="alm-links">
-          <a href="/site-demo" className="alm-link">Voir le site de réservation d&apos;un hôte de démonstration</a>
-          <a href="/essayer" className="alm-link">Voir son tableau de bord</a>
+          <a href="/site-demo" className="alm-link" data-cta="site_demo" data-placement="milieu">Voir le site de réservation d&apos;un hôte de démonstration</a>
+          <a href="/essayer" className="alm-link" data-cta="essayer" data-placement="milieu">Voir son tableau de bord</a>
         </p>
       </section>
 
@@ -296,8 +296,8 @@ export default function VitrinePage() {
           <h2>Votre prochain été, en direct.</h2>
           <p>Laissez votre numéro : on vous rappelle, on vient vous montrer votre futur site, on installe tout avec vous.</p>
           <p className="alm-links">
-            <a href="/site-demo" className="alm-try">Voir le site de réservation de démonstration</a>
-            <a href="/essayer" className="alm-try">Essayer l&apos;admin avec un compte de démonstration</a>
+            <a href="/site-demo" className="alm-try" data-cta="site_demo" data-placement="bas">Voir le site de réservation de démonstration</a>
+            <a href="/essayer" className="alm-try" data-cta="essayer" data-placement="bas">Essayer l&apos;admin avec un compte de démonstration</a>
           </p>
         </div>
         <CallbackForm id="cb-end" title="Être rappelé" />
